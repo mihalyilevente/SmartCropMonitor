@@ -2,9 +2,11 @@
 # Imports
 # =========================
 import os
+import numpy as np
 import datetime
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy.orm import Session
@@ -77,6 +79,100 @@ async def analyze_test_file(filename: str = "AT_10039_S2_10m_256.nc"):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/v1/plot-data/{filename}")
+async def get_plot_data(
+    filename: str,
+    mode: str = "heatmap",   # heatmap | raw
+    filter: str = "none"     # none | ndvi | log
+):
+    file_path = os.path.join(STORAGE_PATH, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        with xr.open_dataset(file_path) as ds:
+
+            if len(ds.data_vars) == 0:
+                return {"ok": False, "error": "no_data_vars"}
+
+            var_name = list(ds.data_vars)[0]
+            da = ds[var_name]
+
+            if "band" in da.coords:
+                try:
+                    da = da.sel(band="red")
+                except Exception:
+                    da = da.isel(band=0)
+
+            data = np.asarray(da.values)
+
+            # -------------------------
+            # scalar protection
+            # -------------------------
+            if data.ndim == 0:
+                return {"ok": False, "error": "scalar_raster"}
+
+            # -------------------------
+            # normalize dimensions
+            # -------------------------
+            if data.ndim == 1:
+                data = data.reshape(1, -1)
+
+            elif data.ndim >= 3:
+                data = data[0]
+
+            if data.size == 0:
+                return {"ok": False, "error": "empty_raster"}
+
+            data = np.nan_to_num(data).astype(np.float32)
+
+            # =========================
+            # FILTERS
+            # =========================
+
+            if filter == "log":
+                data = np.log1p(np.maximum(data, 0))
+
+            elif filter == "ndvi":
+                # placeholder NDVI-like transform (safe fallback)
+                data = data / (np.max(data) + 1e-6)
+
+            # =========================
+            # RAW MODE
+            # =========================
+            if mode == "raw":
+                return {
+                    "ok": True,
+                    "mode": "raw",
+                    "z": data.tolist()
+                }
+
+            # =========================
+            # HEATMAP MODE
+            # =========================
+            dmin, dmax = float(np.min(data)), float(np.max(data))
+
+            if dmax > dmin:
+                data = (data - dmin) / (dmax - dmin)
+            else:
+                data = np.zeros_like(data)
+
+            return {
+                "ok": True,
+                "mode": "heatmap",
+                "filter": filter,
+                "z": data.tolist()
+            }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": "backend_exception",
+            "message": str(e)
+        }
+
+
 # =========================
 # Auth Endpoints
 # =========================
@@ -114,11 +210,7 @@ def download_sentinel_data(db: Session):
 
     end_date = datetime.datetime.now()
     start_date = end_date - datetime.timedelta(days=30)
-
-    date_range = (
-        f"{start_date.strftime('%Y-%m-%dT%H:%M:%SZ')}/"
-        f"{end_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"
-    )
+    date_range = f"{start_date.strftime('%Y-%m-%dT%H:%M:%SZ')}/{end_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"
 
     for loc in locations:
         try:
@@ -134,11 +226,10 @@ def download_sentinel_data(db: Session):
 
             items = list(search.items())
             if not items:
-                print(f"[DEBUG] No items found for location_id={loc.id}")
+                print(f"[DEBUG] No items found for loc={loc.id}")
                 continue
 
             latest = items[0]
-
             dt_str = latest.properties["datetime"].replace("Z", "+00:00")
             timestamp = datetime.datetime.fromisoformat(dt_str)
 
@@ -146,55 +237,59 @@ def download_sentinel_data(db: Session):
             file_path = os.path.join(STORAGE_PATH, file_name)
 
             if os.path.exists(file_path):
-                print(f"[DEBUG] File already exists: {file_name}")
+                print(f"[DEBUG] Skipping: {file_name} already exists.")
                 continue
 
             datasets = []
 
             for band_name in REQUIRED_BANDS:
                 asset = latest.assets.get(band_name)
-                if not asset:
-                    print(f"[DEBUG] Missing band: {band_name}")
-                    continue
+                if not asset: continue
 
                 da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                 try:
+
                     clipped = da.rio.clip_box(
-                        minx=loc.lon - 0.01,
-                        miny=loc.lat - 0.01,
-                        maxx=loc.lon + 0.01,
-                        maxy=loc.lat + 0.01,
+                        minx=loc.lon - 0.02,
+                        miny=loc.lat - 0.02,
+                        maxx=loc.lon + 0.02,
+                        maxy=loc.lat + 0.02,
                         crs="EPSG:4326"
                     )
 
-                    datasets.append(clipped.squeeze().drop_vars("band"))
+                    processed_band = clipped.rio.reproject(
+                        clipped.rio.crs,
+                        shape=(256, 256),
+                        resampling=0
+                    )
+
+                    final_da = processed_band.squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
+                    datasets.append(final_da)
 
                 except Exception as e:
-                    print(f"[ERROR] Clip failed for band={band_name}: {e}")
+                    print(f"[ERROR] Band {band_name} failed: {e}")
                     continue
 
-            if len(datasets) != len(REQUIRED_BANDS):
-                print(f"[DEBUG] Incomplete band set for location_id={loc.id}")
-                continue
+            if len(datasets) == len(REQUIRED_BANDS):
+                ds = xr.concat(datasets, dim="band")
+                ds = ds.assign_coords(band=REQUIRED_BANDS)
 
-            ds = xr.concat(datasets, dim="band")
-            ds = ds.assign_coords(band=REQUIRED_BANDS)
-            ds.to_netcdf(file_path)
+                ds.to_netcdf(file_path)
 
-            new_entry = FieldAnalysis(
-                location_id=loc.id,
-                nc_filename=file_name,
-                analysis_date=timestamp
-            )
-
-            db.add(new_entry)
-            db.commit()
-
-            print(f"[INFO] Saved file: {file_name}")
+                new_entry = FieldAnalysis(
+                    location_id=loc.id,
+                    nc_filename=file_name,
+                    analysis_date=timestamp
+                )
+                db.add(new_entry)
+                db.commit()
+                print(f"[INFO] Successfully saved NC: {file_name}")
+            else:
+                print(f"[DEBUG] Incomplete bands for loc={loc.id}. Found {len(datasets)}/{len(REQUIRED_BANDS)}")
 
         except Exception as e:
-            print(f"[CRITICAL] Location failed id={loc.id}: {e}")
+            print(f"[CRITICAL] Failed loc {loc.id}: {e}")
             db.rollback()
 
 # =========================

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const Auth = () => {
+const Auth = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -17,28 +17,25 @@ const Auth = () => {
     try {
       const response = await axios.post(url, { username, password });
       setIsError(false);
-      setMessage(`Success: ${response.data.status || 'Logged in successfully'}`);
 
       if (isLogin) {
-        console.log('User ID:', response.data.user_id);
+        if (response.data.user_id) {
+          onLogin(response.data.user_id);
+        }
+      } else {
+        setMessage('Account created! Now you can sign in.');
+        setIsLogin(true);
       }
     } catch (error) {
       setIsError(true);
-      setMessage(
-        `Error: ${
-          error.response?.data?.detail || 'Server unavailable'
-        }`
-      );
+      setMessage(error.response?.data?.detail || 'Server error');
     }
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h2 style={styles.title}>
-          {isLogin ? 'Sign In' : 'Create Account'}
-        </h2>
-
+        <h2 style={styles.title}>{isLogin ? 'Sign In' : 'Create Account'}</h2>
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
             type="text"
@@ -47,7 +44,6 @@ const Auth = () => {
             onChange={(e) => setUsername(e.target.value)}
             style={styles.input}
           />
-
           <input
             type="password"
             placeholder="Password"
@@ -55,35 +51,15 @@ const Auth = () => {
             onChange={(e) => setPassword(e.target.value)}
             style={styles.input}
           />
-
-          <button
-            type="submit"
-            style={styles.button}
-            disabled={!username || !password}
-          >
+          <button type="submit" style={styles.button} disabled={!username || !password}>
             {isLogin ? 'Login' : 'Register'}
           </button>
         </form>
-
-        <p
-          style={styles.switch}
-          onClick={() => {
-            setIsLogin(!isLogin);
-            setMessage('');
-          }}
-        >
-          {isLogin
-            ? "Don't have an account? Register"
-            : 'Already have an account? Login'}
+        <p style={styles.switch} onClick={() => { setIsLogin(!isLogin); setMessage(''); }}>
+          {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
         </p>
-
         {message && (
-          <p
-            style={{
-              ...styles.message,
-              color: isError ? '#e74c3c' : '#2ecc71',
-            }}
-          >
+          <p style={{ ...styles.message, color: isError ? '#e74c3c' : '#2ecc71' }}>
             {message}
           </p>
         )}
@@ -99,32 +75,37 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     background: 'linear-gradient(135deg, #e8f5e9, #c8e6c9)',
-    fontFamily: 'Arial, sans-serif',
+    color: '#222'
   },
+
   card: {
-    background: '#ffffff',
+    background: '#fff',
     padding: '30px',
     borderRadius: '12px',
     boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
     width: '320px',
     textAlign: 'center',
+    color: '#222'
   },
+
   title: {
     marginBottom: '20px',
-    color: '#2e7d32',
+    color: '#2e7d32'
   },
+
   form: {
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column'
   },
+
   input: {
     padding: '10px',
     marginBottom: '12px',
     borderRadius: '6px',
     border: '1px solid #ccc',
-    outline: 'none',
-    transition: 'border 0.2s',
+    color: '#222'
   },
+
   button: {
     padding: '12px',
     background: '#43a047',
@@ -132,19 +113,20 @@ const styles = {
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
-    fontWeight: 'bold',
-    transition: 'background 0.2s',
+    fontWeight: 'bold'
   },
+
   switch: {
     marginTop: '15px',
     color: '#388e3c',
     cursor: 'pointer',
-    fontSize: '14px',
+    fontSize: '14px'
   },
+
   message: {
     marginTop: '15px',
-    fontSize: '14px',
-  },
+    fontSize: '14px'
+  }
 };
 
 export default Auth;
