@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import xarray as xr
 from scipy.ndimage import label
+import requests
 from app.models.unet import UNet
 
 
@@ -22,10 +23,29 @@ class FieldAnalyzer:
     def _normalize(self, img):
         p2 = np.nanpercentile(img, 2, axis=(1, 2), keepdims=True)
         p98 = np.nanpercentile(img, 98, axis=(1, 2), keepdims=True)
-        denominator = p98 - p2 + 1e-6
-        img = (img - p2) / denominator
+        diff = p98 - p2
+        diff[diff == 0] = 1e-6
+        img = (img - p2) / diff
         img = np.nan_to_num(img, nan=0.0)
         return np.clip(img, 0, 1)
+
+    def _call_haskell(self, payload: dict):
+        try:
+            r = requests.post(
+                "http://localhost:8081/field-stats",
+                json=payload,
+                timeout=30
+            )
+
+            print("HASKELL STATUS:", r.status_code)
+            print("HASKELL RESPONSE:", r.text)
+
+            r.raise_for_status()
+            return r.json()
+
+        except Exception as e:
+            print("HASKELL ERROR:", str(e))
+            raise
 
     def run_analysis(self, nc_path: str, month_idx: int = 4):
         if not os.path.exists(nc_path):
@@ -40,7 +60,7 @@ class FieldAnalyzer:
             image = np.stack(channels, axis=0)
             ndvi_full = ds["NDVI"].isel(time=month_idx).values
 
-        image = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0)
+        image = np.nan_to_num(image, nan=0.0)
         input_tensor = self._normalize(image)
         input_tensor = torch.from_numpy(input_tensor).float().unsqueeze(0).to(self.device)
 
@@ -51,19 +71,10 @@ class FieldAnalyzer:
         binary_mask = (mask > 0.5).astype(np.uint8)
         labeled_mask, num_features = label(binary_mask)
 
-        results = []
-        for i in range(1, num_features + 1):
-            field_coords = (labeled_mask == i)
-            field_ndvi_values = ndvi_full[field_coords]
+        payload = {
+            "labels": labeled_mask.tolist(),
+            "ndvi": ndvi_full.tolist(),
+            "num_features": int(num_features)
+        }
 
-            field_ndvi_values = field_ndvi_values[~np.isnan(field_ndvi_values)]
-
-            if len(field_ndvi_values) > 0:
-                results.append({
-                    "field_id": int(i),
-                    "area_px": int(np.sum(field_coords)),
-                    "mean_ndvi": float(np.mean(field_ndvi_values)),
-                    "std_ndvi": float(np.std(field_ndvi_values))
-                })
-
-        return results
+        return self._call_haskell(payload)

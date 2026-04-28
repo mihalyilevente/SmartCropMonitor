@@ -66,16 +66,19 @@ async def health_check():
 
 
 @app.get("/analyze-test", tags=["Debug"])
-async def analyze_test_file(filename: str = "AT_10039_S2_10m_256.nc"):
+async def analyze_test_file(filename: str = "AT_10186_S2_10m_256.nc"):
     file_path = f"./data/storage/{filename}"
 
     try:
         data = analyzer.run_analysis(file_path)
+
         return {
             "file": filename,
             "fields_found": len(data),
-            "analysis": data
+            "analysis": data,
+            "backend": "python + haskell"
         }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

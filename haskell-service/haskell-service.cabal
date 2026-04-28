@@ -1,0 +1,39 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           haskell-service
+version:        0.1.0.0
+build-type:     Simple
+
+library
+  exposed-modules:
+      Stats
+  other-modules:
+      Main
+      Paths_haskell_service
+  hs-source-dirs:
+      src
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , scotty
+    , wai-extra
+  default-language: Haskell2010
+
+executable haskell-service-exe
+  main-is: Main.hs
+  other-modules:
+      Stats
+      Paths_haskell_service
+  hs-source-dirs:
+      src
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , haskell-service
+    , scotty
+    , wai-extra
+  default-language: Haskell2010

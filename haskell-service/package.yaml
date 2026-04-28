@@ -1,0 +1,20 @@
+name:                haskell-service
+version:             0.1.0.0
+
+dependencies:
+  - base >= 4.7 && < 5
+  - scotty
+  - aeson
+  - wai-extra
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Stats
+
+executables:
+  haskell-service-exe:
+    main:                Main.hs
+    source-dirs:         src
+    dependencies:
+      - haskell-service
