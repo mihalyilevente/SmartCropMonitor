@@ -13,12 +13,14 @@ library
       Stats
   other-modules:
       Main
+      Validation
       Paths_haskell_service
   hs-source-dirs:
       src
   build-depends:
       aeson
     , base >=4.7 && <5
+    , http-types
     , scotty
     , wai-extra
   default-language: Haskell2010
@@ -27,6 +29,7 @@ executable haskell-service-exe
   main-is: Main.hs
   other-modules:
       Stats
+      Validation
       Paths_haskell_service
   hs-source-dirs:
       src
@@ -34,6 +37,7 @@ executable haskell-service-exe
       aeson
     , base >=4.7 && <5
     , haskell-service
+    , http-types
     , scotty
     , wai-extra
   default-language: Haskell2010

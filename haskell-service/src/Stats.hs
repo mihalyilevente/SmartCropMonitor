@@ -15,21 +15,17 @@ data FieldStats = FieldStats
 
 instance ToJSON FieldStats
 
--- mean
 mean :: [Double] -> Double
 mean xs = sum xs / fromIntegral (length xs)
 
--- std
 stddev :: [Double] -> Double
 stddev xs =
   let m = mean xs
   in sqrt (mean (map (\x -> (x - m) ^ 2) xs))
 
--- extract mask for cluster i
 extractMask :: Int -> [[Int]] -> [[Bool]]
 extractMask i = map (map (== i))
 
--- flatten masked values
 applyMask :: [[Double]] -> [[Bool]] -> [Double]
 applyMask ndvi mask =
   [ v | (ndviRow, maskRow) <- zip ndvi mask

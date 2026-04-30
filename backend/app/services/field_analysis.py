@@ -5,7 +5,17 @@ import xarray as xr
 from scipy.ndimage import label
 import requests
 from app.models.unet import UNet
+from sqlalchemy.orm import Session
+from app.core.database import (
+    UserDB, UserCreate, UserLocation, FieldAnalysis,
+    get_db, SessionLocal, Base, engine
+)
+HASKELL_SERVICE_URL = "http://localhost:8081/field-stats"
 
+STORAGE_PATH = os.path.join("data", "storage")
+
+DATA_DIR = os.path.join(STORAGE_PATH, "data")
+MASK_DIR = os.path.join(STORAGE_PATH, "masks")
 
 class FieldAnalyzer:
     def __init__(self, model_path: str = None, device: str = None):
@@ -32,7 +42,7 @@ class FieldAnalyzer:
     def _call_haskell(self, payload: dict):
         try:
             r = requests.post(
-                "http://localhost:8081/field-stats",
+                HASKELL_SERVICE_URL,
                 json=payload,
                 timeout=30
             )
@@ -80,5 +90,60 @@ class FieldAnalyzer:
         return self._call_haskell(payload)
 
 
-def validate_pending_analyses (x):
-    pass
+def perform_haskell_validation(mask_path, threshold=0.3):
+    try:
+        with xr.open_dataset(mask_path) as mds:
+            scl_values = mds.to_array().values.flatten().astype(int).tolist()
+
+        payload = {
+            "scl_values": scl_values,
+            "threshold": threshold
+        }
+
+        response = requests.post(
+            HASKELL_SERVICE_URL,
+            json=payload,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"[ERROR] Haskell service returned status {response.status_code}")
+            return None
+
+    except Exception as e:
+        print(f"[ERROR] Failed to communicate with Haskell service: {e}")
+        return None
+
+
+def validate_pending_analyses(db: Session):
+    pending_list = db.query(FieldAnalysis).filter(FieldAnalysis.is_valid == None).all()
+
+    if not pending_list:
+        print("[INFO] No pending analyses to validate.")
+        return
+
+    print(f"[INFO] Found {len(pending_list)} records for validation.")
+
+    for analysis in pending_list:
+        mask_path = os.path.join(MASK_DIR, analysis.mask_filename) if analysis.mask_filename else None
+
+        if not mask_path or not os.path.exists(mask_path):
+            print(f"[WARN] Mask file missing for analysis_id={analysis.id}. Skipping.")
+            continue
+
+        result = perform_haskell_validation(mask_path, threshold=0.3)
+
+        if result:
+            analysis.is_valid = result.get('is_valid')
+            analysis.quality_report = result.get('quality_report')
+
+            if analysis.results_json is None:
+                analysis.results_json = {}
+            analysis.results_json['cloud_ratio'] = result.get('cloud_ratio')
+
+            db.commit()
+            print(f"[INFO] Analysis {analysis.id} validated. Result: {analysis.is_valid}")
+        else:
+            print(f"[ERROR] Haskell service failed for analysis_id={analysis.id}")
