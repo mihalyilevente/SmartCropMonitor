@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis, get_db
+from app.services.segmentation import perform_segmentation_and_save
 
 # =========================
 # Config
@@ -82,6 +83,15 @@ async def add_location(
         "status": "location added",
         "id": new_loc.id
     }
+
+
+@router.post("/segment-fields/{analysis_id}", tags=["Segmentation"])
+async def segment_fields(analysis_id: int, db: Session = Depends(get_db)):
+    try:
+        perform_segmentation_and_save(analysis_id, db, analyzer)
+        return {"status": "success", "message": f"Segmentation completed for analysis {analysis_id}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Segmentation error: {str(e)}")
 
 # =========================
 # History Endpoint

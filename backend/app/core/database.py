@@ -62,6 +62,8 @@ class UserLocation(Base):
 
     last_image_date = Column(DateTime, nullable=True)
     last_image_url = Column(String, nullable=True)
+    segmentation_status = Column(Boolean, default=None, nullable=True)
+    last_segm_mask_url = Column(String, nullable=True)
 
     # relationship to user
     owner = relationship("UserDB", back_populates="locations")
@@ -85,6 +87,26 @@ class FieldAnalysis(Base):
 
     # relationship to location
     location = relationship("UserLocation")
+
+
+class FieldUnit(Base):
+    __tablename__ = "field_units"
+
+    id = Column(Integer, primary_key=True, index=True)
+    location_id = Column(Integer, ForeignKey("user_locations.id"))
+
+    field_index = Column(Integer)
+
+    area_ha = Column(Float, nullable=True)
+
+    is_active = Column(Boolean, default=True)
+    crop_type = Column(String, nullable=True)
+    extra_data = Column(JSON, nullable=True)
+
+    location = relationship("UserLocation", back_populates="fields")
+
+
+UserLocation.fields = relationship("FieldUnit", back_populates="location")
 
 # =========================
 # Schemas
