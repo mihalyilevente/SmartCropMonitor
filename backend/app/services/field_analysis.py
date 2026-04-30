@@ -78,3 +78,7 @@ class FieldAnalyzer:
         }
 
         return self._call_haskell(payload)
+
+
+def validate_pending_analyses (x):
+    pass

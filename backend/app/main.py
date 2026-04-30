@@ -17,7 +17,7 @@ from pystac_client import Client
 import xarray as xr
 import rioxarray
 
-from app.api.endpoints import router as field_router, analyzer
+from app.api.endpoints import router as field_router, analyzer, validate_pending_analyses
 from app.core.database import (
     UserDB, UserCreate, UserLocation, FieldAnalysis,
     get_db, SessionLocal, Base, engine
@@ -30,6 +30,11 @@ Base.metadata.create_all(bind=engine)
 
 REQUIRED_BANDS = ["blue", "green", "red", "nir", "swir16"]
 STORAGE_PATH = os.path.join("data", "storage")
+
+DATA_DIR = os.path.join(STORAGE_PATH, "data")
+MASK_DIR = os.path.join(STORAGE_PATH, "masks")
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(MASK_DIR, exist_ok=True)
 
 # =========================
 # App Initialization
@@ -236,12 +241,31 @@ def download_sentinel_data(db: Session):
             dt_str = latest.properties["datetime"].replace("Z", "+00:00")
             timestamp = datetime.datetime.fromisoformat(dt_str)
 
-            file_name = f"user_{loc.user_id}_loc_{loc.id}_{timestamp.strftime('%Y%m%d')}.nc"
-            file_path = os.path.join(STORAGE_PATH, file_name)
+            base_name = f"user_{loc.user_id}_loc_{loc.id}_{timestamp.strftime('%Y%m%d')}"
+            nc_filename = f"{base_name}.nc"
+            mask_filename = f"mask_{base_name}.nc"
+
+            file_path = os.path.join(DATA_DIR, nc_filename)
+            mask_path = os.path.join(MASK_DIR, mask_filename)
 
             if os.path.exists(file_path):
-                print(f"[DEBUG] Skipping: {file_name} already exists.")
+                print(f"[DEBUG] Skipping: {nc_filename} already exists.")
                 continue
+
+            scl_final = None
+            asset_scl = latest.assets.get("scl")
+            if asset_scl:
+                try:
+                    scl_da = rioxarray.open_rasterio(asset_scl.href, chunks=True)
+                    scl_clipped = scl_da.rio.clip_box(
+                        minx=loc.lon - 0.02, miny=loc.lat - 0.02,
+                        maxx=loc.lon + 0.02, maxy=loc.lat + 0.02, crs="EPSG:4326"
+                    )
+                    scl_final = scl_clipped.rio.reproject(
+                        scl_clipped.rio.crs, shape=(256, 256), resampling=0
+                    ).squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
+                except Exception as e:
+                    print(f"[ERROR] SCL processing failed: {e}")
 
             datasets = []
 
@@ -280,14 +304,20 @@ def download_sentinel_data(db: Session):
 
                 ds.to_netcdf(file_path)
 
+                if scl_final is not None:
+                    scl_final.to_netcdf(mask_path)
+
                 new_entry = FieldAnalysis(
                     location_id=loc.id,
-                    nc_filename=file_name,
-                    analysis_date=timestamp
+                    nc_filename=nc_filename,
+                    mask_filename=mask_filename if scl_final is not None else None,
+                    last_data_request_date=timestamp
                 )
                 db.add(new_entry)
                 db.commit()
-                print(f"[INFO] Successfully saved NC: {file_name}")
+                print(f"[INFO] Successfully saved NC: {nc_filename}")
+                print("[INFO] Starting post-download validation...")
+                # validate_pending_analyses(db)
             else:
                 print(f"[DEBUG] Incomplete bands for loc={loc.id}. Found {len(datasets)}/{len(REQUIRED_BANDS)}")
 
@@ -312,7 +342,7 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
             "id": h.id,
             "location": h.location.label,
             "filename": h.nc_filename,
-            "date": h.analysis_date
+            "date": h.last_data_request_date
         }
         for h in history
     ]

@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.services.field_analysis import FieldAnalyzer
+from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis, get_db
 
 # =========================
