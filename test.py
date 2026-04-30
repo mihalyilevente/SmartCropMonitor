@@ -1,10 +1,11 @@
+import os
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 
 DATA_PATH = r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\data\user_1_loc_1_20260428.nc"
 MASK_PATH = r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\masks\mask_user_1_loc_1_20260428.nc"
-
+SEGM_PATH = r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\segmentation\segm_user_1_loc_1_20260428.nc"
 
 # =========================
 # SAFE LOADING
@@ -97,11 +98,7 @@ def plot_hist(unique, counts):
     plt.ylabel("Pixels")
     plt.show()
 
-
-# =========================
-# MAIN
-# =========================
-def main():
+def test_nc():
     print("\n================ DATA =================")
     data_scl = load_raster(DATA_PATH)
 
@@ -122,5 +119,91 @@ def main():
     is_valid_scl(mask_scl)
 
 
+def visualize_comparison(data_arr, segm_arr):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    if data_arr is not None:
+        img_to_show = data_arr[3] if data_arr.ndim == 3 else data_arr
+
+        vmin, vmax = np.nanpercentile(img_to_show, [2, 98])
+
+        im1 = axes[0].imshow(img_to_show, cmap='gray', vmin=vmin, vmax=vmax)
+        axes[0].set_title("Original Data (Auto-Scaled)")
+        fig.colorbar(im1, ax=axes[0])
+
+    if segm_arr is not None:
+        im2 = axes[1].imshow(segm_arr, cmap='tab20', vmin=0, vmax=1)
+        axes[1].set_title("Segmentation Mask")
+        fig.colorbar(im2, ax=axes[1])
+
+    plt.show()
+
+
+# =========================
+# ANALYSIS (Distribution)
+# =========================
+def analyze_mask(mask_arr):
+    if mask_arr is None: return
+    flat = mask_arr.flatten()
+    unique, counts = np.unique(flat, return_counts=True)
+    print("\n[MASK DISTRIBUTION]")
+    for val, count in zip(unique, counts):
+        print(f"Value {val}: {count} pixels")
+
+def plot_original_with_contrast(path):
+    with xr.open_dataset(path) as ds:
+        var_name = list(ds.data_vars)[0]
+        data = ds[var_name]
+
+        if 'band' in data.dims:
+            img = data.isel(band=3).values
+        else:
+            img = data.values
+
+        img = np.nan_to_num(img, nan=np.nanmin(img))
+
+        vmin, vmax = np.nanpercentile(img, [2, 98])
+
+        plt.figure(figsize=(8, 8))
+        im = plt.imshow(img, cmap='gray', vmin=vmin, vmax=vmax)
+        plt.colorbar(im, label='Signal Intensity')
+        plt.title(f"Original Data: {var_name}\nRange: {img.min():.1f} - {img.max():.1f}")
+        plt.axis('off')
+        plt.show()
+
+
+def plot_rgb_color(path):
+    with xr.open_dataset(path) as ds:
+        data_var = ds[list(ds.data_vars)[0]]
+
+        try:
+            r = data_var.sel(band="red").values
+            g = data_var.sel(band="green").values
+            b = data_var.sel(band="blue").values
+
+            rgb = np.stack([r, g, b], axis=-1)
+
+            rgb = np.nan_to_num(rgb, nan=np.nanmin(rgb))
+
+            p2, p98 = np.nanpercentile(rgb, (2, 98))
+            rgb_norm = np.clip((rgb - p2) / (p98 - p2 + 1e-6), 0, 1)
+
+            plt.figure(figsize=(10, 10))
+            plt.imshow(rgb_norm)
+            plt.title("True Color (RGB)")
+            plt.axis('off')
+            plt.show()
+
+        except KeyError as e:
+            print(f"[ERROR] Channel not found: {e}. Avalible: {data_var.band.values}")
+# =========================
+# MAIN
+# =========================
+def main():
+    data = load_raster(DATA_PATH)
+    segm = load_raster(SEGM_PATH)
+    visualize_comparison(data,segm)
+    plot_original_with_contrast(DATA_PATH)
+    plot_rgb_color(DATA_PATH)
 if __name__ == "__main__":
     main()

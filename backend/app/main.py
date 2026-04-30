@@ -16,12 +16,14 @@ from pystac_client import Client
 
 import xarray as xr
 import rioxarray
+from rasterio.enums import Resampling
 
 from app.api.endpoints import router as field_router, analyzer, validate_pending_analyses
 from app.core.database import (
     UserDB, UserCreate, UserLocation, FieldAnalysis,
     get_db, SessionLocal, Base, engine
 )
+from app.services.segmentation import perform_segmentation_and_save
 
 # =========================
 # Config
@@ -33,8 +35,10 @@ STORAGE_PATH = os.path.join("data", "storage")
 
 DATA_DIR = os.path.join(STORAGE_PATH, "data")
 MASK_DIR = os.path.join(STORAGE_PATH, "masks")
+SEGM_DIR = os.path.join(STORAGE_PATH, "segmentation")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
+os.makedirs(SEGM_DIR, exist_ok=True)
 
 # =========================
 # App Initialization
@@ -285,13 +289,13 @@ def download_sentinel_data(db: Session):
                         crs="EPSG:4326"
                     )
 
-                    processed_band = clipped.rio.reproject(
-                        clipped.rio.crs,
-                        shape=(256, 256),
-                        resampling=0
-                    )
+                    if not datasets:
+                        reference_da = clipped
+                        final_da = clipped
+                    else:
+                        final_da = clipped.rio.reproject_match(reference_da)
 
-                    final_da = processed_band.squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
+                    final_da = final_da.squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
                     datasets.append(final_da)
 
                 except Exception as e:
@@ -350,8 +354,42 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
 
 @router.post("/sync-manual", tags=["Data"])
 async def manual_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    background_tasks.add_task(download_sentinel_data, db)
+    background_tasks.add_task(full_sync_process, db)
     return {"status": "sync started"}
+
+def full_sync_process(db: Session):
+    download_sentinel_data(db)
+    run_full_data_cycle(db)
+
+
+def run_full_data_cycle(db: Session):
+    print("[INFO] Starting data download cycle...")
+
+    pending_segmentation = (
+        db.query(FieldAnalysis)
+        .join(UserLocation)
+        .filter(UserLocation.segmentation_status == None)
+        .all()
+    )
+
+    if not pending_segmentation:
+        print("[INFO] No locations pending segmentation.")
+        return
+
+    print(f"[INFO] Found {len(pending_segmentation)} analysis records for segmentation.")
+
+    for analysis in pending_segmentation:
+        try:
+            print(f"[PROCESS] Segmenting location ID: {analysis.location_id} (Analysis ID: {analysis.id})")
+
+            perform_segmentation_and_save(analysis.id, db, analyzer)
+
+        except Exception as e:
+            print(f"[ERROR] Failed to segment analysis {analysis.id}: {e}")
+            loc = db.query(UserLocation).filter(UserLocation.id == analysis.location_id).first()
+            if loc:
+                loc.segmentation_status = False
+                db.commit()
 
 # =========================
 # Attach Router
@@ -366,6 +404,7 @@ scheduler = BackgroundScheduler()
 def scheduled_update():
     db = SessionLocal()
     try:
+        run_full_data_cycle(db)
         download_sentinel_data(db)
     finally:
         db.close()

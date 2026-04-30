@@ -30,14 +30,19 @@ class FieldAnalyzer:
         self.model.load_state_dict(state_dict)
         self.model.eval()
 
+
     def _normalize(self, img):
         p2 = np.nanpercentile(img, 2, axis=(1, 2), keepdims=True)
         p98 = np.nanpercentile(img, 98, axis=(1, 2), keepdims=True)
-        diff = p98 - p2
-        diff[diff == 0] = 1e-6
-        img = (img - p2) / diff
+
+        denominator = p98 - p2
+        denominator[denominator == 0] = 1e-6
+
+        img = (img - p2) / denominator
+
         img = np.nan_to_num(img, nan=0.0)
         return np.clip(img, 0, 1)
+
 
     def _call_haskell(self, payload: dict):
         try:
@@ -57,33 +62,45 @@ class FieldAnalyzer:
             print("HASKELL ERROR:", str(e))
             raise
 
+
     def run_analysis(self, nc_path: str, month_idx: int = 4):
         if not os.path.exists(nc_path):
             raise FileNotFoundError(f"Файл {nc_path} не найден")
 
         with xr.open_dataset(nc_path) as ds:
-            channels = []
-            for band in ["B2", "B3", "B4", "B8", "NDVI"]:
-                arr = ds[band].isel(time=month_idx).values
-                channels.append(arr)
+            try:
+                blue = ds.sel(band="blue").to_array().values.squeeze()
+                green = ds.sel(band="green").to_array().values.squeeze()
+                red = ds.sel(band="red").to_array().values.squeeze()
+                nir = ds.sel(band="nir").to_array().values.squeeze()
+            except Exception:
+                data = list(ds.data_vars.values())[0]
+                blue = data.isel(band=0).values
+                green = data.isel(band=1).values
+                red = data.isel(band=2).values
+                nir = data.isel(band=3).values
 
-            image = np.stack(channels, axis=0)
-            ndvi_full = ds["NDVI"].isel(time=month_idx).values
+            ndvi = (nir - red) / (nir + red + 1e-8)
+
+            image = np.stack([blue, green, red, nir, ndvi], axis=0)
 
         image = np.nan_to_num(image, nan=0.0)
-        input_tensor = self._normalize(image)
-        input_tensor = torch.from_numpy(input_tensor).float().unsqueeze(0).to(self.device)
+        input_tensor_np = self._normalize(image)
+        print(f"[DEBUG] Input range: {input_tensor_np.min():.4f}-{input_tensor_np.max():.4f}")
+        input_tensor = torch.from_numpy(input_tensor_np).float().unsqueeze(0).to(self.device)
 
         with torch.no_grad():
             logits = self.model(input_tensor)
-            mask = torch.sigmoid(logits).cpu().numpy()[0, 0]
+            mask_probs = torch.sigmoid(logits).cpu().numpy()[0, 0]
 
-        binary_mask = (mask > 0.5).astype(np.uint8)
+        print(f"[DEBUG] Max model confidence: {mask_probs.max():.4f}")
+        binary_mask = (mask_probs > 0.5).astype(np.uint8)
+
         labeled_mask, num_features = label(binary_mask)
 
         payload = {
             "labels": labeled_mask.tolist(),
-            "ndvi": ndvi_full.tolist(),
+            "ndvi": ndvi.tolist(),
             "num_features": int(num_features)
         }
 
