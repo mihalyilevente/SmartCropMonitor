@@ -2,10 +2,11 @@
 # Imports
 # =========================
 import datetime
+from asyncio.windows_events import NULL
 
 from sqlalchemy import (
     create_engine, Column, Integer, Float,
-    ForeignKey, String, DateTime, JSON
+    ForeignKey, String, DateTime, JSON, Boolean
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
@@ -73,7 +74,11 @@ class FieldAnalysis(Base):
     location_id = Column(Integer, ForeignKey("user_locations.id"))
 
     nc_filename = Column(String)
-    analysis_date = Column(DateTime, default=datetime.datetime.utcnow)
+    mask_filename = Column(String, nullable=True)
+    last_data_request_date = Column(DateTime, default=datetime.datetime.utcnow)
+
+    is_valid = Column(Boolean, default=None)
+    quality_report = Column(String, nullable=True)
 
     results_json = Column(JSON, nullable=True)
     fields_count = Column(Integer, default=0)
