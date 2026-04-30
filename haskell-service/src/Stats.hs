@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-} -- Обязательно в начало файла
+{-# LANGUAGE DeriveGeneric #-}
 
 module Stats where
 
