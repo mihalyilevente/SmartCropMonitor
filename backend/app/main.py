@@ -317,7 +317,7 @@ def download_sentinel_data(db: Session):
                 db.commit()
                 print(f"[INFO] Successfully saved NC: {nc_filename}")
                 print("[INFO] Starting post-download validation...")
-                # validate_pending_analyses(db)
+                validate_pending_analyses(db)
             else:
                 print(f"[DEBUG] Incomplete bands for loc={loc.id}. Found {len(datasets)}/{len(REQUIRED_BANDS)}")
 

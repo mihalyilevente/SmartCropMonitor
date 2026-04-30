@@ -1,14 +1,16 @@
 C:\Users\nikit\AppData\Local\Programs\stack\x86_64-windows\ghc-9.6.7\lib\x86_64-windows-ghc-9.6.7\rts-1.0.2\include\ghcversion.h:
   hash: 215ddac5a644eddece4748021e2caff6400a517822aedd66e9e9caf511124db8
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\.stack-work\dist\29614151\build\autogen\Paths_haskell_service.hs:
-  hash: 7884e13f1d9f0eed777ca01cfe117ddaacc4b18be979801589e6222cedf6cb2e
+  hash: fdd0a7f30fb5296e7d1efc893f885ce97538e5669d31e6b9e99fd776ce3eedb5
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\.stack-work\dist\29614151\build\autogen\cabal_macros.h:
-  hash: 809089fb6e7af11965aa6739bdd66808676a8885f983b892a3b53da46571b960
+  hash: 5f8b566a3f78c02993b966ce2141d43863aff3e67ef16ef974f690ca7d08aeef
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\haskell-service.cabal:
-  hash: a508f79bc1415c3ae29f850be10778df3487de4354fe5c16c20cf5b2d03007eb
+  hash: 40a7659ca8d74b28d072e2d048b5ed244ec30f825fa385da15761b48dbf74504
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\package.yaml:
-  hash: f210f60ca27530af4194f7fe7df6148cb1c2276a0ab13fdf497e54fcce1626da
+  hash: 78c6618e4584aa513610d81a4f31a07dc0e70d34b86b4dc6a0e680fc1a2ce754
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Main.hs:
-  hash: 0b28e9a4c67366e8f6021d7c2b2fbf1ad4a0aaf955c8a47d54b37c1524c0db52
+  hash: 607ddc162a0c8148fc1e004f2a56bc0bef16e3e4fee5877c213f2c72941bb812
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Stats.hs:
-  hash: aa1f496532c01fb286335d304fd38a8ee69f743a12dd13cc84ec7d95c3031efa
+  hash: 3fae68aaf2f20794e2b9ac004f3b92dfd1401753db3a96112c4a2051f2caad69
+C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Validation.hs:
+  hash: 979974d9a715f79a0f98015997ff55942697b458f87794633b4a6e3b2b567aa9
