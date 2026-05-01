@@ -108,6 +108,43 @@ class FieldUnit(Base):
 
 UserLocation.fields = relationship("FieldUnit", back_populates="location")
 
+
+class WeatherHistory(Base):
+    __tablename__ = "weather_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    location_id = Column(Integer, ForeignKey("user_locations.id"), index=True)
+
+    timestamp = Column(DateTime, index=True)
+
+    lat = Column(Float)
+    lon = Column(Float)
+
+    temp = Column(Float)
+    feels_like = Column(Float)
+
+    pressure = Column(Float)
+    humidity = Column(Float)
+
+    wind_speed = Column(Float)
+    wind_deg = Column(Float)
+
+    cloud_coverage = Column(Float)
+    rain_1h = Column(Float, nullable=True)
+    snow_1h = Column(Float, nullable=True)
+
+    weather_id = Column(Integer)
+    weather_main = Column(String)
+    weather_description = Column(String)
+
+    data_source = Column(String, default="openweathermap")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    raw_json = Column(JSON, nullable=True)
+
+    location = relationship("UserLocation")
+
 # =========================
 # Schemas
 # =========================

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses
-from app.core.database import UserLocation, FieldAnalysis, get_db
+from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
 from app.services.segmentation import perform_segmentation_and_save
 
 # =========================
@@ -116,3 +116,15 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
         }
         for h in history
     ]
+
+
+@router.get("/user/weather-history", tags=["Weather"])
+async def get_weather_history(user_id: int, db: Session = Depends(get_db)):
+    history = (
+        db.query(WeatherHistory)
+        .join(UserLocation)
+        .filter(UserLocation.user_id == user_id)
+        .order_by(WeatherHistory.timestamp.desc())
+        .all()
+    )
+    return history
