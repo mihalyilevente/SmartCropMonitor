@@ -24,7 +24,7 @@ from app.core.database import (
     get_db, SessionLocal, Base, engine
 )
 from app.services.segmentation import perform_segmentation_and_save
-
+from app.services.weather_service import fetch_and_save_weather
 # =========================
 # Config
 # =========================
@@ -364,6 +364,11 @@ def full_sync_process(db: Session):
 
 def run_full_data_cycle(db: Session):
     print("[INFO] Starting data download cycle...")
+
+    all_locations = db.query(UserLocation).all()
+    for loc in all_locations:
+        print(f"[PROCESS] Fetching weather for: {loc.label}")
+        fetch_and_save_weather(db, loc)
 
     pending_segmentation = (
         db.query(FieldAnalysis)
