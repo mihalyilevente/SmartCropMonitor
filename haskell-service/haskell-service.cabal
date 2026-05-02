@@ -14,6 +14,7 @@ library
   other-modules:
       Main
       Validation
+      WeatherMetrics
       Paths_haskell_service
   hs-source-dirs:
       src
@@ -22,6 +23,7 @@ library
     , base >=4.7 && <5
     , http-types
     , scotty
+    , text
     , wai-extra
   default-language: Haskell2010
 
@@ -30,6 +32,7 @@ executable haskell-service-exe
   other-modules:
       Stats
       Validation
+      WeatherMetrics
       Paths_haskell_service
   hs-source-dirs:
       src
@@ -39,5 +42,6 @@ executable haskell-service-exe
     , haskell-service
     , http-types
     , scotty
+    , text
     , wai-extra
   default-language: Haskell2010

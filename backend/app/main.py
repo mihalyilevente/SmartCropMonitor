@@ -24,7 +24,8 @@ from app.core.database import (
     get_db, SessionLocal, Base, engine
 )
 from app.services.segmentation import perform_segmentation_and_save
-from app.services.weather_service import fetch_and_save_weather
+from app.services.weather_service import fetch_and_save_weather, weather_metrics
+
 # =========================
 # Config
 # =========================
@@ -360,6 +361,9 @@ async def manual_sync(background_tasks: BackgroundTasks, db: Session = Depends(g
 def full_sync_process(db: Session):
     download_sentinel_data(db)
     run_full_data_cycle(db)
+    locations = db.query(UserLocation).all()
+    for loc in locations:
+        weather_metrics(db, loc)
 
 
 def run_full_data_cycle(db: Session):
@@ -411,8 +415,11 @@ def scheduled_update():
     try:
         run_full_data_cycle(db)
         download_sentinel_data(db)
+        locations = db.query(UserLocation).all()
+        for loc in locations:
+            weather_metrics(db, loc)
     finally:
         db.close()
 
-scheduler.add_job(scheduled_update, "cron", hour=3, minute=0)
+scheduler.add_job(scheduled_update, "cron", hour=1, minute=0)
 scheduler.start()

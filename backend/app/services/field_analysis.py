@@ -62,17 +62,19 @@ class FieldAnalyzer:
             print("HASKELL ERROR:", str(e))
             raise
 
-
     def run_analysis(self, nc_path: str, month_idx: int = 4):
+
         if not os.path.exists(nc_path):
-            raise FileNotFoundError(f"Файл {nc_path} не найден")
+            raise FileNotFoundError(f"{nc_path} not found")
 
         with xr.open_dataset(nc_path) as ds:
+
             try:
                 blue = ds.sel(band="blue").to_array().values.squeeze()
                 green = ds.sel(band="green").to_array().values.squeeze()
                 red = ds.sel(band="red").to_array().values.squeeze()
                 nir = ds.sel(band="nir").to_array().values.squeeze()
+
             except Exception:
                 data = list(ds.data_vars.values())[0]
                 blue = data.isel(band=0).values
@@ -81,26 +83,35 @@ class FieldAnalyzer:
                 nir = data.isel(band=3).values
 
             ndvi = (nir - red) / (nir + red + 1e-8)
+            ndvi = np.clip(ndvi, -1, 1)
+            ndvi = np.nan_to_num(ndvi, nan=0.0)
 
             image = np.stack([blue, green, red, nir, ndvi], axis=0)
 
         image = np.nan_to_num(image, nan=0.0)
-        input_tensor_np = self._normalize(image)
-        print(f"[DEBUG] Input range: {input_tensor_np.min():.4f}-{input_tensor_np.max():.4f}")
-        input_tensor = torch.from_numpy(input_tensor_np).float().unsqueeze(0).to(self.device)
+        image = self._normalize(image)
+
+        tensor = torch.from_numpy(image).float().unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            logits = self.model(input_tensor)
+            logits = self.model(tensor)
             mask_probs = torch.sigmoid(logits).cpu().numpy()[0, 0]
 
-        print(f"[DEBUG] Max model confidence: {mask_probs.max():.4f}")
         binary_mask = (mask_probs > 0.5).astype(np.uint8)
 
         labeled_mask, num_features = label(binary_mask)
 
+        label_features = self._compress_labels(labeled_mask, num_features)
+
         payload = {
-            "labels": labeled_mask.tolist(),
-            "ndvi": ndvi.tolist(),
+            "config": 1,
+            "labels": label_features,
+            "ndvi_stats": {
+                "mean": float(np.mean(ndvi)),
+                "std": float(np.std(ndvi)),
+                "min": float(np.min(ndvi)),
+                "max": float(np.max(ndvi))
+            },
             "num_features": int(num_features)
         }
 
@@ -110,9 +121,20 @@ class FieldAnalyzer:
 def perform_haskell_validation(mask_path, threshold=0.3):
     try:
         with xr.open_dataset(mask_path) as mds:
-            scl_values = mds.to_array().values.flatten().astype(int).tolist()
+            scl_values = (
+                mds.to_array()
+                .values
+                .flatten()
+                .astype(float)
+            )
+
+            scl_values = [
+                int(v) for v in scl_values
+                if v is not None and not np.isnan(v)
+            ]
 
         payload = {
+            "config": 2,
             "scl_values": scl_values,
             "threshold": threshold
         }
@@ -125,12 +147,12 @@ def perform_haskell_validation(mask_path, threshold=0.3):
 
         if response.status_code == 200:
             return response.json()
-        else:
-            print(f"[ERROR] Haskell service returned status {response.status_code}")
-            return None
+
+        print(f"[ERROR] Haskell status {response.status_code}")
+        return None
 
     except Exception as e:
-        print(f"[ERROR] Failed to communicate with Haskell service: {e}")
+        print(f"[ERROR] Haskell communication failed: {e}")
         return None
 
 
