@@ -52,4 +52,6 @@ stack build
 stack run
 ```
 
+git commit -m "chore(data): ingest latest weather and satellite imagery"
+
 ---

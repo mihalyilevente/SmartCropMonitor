@@ -47,7 +47,7 @@ getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: 
 
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
 bindir     = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\bin"
-libdir     = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\lib\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.0.0-E0K3O8ZXKxqDhiyodwXDlr"
+libdir     = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\lib\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.0.0-D4EWmG0OUuC3DmL8aGr5FP"
 dynlibdir  = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\lib\\x86_64-windows-ghc-9.6.7"
 datadir    = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\share\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.0.0"
 libexecdir = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\libexec\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.0.0"

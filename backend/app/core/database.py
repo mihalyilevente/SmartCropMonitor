@@ -141,9 +141,53 @@ class WeatherHistory(Base):
     data_source = Column(String, default="openweathermap")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+    metrics_status = Column(Boolean, default=False)
+
     raw_json = Column(JSON, nullable=True)
 
     location = relationship("UserLocation")
+
+
+class WeatherMetrics(Base):
+    __tablename__ = "weather_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    location_id = Column(Integer, ForeignKey("user_locations.id"), index=True)
+    reference_weather_id = Column(Integer, ForeignKey("weather_history.id"), index=True)
+
+    window_end_date = Column(DateTime, default=datetime.datetime.utcnow)
+
+    temp_min_day_7d = Column(Float)
+    temp_max_day_7d = Column(Float)
+    temp_min_night_7d = Column(Float)
+    temp_max_night_7d = Column(Float)
+
+    gdd_base_10 = Column(Float)
+
+    rain_cum_7d = Column(Float)
+    rain_cum_30d = Column(Float)
+
+    water_deficit_7d = Column(Float)
+    water_deficit_30d = Column(Float)
+
+    et0 = Column(Float)
+
+    humidity_mean_7d = Column(Float)
+    humidity_mean_30d = Column(Float)
+
+    heat_days_count_7d = Column(Integer)
+    heat_days_count_30d = Column(Integer)
+    frost_days_count_7d = Column(Integer)
+    frost_days_count_30d = Column(Integer)
+
+    spi_3m = Column(Float)
+
+    ra_mj_m2_day = Column(Float)
+    rs_mj_m2_day = Column(Float)
+
+    location = relationship("UserLocation")
+    weather = relationship("WeatherHistory")
 
 # =========================
 # Schemas

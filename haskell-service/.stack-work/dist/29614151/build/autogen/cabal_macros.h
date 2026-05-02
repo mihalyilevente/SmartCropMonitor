@@ -50,6 +50,16 @@
   (major1) == 0 && (major2) <  20 || \
   (major1) == 0 && (major2) == 20 && (minor) <= 1)
 #endif /* MIN_VERSION_scotty */
+/* package text-2.0.2 */
+#ifndef VERSION_text
+#define VERSION_text "2.0.2"
+#endif /* VERSION_text */
+#ifndef MIN_VERSION_text
+#define MIN_VERSION_text(major1,major2,minor) (\
+  (major1) <  2 || \
+  (major1) == 2 && (major2) <  0 || \
+  (major1) == 2 && (major2) == 0 && (minor) <= 2)
+#endif /* MIN_VERSION_text */
 /* package wai-extra-3.1.15 */
 #ifndef VERSION_wai_extra
 #define VERSION_wai_extra "3.1.15"
@@ -133,10 +143,10 @@
 #endif /* MIN_TOOL_VERSION_runghc */
 
 #ifndef CURRENT_PACKAGE_KEY
-#define CURRENT_PACKAGE_KEY "haskell-service-0.1.0.0-E0K3O8ZXKxqDhiyodwXDlr"
+#define CURRENT_PACKAGE_KEY "haskell-service-0.1.0.0-D4EWmG0OUuC3DmL8aGr5FP"
 #endif /* CURRENT_packageKey */
 #ifndef CURRENT_COMPONENT_ID
-#define CURRENT_COMPONENT_ID "haskell-service-0.1.0.0-E0K3O8ZXKxqDhiyodwXDlr"
+#define CURRENT_COMPONENT_ID "haskell-service-0.1.0.0-D4EWmG0OUuC3DmL8aGr5FP"
 #endif /* CURRENT_COMPONENT_ID */
 #ifndef CURRENT_PACKAGE_VERSION
 #define CURRENT_PACKAGE_VERSION "0.1.0.0"
