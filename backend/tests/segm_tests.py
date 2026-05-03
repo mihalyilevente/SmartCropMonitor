@@ -3,9 +3,9 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 
-DATA_PATH = r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\data\user_1_loc_1_20260428.nc"
-MASK_PATH = r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\masks\mask_user_1_loc_1_20260428.nc"
-SEGM_PATH = r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\segmentation\segm_user_1_loc_1_20260428.nc"
+DATA_PATH = r"/data/storage/data/user_1_loc_1_20260428.nc"
+MASK_PATH = r"/data/storage/masks/mask_user_1_loc_1_20260428.nc"
+SEGM_PATH = r"/data/storage/segmentation/segm_user_1_loc_1_20260428.nc"
 
 # =========================
 # SAFE LOADING

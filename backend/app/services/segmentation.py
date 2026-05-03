@@ -6,9 +6,7 @@ import xarray as xr
 from scipy.ndimage import label
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-
-TARGET_BANDS = ["blue", "green", "red", "nir"]
-model_path = os.path.join("app", "models", "unet_ai4boundaries.pth")
+from app.core.config import TARGET_BANDS, MODEL_PATH
 
 
 def perform_segmentation_and_save(analysis_id: int, db: Session, analyzer):

@@ -7,14 +7,13 @@ from sqlalchemy.orm import Session
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
 from app.utils.general import safe_float, safe_int
 from sqlalchemy import desc
+from app.core.config import MIN_RECORDS_7D, WEATHER_API_KEY, HASKELL_SERVICE_URL
 
 # =========================
 # Config
 # =========================
 
-MIN_RECORDS_7D = 24 * 7 * 0.8
-WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
-HASKELL_SERVICE_URL = "http://localhost:8081/field-stats"
+
 
 def fetch_and_save_weather(db: Session, location: UserLocation):
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={location.lat}&lon={location.lon}&appid={WEATHER_API_KEY}&units=metric"
