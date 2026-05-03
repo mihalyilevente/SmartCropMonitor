@@ -22,7 +22,7 @@ uvicorn app.main:app --reload
 ```
 The API will be available at `http://localhost:8000`.
 
-### 3. Frontend (React/Next.js)
+### 3. Frontend (React)
 The web interface for monitoring.
 
 ```bash
@@ -38,7 +38,7 @@ npm run dev
 The dashboard will be available at `http://localhost:3000`.
 
 ### 4. Haskell Service
-This service handles [опишите кратко роль сервиса, например: image processing/data analysis].
+This service handles.
 
 ```bash
 # Navigate to haskell-service directory
@@ -51,6 +51,23 @@ stack build
 # Run the service
 stack run
 ```
+
+## Documentation
+
+*   **`docs/`** — Core project guidelines:
+    *   `CONTRIBUTING.md`: Instructions on how to contribute to the project.
+    *   `CODE_OF_CONDUCT.md`: Standards for community engagement.
+    *   `SECURITY.md`: Security policies and vulnerability reporting.
+    *   `MODEL_CARD.md`: Characteristics and performance indicators for the models.
+*   **`.github/`** — GitHub-specific workflows and templates:
+    *   `ISSUE_TEMPLATE/`: Pre-defined formats for reporting bugs, requesting features, or documenting ML experiments.
+    *   `PULL_REQUEST_TEMPLATE.md`: A checklist to ensure quality for all code submissions.
+*   **`notebooks/`** — Contains research, data analysis, and experimental code.
+*   **Root Directory**:
+    *   `LICENSE.MD`: Legal terms regarding the use of this software.
+    *   `requirements.txt`: Global Python dependencies.
+
+---
 
 git commit -m "chore(data): ingest latest weather and satellite imagery"
 

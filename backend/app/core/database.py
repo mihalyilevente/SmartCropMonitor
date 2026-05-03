@@ -11,11 +11,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
+from app.core.config import SQLALCHEMY_DATABASE_URL
 
-# =========================
-# Config
-# =========================
-SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
 
 # =========================
 # Engine / Session

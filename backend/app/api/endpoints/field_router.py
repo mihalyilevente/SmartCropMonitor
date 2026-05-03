@@ -3,24 +3,21 @@
 # =========================
 import os
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses
+from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses, analyzer
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
 from app.services.segmentation import perform_segmentation_and_save
+from app.services.orchestrator import full_sync_process
+from app.core.config import MODEL_WEIGHTS
 
-# =========================
-# Config
-# =========================
-MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
 
 # =========================
 # Init
 # =========================
 router = APIRouter()
-analyzer = FieldAnalyzer(model_path=MODEL_WEIGHTS)
 
 # =========================
 # Schemas
@@ -128,3 +125,9 @@ async def get_weather_history(user_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return history
+
+
+@router.post("/sync-manual", tags=["Data"])
+async def manual_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    background_tasks.add_task(full_sync_process, db)
+    return {"status": "sync started"}

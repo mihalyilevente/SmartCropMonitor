@@ -10,12 +10,9 @@ from app.core.database import (
     UserDB, UserCreate, UserLocation, FieldAnalysis,
     get_db, SessionLocal, Base, engine
 )
-HASKELL_SERVICE_URL = "http://localhost:8081/field-stats"
+from app.core.config import HASKELL_SERVICE_URL, DATA_DIR, MASK_DIR, MODEL_WEIGHTS
 
-STORAGE_PATH = os.path.join("data", "storage")
 
-DATA_DIR = os.path.join(STORAGE_PATH, "data")
-MASK_DIR = os.path.join(STORAGE_PATH, "masks")
 
 class FieldAnalyzer:
     def __init__(self, model_path: str = None, device: str = None):
@@ -156,6 +153,9 @@ def perform_haskell_validation(mask_path, threshold=0.3):
         return None
 
 
+analyzer = FieldAnalyzer(model_path=MODEL_WEIGHTS)
+
+
 def validate_pending_analyses(db: Session):
     pending_list = db.query(FieldAnalysis).filter(FieldAnalysis.is_valid == None).all()
 
@@ -186,3 +186,4 @@ def validate_pending_analyses(db: Session):
             print(f"[INFO] Analysis {analysis.id} validated. Result: {analysis.is_valid}")
         else:
             print(f"[ERROR] Haskell service failed for analysis_id={analysis.id}")
+
