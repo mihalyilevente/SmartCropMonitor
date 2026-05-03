@@ -86,7 +86,7 @@ Recommended types:
 
 All code standards are defined in the main project documentation:
 
-> Refer to: **`docs/CODE_OF_CONDUCT.md`**
+> Refer to: **`CODE_OF_CONDUCT.md`**
 
 This includes:
 
