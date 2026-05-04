@@ -24,5 +24,5 @@ MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
 MODEL_PATH = os.path.join("app", "models", "unet_ai4boundaries.pth")
 RANDOM_SEED = 28
 
-MIN_RECORDS_7D = 24 * 7 * 0.8
+MIN_RECORDS_7D = 7 #24 * 7 * 0.8
 WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
