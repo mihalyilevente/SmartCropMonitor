@@ -9,7 +9,7 @@ from pystac_client import Client
 from app.core.config import DATA_DIR, MASK_DIR, REQUIRED_BANDS, STAC_API_URL
 from app.services.field_analysis import validate_pending_analyses, analyzer
 from app.core.database import UserLocation, FieldAnalysis
-from app.services.segmentation import perform_segmentation_and_save
+from app.services.segmentation import perform_segmentation_and_save, perform_temp_segmentation_and_save
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
 
 def full_sync_process(db: Session):
@@ -26,6 +26,7 @@ def run_full_data_cycle(db: Session):
     all_locations = db.query(UserLocation).all()
     for loc in all_locations:
         print(f"[PROCESS] Fetching weather for: {loc.label}")
+        perform_temp_segmentation_and_save(loc.id, db)
         fetch_and_save_weather(db, loc)
 
     pending_segmentation = (
@@ -45,7 +46,7 @@ def run_full_data_cycle(db: Session):
         try:
             print(f"[PROCESS] Segmenting location ID: {analysis.location_id} (Analysis ID: {analysis.id})")
 
-            perform_segmentation_and_save(analysis.id, db, analyzer)
+            # perform_segmentation_and_save(analysis.id, db, analyzer)
 
         except Exception as e:
             print(f"[ERROR] Failed to segment analysis {analysis.id}: {e}")

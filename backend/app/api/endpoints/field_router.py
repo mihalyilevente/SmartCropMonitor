@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses, analyzer
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
-from app.services.segmentation import perform_segmentation_and_save
+from app.services.segmentation import perform_segmentation_and_save, perform_temp_segmentation_and_save
 from app.services.orchestrator import full_sync_process
 from app.services.spatial_harmonizer import process_and_align_nc
 from app.core.config import MODEL_WEIGHTS
@@ -83,11 +83,11 @@ async def add_location(
     }
 
 
-@router.post("/segment-fields/{analysis_id}", tags=["Segmentation"])
-async def segment_fields(analysis_id: int, db: Session = Depends(get_db)):
+@router.post("/segment-fields/{location_id}", tags=["Segmentation"])
+async def segment_fields(location_id: int, db: Session = Depends(get_db)):
     try:
-        perform_segmentation_and_save(analysis_id, db, analyzer)
-        return {"status": "success", "message": f"Segmentation completed for analysis {analysis_id}"}
+        perform_temp_segmentation_and_save(location_id, db)
+        return {"status": "success", "message": f"Segmentation completed for analysis {location_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Segmentation error: {str(e)}")
 
