@@ -3,9 +3,69 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 
-DATA_PATH = r"/data/storage/data/user_1_loc_1_20260428.nc"
-MASK_PATH = r"/data/storage/masks/mask_user_1_loc_1_20260428.nc"
-SEGM_PATH = r"/data/storage/segmentation/segm_user_1_loc_1_20260428.nc"
+BASE_DIR = os.getcwd()
+DATA_DIR = os.path.join(BASE_DIR, "backend", "data", "storage", "data")
+MASK_DIR = os.path.join(BASE_DIR, "backend", "data", "storage", "masks")
+SEGM_DIR = os.path.join(BASE_DIR, "backend", "data", "storage", "segmentation")
+
+DATA_PATH = os.path.join(DATA_DIR, "user_1_loc_1_20260503.nc")
+MASK_PATH = os.path.join(MASK_DIR, "mask_user_1_loc_1_20260503.nc")
+SEGM_PATH = os.path.join(SEGM_DIR, "segm_user_1_loc_1_20260503.nc")
+
+# =========================
+# SAFE LOADING & NDVI
+# =========================
+def load_and_calculate_ndvi(path):
+    if not os.path.exists(path):
+        print(f"[ERROR] File not found: {path}")
+        return None
+
+    with xr.open_dataset(path) as ds:
+        if 'B08' in ds.data_vars and 'B04' in ds.data_vars:
+            ndvi = (ds.B08 - ds.B04) / (ds.B08 + ds.B04)
+            print("[INFO] NDVI calculated successfully.")
+            return ndvi.values
+
+        var = list(ds.data_vars)[0]
+        return ds[var].values
+
+
+# =========================
+# PIF VALIDATION (Histogram)
+# =========================
+def plot_pif_check(arr, title="Signal Distribution"):
+    clean_data = arr[np.isfinite(arr)].flatten()
+
+    plt.figure(figsize=(8, 4))
+    plt.hist(clean_data, bins=50, color='skyblue', edgecolor='black')
+    plt.title(f"{title} - Distribution")
+    plt.xlabel("Value")
+    plt.ylabel("Frequency")
+    plt.show()
+
+
+# =========================
+# MAIN VALIDATION LOOP
+# =========================
+def run_quality_check():
+    print("\n=== STARTING HARMONIZATION QUALITY CHECK ===")
+
+    data = load_and_calculate_ndvi(DATA_PATH)
+    mask = load_and_calculate_ndvi(MASK_PATH)  # SCL
+
+    if data is not None:
+        plot_pif_check(data, "Master Grid Data")
+
+        if mask is not None:
+            print("\n[INFO] SCL Mask Analysis:")
+            unique, counts = np.unique(mask[np.isfinite(mask)], return_counts=True)
+            for u, c in zip(unique, counts):
+                print(f"Class {int(u)}: {c} pixels")
+
+            bad_pixels = np.isin(unique, [8, 9, 10]).any()
+            print(f"[QUALITY]: Cloud classes present: {bad_pixels}")
+
+    print("\n=== VALIDATION COMPLETE ===")
 
 # =========================
 # SAFE LOADING
@@ -204,6 +264,9 @@ def main():
     segm = load_raster(SEGM_PATH)
     visualize_comparison(data,segm)
     plot_original_with_contrast(DATA_PATH)
+    run_quality_check()
     plot_rgb_color(DATA_PATH)
+
+
 if __name__ == "__main__":
     main()

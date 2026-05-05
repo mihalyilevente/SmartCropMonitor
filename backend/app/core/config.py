@@ -23,7 +23,7 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
 HASKELL_SERVICE_URL = "http://localhost:8081/field-stats"
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
-MODEL_PATH = os.path.join("app", "models", "unet_ai4boundaries.pth")
+MODEL_PATH = os.path.join("app", "models", "unet_mitb2_ai4boundaries.pth")
 RANDOM_SEED = 28
 
 MIN_RECORDS_7D = 7 #24 * 7 * 0.8
