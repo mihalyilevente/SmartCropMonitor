@@ -2,7 +2,7 @@
 
 ### 1. Prerequisites
 Ensure you have the following installed:
-* **Python 3.9+**
+* **Python 3.12**
 * **Node.js & npm**
 * **Haskell Stack** & **Cabal**
 
@@ -56,15 +56,16 @@ stack run
 
 *   **`docs/`** — Core project guidelines:
     *   `CONTRIBUTING.md`: Instructions on how to contribute to the project.
-    *   `CODE_OF_CONDUCT.md`: Standards for community engagement.
     *   `SECURITY.md`: Security policies and vulnerability reporting.
     *   `MODEL_CARD.md`: Characteristics and performance indicators for the models.
+    *    `DATA_SPEC.md`: Definition of Sentinel-2 data schema, band selection, spatial resolution rules, and auxiliary layer structure.
 *   **`.github/`** — GitHub-specific workflows and templates:
     *   `ISSUE_TEMPLATE/`: Pre-defined formats for reporting bugs, requesting features, or documenting ML experiments.
     *   `PULL_REQUEST_TEMPLATE.md`: A checklist to ensure quality for all code submissions.
 *   **`notebooks/`** — Contains research, data analysis, and experimental code.
 *   **Root Directory**:
     *   `LICENSE.MD`: Legal terms regarding the use of this software.
+    *   `CODE_OF_CONDUCT.md`: Standards for community engagement.
     *   `requirements.txt`: Global Python dependencies.
 
 ---

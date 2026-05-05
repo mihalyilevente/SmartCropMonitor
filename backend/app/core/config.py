@@ -6,13 +6,24 @@ DATA_DIR = os.path.join(STORAGE_PATH, "data")
 MASK_DIR = os.path.join(STORAGE_PATH, "masks")
 SEGM_DIR = os.path.join(STORAGE_PATH, "segmentation")
 GRID_DIR = os.path.join(STORAGE_PATH, "grid")
+VIS_DIR = os.path.join(STORAGE_PATH, "visual")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
 os.makedirs(SEGM_DIR, exist_ok=True)
 os.makedirs(GRID_DIR, exist_ok=True)
+os.makedirs(VIS_DIR, exist_ok=True)
 
-REQUIRED_BANDS = ["blue", "green", "red", "nir", "swir16"]
+REQUIRED_BANDS = [
+    "blue", "green", "red", "nir",
+    "rededge1", "rededge2", "rededge3",
+    "nir08",
+    "swir16", "swir22"
+]
+
+AUX_LAYERS = ["scl", "aot", "wvp"]
+
+VISUAL_ASSET = "visual"
 TARGET_BANDS = ["blue", "green", "red", "nir"]
 
 API_TITLE = "SmartCropMonitor API"
