@@ -16,15 +16,18 @@ REQUIRED_BANDS = ["blue", "green", "red", "nir", "swir16"]
 TARGET_BANDS = ["blue", "green", "red", "nir"]
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.0.11"
+API_VERSION = "0.0.14"
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
 HASKELL_SERVICE_URL = "http://localhost:8081/field-stats"
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
+TEMP_MODEL_WEIGHTS = "app/models/utae_pastis.pth"
 MODEL_PATH = os.path.join("app", "models", "unet_mitb2_ai4boundaries.pth")
+TEMP_MODEL_PATH = os.path.join("app", "models", "utae_pastis.pth")
 RANDOM_SEED = 28
+MAX_SEGM_INPUT = 5
 
 MIN_RECORDS_7D = 7 #24 * 7 * 0.8
 WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
