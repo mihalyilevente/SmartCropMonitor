@@ -17,7 +17,7 @@ from app.core.config import HASKELL_SERVICE_URL, DATA_DIR, MASK_DIR, MODEL_WEIGH
 class FieldAnalyzer:
     def __init__(self, model_path: str = None, device: str = None):
         if model_path is None:
-            model_path = os.path.join("app", "models", "unet_ai4boundaries.pth")
+            model_path = os.path.join("app", "models", "unet_mitb2_ai4boundaries.pth")
 
         self.device = torch.device(device if device else ("cuda" if torch.cuda.is_available() else "cpu"))
 

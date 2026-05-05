@@ -4,15 +4,22 @@ import torch.nn.functional as F
 import numpy as np
 import xarray as xr
 from scipy.ndimage import label
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
 from app.core.config import TARGET_BANDS, MODEL_PATH
 
 
-def perform_segmentation_and_save(analysis_id: int, db: Session, analyzer):
-    analysis = db.query(FieldAnalysis).filter(FieldAnalysis.id == analysis_id).first()
+def perform_segmentation_and_save(location_id: int, db: Session, analyzer):
+    analysis = (
+        db.query(FieldAnalysis)
+        .filter(FieldAnalysis.location_id == location_id, FieldAnalysis.is_valid == True)
+        .order_by(desc(FieldAnalysis.last_data_request_date))
+        .first()
+    )
+
     if not analysis:
-        print(f"[ERROR] Analysis {analysis_id} not found")
+        print(f"[ERROR] No valid FieldAnalysis found for location {location_id}")
         return
 
     nc_path = os.path.join("data", "storage", "data", analysis.nc_filename)
