@@ -5,10 +5,12 @@ STORAGE_PATH = os.path.join("data", "storage")
 DATA_DIR = os.path.join(STORAGE_PATH, "data")
 MASK_DIR = os.path.join(STORAGE_PATH, "masks")
 SEGM_DIR = os.path.join(STORAGE_PATH, "segmentation")
+GRID_DIR = os.path.join(STORAGE_PATH, "grid")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
 os.makedirs(SEGM_DIR, exist_ok=True)
+os.makedirs(GRID_DIR, exist_ok=True)
 
 REQUIRED_BANDS = ["blue", "green", "red", "nir", "swir16"]
 TARGET_BANDS = ["blue", "green", "red", "nir"]
