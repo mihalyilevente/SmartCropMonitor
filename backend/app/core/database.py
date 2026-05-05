@@ -61,6 +61,7 @@ class UserLocation(Base):
     last_image_url = Column(String, nullable=True)
     segmentation_status = Column(Boolean, default=None, nullable=True)
     last_segm_mask_url = Column(String, nullable=True)
+    last_grid_mask_url = Column(String, nullable=True)
 
     # relationship to user
     owner = relationship("UserDB", back_populates="locations")

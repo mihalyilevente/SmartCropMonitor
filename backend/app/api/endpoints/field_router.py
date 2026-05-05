@@ -11,6 +11,7 @@ from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
 from app.services.segmentation import perform_segmentation_and_save
 from app.services.orchestrator import full_sync_process
+from app.services.spatial_harmonizer import process_and_align_nc
 from app.core.config import MODEL_WEIGHTS
 
 
@@ -113,6 +114,34 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
         }
         for h in history
     ]
+
+
+@router.post("/locations/{location_id}/generate-grid", tags=["Data"])
+async def generate_location_grid(
+        location_id: int,
+        use_sr: bool = False,
+        db: Session = Depends(get_db)
+):
+    try:
+        grid_path = process_and_align_nc(db, location_id, use_sr=use_sr)
+
+        if not grid_path:
+            raise HTTPException(
+                status_code=404,
+                detail="No files available for grid generation"
+            )
+
+        return {
+            "status": "success",
+            "message": "Grid timeseries generated successfully",
+            "location_id": location_id,
+            "grid_path": grid_path
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"[ERROR] Grid generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal processing error")
 
 
 @router.get("/user/weather-history", tags=["Weather"])
