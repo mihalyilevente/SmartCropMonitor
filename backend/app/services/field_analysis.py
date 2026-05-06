@@ -1,5 +1,6 @@
 import os
 import torch
+import time
 import numpy as np
 import xarray as xr
 from scipy.ndimage import label
@@ -136,16 +137,17 @@ def perform_haskell_validation(mask_path, threshold=0.3):
             "threshold": threshold
         }
 
-        response = requests.post(
-            HASKELL_SERVICE_URL,
-            json=payload,
-            timeout=10
-        )
-
-        if response.status_code == 200:
-            return response.json()
-
-        print(f"[ERROR] Haskell status {response.status_code}")
+        for _ in range(3):
+            try:
+                response = requests.post(
+                    HASKELL_SERVICE_URL,
+                    json=payload,
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    return response.json()
+            except requests.RequestException:
+                time.sleep(1)
         return None
 
     except Exception as e:

@@ -14,6 +14,7 @@ from app.services.weather_service import fetch_and_save_weather, weather_metrics
 
 def full_sync_process(db: Session):
     download_sentinel_data(db)
+    validate_pending_analyses((db))
     run_full_data_cycle(db)
     locations = db.query(UserLocation).all()
     for loc in locations:
