@@ -1,55 +1,68 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Stats where
 
-import GHC.Generics (Generic)
-import Data.Aeson (ToJSON)
-import Data.Maybe (catMaybes)
+import GHC.Generics
+import Data.Aeson
 
-data FieldStats = FieldStats
-  { field_id :: Int
-  , area_px :: Int
-  , mean_ndvi :: Double
-  , std_ndvi :: Double
+data RawData = RawData
+  { nir      :: [[Double]]
+  , green    :: [[Double]]
+  , red      :: [[Double]]
+  , rededge2 :: [[Double]]
+  , swir16   :: [[Double]]
+  , swir22   :: [[Double]]
   } deriving (Show, Generic)
 
-instance ToJSON FieldStats
+instance FromJSON RawData
+instance ToJSON RawData
 
-mean :: [Double] -> Double
-mean xs = sum xs / fromIntegral (length xs)
+data NDVIMetricsResult = NDVIMetricsResult
+    { ndvi_map :: [[Double]]
+    , gndvi_map :: [[Double]]
+    , ndre_map :: [[Double]]
+    , ndwi_map :: [[Double]]
+    , nmdi_map :: [[Double]]
+    } deriving (Show, Generic)
 
-stddev :: [Double] -> Double
-stddev xs =
-  let m = mean xs
-  in sqrt (mean (map (\x -> (x - m) ^ 2) xs))
+instance ToJSON NDVIMetricsResult
 
-extractMask :: Int -> [[Int]] -> [[Bool]]
-extractMask i = map (map (== i))
+calculateNDVI :: Double -> Double -> Double
+calculateNDVI n r = (n - r) / (n + r)
 
-applyMask :: [[Double]] -> [[Bool]] -> [Double]
-applyMask ndvi mask =
-  [ v | (ndviRow, maskRow) <- zip ndvi mask
-      , (v, m) <- zip ndviRow maskRow
-      , m ]
+calculateGNDVI :: Double -> Double -> Double
+calculateGNDVI n g = (n - g) / (n + g)
 
-maybeToList :: Maybe a -> [a]
-maybeToList (Just x) = [x]
-maybeToList Nothing = []
+calculateNDRE :: Double -> Double -> Double
+calculateNDRE n re2 = (n - re2) / (n + re2)
 
-computeField :: Int -> [[Int]] -> [[Double]] -> Maybe FieldStats
-computeField fid labels ndvi =
-  let mask = extractMask fid labels
-      values = applyMask ndvi mask
-      clean = filter (not . isNaN) values
-  in if null clean
-     then Nothing
-     else Just FieldStats
-          { field_id = fid
-          , area_px = length clean
-          , mean_ndvi = mean clean
-          , std_ndvi = stddev clean
-          }
+calculateNDWI :: Double -> Double -> Double
+calculateNDWI n s16 = (n - s16) / (n + s16)
 
-computeAll :: [[Int]] -> [[Double]] -> Int -> [FieldStats]
-computeAll labels ndvi n =
-  catMaybes [computeField i labels ndvi | i <- [1..n]]
+calculateNMDI :: Double -> Double -> Double -> Double
+calculateNMDI n s16 s22 = (n - (s16 - s22)) / (n + (s16 - s22))
+
+zipMatrices :: (Double -> Double -> Double) -> [[Double]] -> [[Double]] -> [[Double]]
+zipMatrices f = zipWith (zipWith f)
+
+zipMatrices3 :: (Double -> Double -> Double -> Double) -> [[Double]] -> [[Double]] -> [[Double]] -> [[Double]]
+zipMatrices3 f = zipWith3 (zipWith3 f)
+
+computeNDVIMetrics :: RawData -> NDVIMetricsResult
+computeNDVIMetrics rd =
+  let
+    ndvi = zipMatrices calculateNDVI (nir rd) (red rd)
+    gndvi = zipMatrices calculateGNDVI (nir rd) (green rd)
+    ndre = zipMatrices calculateNDRE (nir rd) (rededge2 rd)
+    ndwi = zipMatrices calculateNDWI (nir rd) (swir16 rd)
+    nmdi = zipMatrices3 calculateNMDI (nir rd) (swir16 rd) (swir22 rd)
+
+
+  in NDVIMetricsResult
+    { ndvi_map = ndvi
+    , gndvi_map = gndvi
+    , ndre_map = ndre
+    , ndwi_map = ndwi
+    , nmdi_map = nmdi
+    }

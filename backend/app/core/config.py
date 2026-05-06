@@ -7,12 +7,14 @@ MASK_DIR = os.path.join(STORAGE_PATH, "masks")
 SEGM_DIR = os.path.join(STORAGE_PATH, "segmentation")
 GRID_DIR = os.path.join(STORAGE_PATH, "grid")
 VIS_DIR = os.path.join(STORAGE_PATH, "visual")
+NDVI_DIR = os.path.join(STORAGE_PATH, "ndvi")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
 os.makedirs(SEGM_DIR, exist_ok=True)
 os.makedirs(GRID_DIR, exist_ok=True)
 os.makedirs(VIS_DIR, exist_ok=True)
+os.makedirs(NDVI_DIR, exist_ok=True)
 
 REQUIRED_BANDS = [
     "blue", "green", "red", "nir",
@@ -27,7 +29,7 @@ VISUAL_ASSET = "visual"
 TARGET_BANDS = ["blue", "green", "red", "nir"]
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.0.16"
+API_VERSION = "0.0.17"
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"

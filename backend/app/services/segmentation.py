@@ -9,7 +9,7 @@ from scipy.ndimage import label
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-from app.core.config import TARGET_BANDS, MODEL_PATH, SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT
+from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT
 
 
 def perform_segmentation_and_save(location_id: int, db: Session, analyzer):
