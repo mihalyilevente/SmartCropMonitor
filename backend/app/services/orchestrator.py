@@ -11,14 +11,32 @@ from app.services.field_analysis import validate_pending_analyses, analyzer
 from app.core.database import UserLocation, FieldAnalysis
 from app.services.segmentation import perform_segmentation_and_save, perform_temp_segmentation_and_save
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
+from app.monitoring.alerting import format_alert, AlertService
+from app.core.config import WEBHOOK_URL
+
+
+alert_service = AlertService(webhook_url=WEBHOOK_URL)
+
 
 def full_sync_process(db: Session):
-    download_sentinel_data(db)
-    validate_pending_analyses((db))
-    run_full_data_cycle(db)
-    locations = db.query(UserLocation).all()
-    for loc in locations:
-        weather_metrics(db, loc)
+    try:
+        download_sentinel_data(db)
+        validate_pending_analyses(db)
+        run_full_data_cycle(db)
+
+        locations = db.query(UserLocation).all()
+        for loc in locations:
+            weather_metrics(db, loc)
+
+    except Exception as e:
+        alert_service.send(
+            key="orchestrator_failure",
+            message=format_alert(
+                "ORCHESTRATOR_CRITICAL",
+                f"Full sync process failed: {str(e)}"
+            )
+        )
+        raise e
 
 
 def run_full_data_cycle(db: Session):
@@ -83,6 +101,13 @@ def download_sentinel_data(db: Session):
 
             if not items:
                 print(f"[DEBUG] No items for loc={loc.id}")
+                alert_service.send(
+                    key=f"no_data_{loc.id}",
+                    message=format_alert("DATA_MISSING",
+                                         f"No Sentinel-2 items found for location {loc.label}",
+                                         {"location_id": loc.id,
+                                          "coords": f"{loc.lat}, {loc.lon}"})
+                )
                 continue
 
             items = sorted(
@@ -245,4 +270,12 @@ def download_sentinel_data(db: Session):
 
         except Exception as e:
             print(f"[CRITICAL] Failed loc {loc.id}: {e}")
+            alert_service.send(
+                key=f"loc_err_{loc.id}",
+                message=format_alert(
+                    "LOCATION_SYNC_ERROR",
+                    f"Failed to process location: {str(e)}",
+                    {"location_id": loc.id}
+                )
+            )
             db.rollback()

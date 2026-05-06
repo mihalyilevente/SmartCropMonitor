@@ -27,7 +27,7 @@ VISUAL_ASSET = "visual"
 TARGET_BANDS = ["blue", "green", "red", "nir"]
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.0.14"
+API_VERSION = "0.0.16"
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
@@ -42,3 +42,5 @@ MAX_SEGM_INPUT = 5
 
 MIN_RECORDS_7D = 7 #24 * 7 * 0.8
 WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
+
+WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")

@@ -79,8 +79,11 @@ class FieldAnalysis(Base):
 
     is_valid = Column(Boolean, default=None)
     quality_report = Column(String, nullable=True)
-
     results_json = Column(JSON, nullable=True)
+
+    metrics_status = Column(Boolean, default=None, nullable=True)
+    metrics_filename = Column(String, nullable=True)
+
     fields_count = Column(Integer, default=0)
 
     # relationship to location
