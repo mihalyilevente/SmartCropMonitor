@@ -1,4 +1,5 @@
 from pystac_client import Client
+import xarray as xr
 import datetime
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
@@ -45,3 +46,6 @@ def test_stac_channels(lat: float, lon: float):
 
 if __name__ == "__main__":
     test_stac_channels(lat=47.4979, lon=19.0402)
+    ds = xr.open_dataset(r'C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\data\user_1_loc_1_20260430T094748.nc')
+    print(ds)
+    print(ds.band.values)

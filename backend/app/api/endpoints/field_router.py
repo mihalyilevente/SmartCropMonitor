@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.services.field_analysis import FieldAnalyzer, validate_pending_analyses, analyzer
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
 from app.services.segmentation import perform_segmentation_and_save, perform_temp_segmentation_and_save
 from app.services.orchestrator import full_sync_process
@@ -27,35 +26,6 @@ class LocationCreate(BaseModel):
     label: str
     lat: float
     lon: float
-
-# =========================
-# Analysis Endpoint
-# =========================
-@router.get("/analyze-fields/{filename}")
-async def analyze_fields(filename: str):
-    path = os.path.join("data", "storage", filename)
-
-    # check file existence
-    if not os.path.exists(path):
-        raise HTTPException(
-            status_code=404,
-            detail=f"File not found: {filename}"
-        )
-
-    try:
-        results = analyzer.run_analysis(path)
-
-        return {
-            "status": "success",
-            "filename": filename,
-            "fields_count": len(results),
-            "data": results
-        }
-
-    except Exception as e:
-        # debug output
-        print(f"[ERROR] Analysis failed for {filename}: {e}")
-        raise HTTPException(status_code=500, detail="Analysis failed")
 
 # =========================
 # Location Endpoints
