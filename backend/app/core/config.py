@@ -1,4 +1,5 @@
 import os
+import httpx
 
 STORAGE_PATH = os.path.join("data", "storage")
 
@@ -35,7 +36,7 @@ QUALITY_THRESHOLD = 1
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
-HASKELL_SERVICE_URL = "http://localhost:8081/field-stats"
+HASKELL_URL = os.getenv("HASKELL_SERVICE_URL", "http://localhost:8081/field-stats")
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
 TEMP_MODEL_WEIGHTS = "app/models/utae_pastis.pth"

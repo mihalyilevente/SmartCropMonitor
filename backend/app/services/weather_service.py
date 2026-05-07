@@ -13,41 +13,101 @@ from app.core.config import MIN_RECORDS_7D, WEATHER_API_KEY, HASKELL_SERVICE_URL
 # Config
 # =========================
 
-
-
 def fetch_and_save_weather(db: Session, location: UserLocation):
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={location.lat}&lon={location.lon}&appid={WEATHER_API_KEY}&units=metric"
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={location.lat}"
+        f"&longitude={location.lon}"
+        "&hourly="
+        "temperature_2m,"
+        "relative_humidity_2m,"
+        "dew_point_2m,"
+        "vapour_pressure_deficit,"
+        "precipitation,"
+        "rain,"
+        "showers,"
+        "snowfall,"
+        "soil_temperature_0cm,"
+        "soil_moisture_0_to_1cm,"
+        "surface_pressure,"
+        "cloud_cover,"
+        "wind_speed_10m,"
+        "wind_direction_10m"
+        "&timezone=UTC"
+    )
 
     try:
-        response = requests.get(url)
+
+        response = requests.get(url, timeout=30)
+
         response.raise_for_status()
+
         data = response.json()
 
-        weather_entry = WeatherHistory(
-            location_id=location.id,
-            timestamp=datetime.fromtimestamp(data.get("dt")),
-            lat=data["coord"]["lat"],
-            lon=data["coord"]["lon"],
-            temp=data["main"]["temp"],
-            feels_like=data["main"]["feels_like"],
-            pressure=data["main"]["pressure"],
-            humidity=data["main"]["humidity"],
-            wind_speed=data["wind"]["speed"],
-            wind_deg=data["wind"]["deg"],
-            cloud_coverage=data["clouds"]["all"],
-            weather_id=data["weather"][0]["id"],
-            weather_main=data["weather"][0]["main"],
-            weather_description=data["weather"][0]["description"],
-            raw_json=data
+        hourly = data["hourly"]
+
+        times = hourly["time"]
+
+        for i, ts in enumerate(times):
+
+            weather_entry = WeatherHistory(
+
+                location_id=location.id,
+
+                timestamp=datetime.fromisoformat(ts),
+
+                lat=data["latitude"],
+                lon=data["longitude"],
+
+                temp=hourly["temperature_2m"][i],
+
+                humidity=hourly["relative_humidity_2m"][i],
+
+                dew_point=hourly["dew_point_2m"][i],
+
+                vapour_pressure_deficit=hourly[
+                    "vapour_pressure_deficit"
+                ][i],
+
+                precipitation=hourly["precipitation"][i],
+                rain=hourly["rain"][i],
+                showers=hourly["showers"][i],
+                snowfall=hourly["snowfall"][i],
+
+                soil_temperature_0cm=hourly["soil_temperature_0cm"][i],
+
+                soil_moisture_0_to_1cm=hourly[
+                    "soil_moisture_0_to_1cm"
+                ][i],
+
+                pressure=hourly["surface_pressure"][i],
+
+                cloud_coverage=hourly["cloud_cover"][i],
+
+                wind_speed=hourly["wind_speed_10m"][i],
+
+                wind_deg=hourly["wind_direction_10m"][i],
+
+                raw_json=hourly
+            )
+
+            db.add(weather_entry)
+
+        db.commit()
+
+        print(
+            f"[INFO] Saved {len(times)} hourly records "
+            f"for {location.label}"
         )
 
-        db.add(weather_entry)
-        db.commit()
-        print(f"[INFO] Weather saved for {location.label} (Temp: {data['main']['temp']}°C)")
-
     except Exception as e:
+
         db.rollback()
-        print(f"[ERROR] Weather fetch failed for loc {location.id}: {e}")
+
+        print(
+            f"[ERROR] Weather fetch failed "
+            f"for loc {location.id}: {e}"
+        )
 
 
 def request_elevation(lat, lon, retries=3):
