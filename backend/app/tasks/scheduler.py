@@ -29,8 +29,8 @@ def scheduled_update():
 scheduler.add_job(
     scheduled_update,
     "cron",
-    hour="*",
-    minute=5,
-    id="hourly_sync_job",
+    hour=1,
+    minute=0,
+    id="daily_sync_job",
     replace_existing=True
 )
