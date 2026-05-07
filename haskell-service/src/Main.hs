@@ -20,7 +20,7 @@ import WeatherMetrics (computeMetrics, LocationData)
 
 data RequestWrapper = RequestWrapper
   { config :: Int
-  , dataField :: Maybe Value
+  , raw_data :: Maybe RawData
   , labels :: Maybe [[Int]]
   , ndvi :: Maybe [[Double]]
   , num_features :: Maybe Int
@@ -31,8 +31,8 @@ data RequestWrapper = RequestWrapper
 instance FromJSON RequestWrapper where
   parseJSON = withObject "RequestWrapper" $ \v ->
     RequestWrapper
-      <$> v .: "config"
-      <*> v .:? "dataField"
+      <$> v .:  "config"
+      <*> v .:? "raw_data"
       <*> v .:? "labels"
       <*> v .:? "ndvi"
       <*> v .:? "num_features"
@@ -55,54 +55,35 @@ main = scotty 8081 $ do
 
     case config req of
 
-      -- =========================
-      -- AGRICULTURAL METRICS (YOUR CASE)
-      -- =========================
-      3 -> case dataField req of
+      -- Agricultural metrics (Weather/Location)
+      3 -> case raw_data req of
             Just d -> do
               let parsed = eitherDecode (encode d) :: Either String LocationData
-
               case parsed of
-                Right locationData -> do
-                  let result = computeMetrics locationData
-                  json result
-
+                Right locationData -> json (computeMetrics locationData)
                 Left err -> do
                   status status400
                   text (mconcat ["Invalid weather payload: ", TL.pack err])
-
             Nothing -> do
               status status400
-              text "Missing data field for config=3"
+              text "Missing raw_data for config=3"
 
-      -- =========================
-      -- IMAGE STATS
-      -- =========================
-      1 -> case (labels req, ndvi req, num_features req) of
-            (Just lbs, Just nd, Just nf) -> do
-                let statsResult = computeAll lbs nd nf
-                json statsResult
+      1 -> case raw_data req of
+          Just rd -> do
+            json (computeNDVIMetrics rd)
+          Nothing -> do
+            status status400
+            text "Missing raw_data for config=1"
 
-            _ -> do
-                status status400
-                text "Invalid image stats payload"
-
-      -- =========================
-      -- SCL VALIDATION
-      -- =========================
+      -- SCL validation
       2 -> case scl_values req of
             Just scl -> do
                 let t = maybe 0.3 id (threshold req)
-                    vResult = validateSCL scl t
-                json vResult
-
+                json (validateSCL scl t)
             Nothing -> do
                 status status400
                 text "Missing scl_values"
 
-      -- =========================
-      -- UNKNOWN CONFIG
-      -- =========================
       _ -> do
         status status400
         text "Unknown config"

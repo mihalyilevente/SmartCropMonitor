@@ -2,24 +2,21 @@
 # Imports
 # =========================
 import datetime
-from asyncio.windows_events import NULL
-
 from sqlalchemy import (
     create_engine, Column, Integer, Float,
-    ForeignKey, String, DateTime, JSON, Boolean
+    ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
-
+from geoalchemy2 import Geometry
 
 # =========================
 # Engine / Session
 # =========================
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}  # required for SQLite
+    SQLALCHEMY_DATABASE_URL
 )
 
 SessionLocal = sessionmaker(
@@ -54,8 +51,8 @@ class UserLocation(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
 
     label = Column(String)
-    lat = Column(Float)
-    lon = Column(Float)
+
+    location = Column(Geometry(geometry_type='POINT', srid=4326))
 
     last_image_date = Column(DateTime, nullable=True)
     last_image_url = Column(String, nullable=True)
@@ -77,10 +74,13 @@ class FieldAnalysis(Base):
     mask_filename = Column(String, nullable=True)
     last_data_request_date = Column(DateTime, default=datetime.datetime.utcnow)
 
-    is_valid = Column(Boolean, default=None)
+    is_valid = Column(Float, nullable=True, default=None)
     quality_report = Column(String, nullable=True)
-
     results_json = Column(JSON, nullable=True)
+
+    metrics_status = Column(Boolean, default=None, nullable=True)
+    metrics_filename = Column(String, nullable=True)
+
     fields_count = Column(Integer, default=0)
 
     # relationship to location
@@ -110,40 +110,46 @@ UserLocation.fields = relationship("FieldUnit", back_populates="location")
 class WeatherHistory(Base):
     __tablename__ = "weather_history"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
 
-    location_id = Column(Integer, ForeignKey("user_locations.id"), index=True)
+    location_id = Column(Integer, ForeignKey("user_locations.id"))
 
-    timestamp = Column(DateTime, index=True)
-
-    lat = Column(Float)
-    lon = Column(Float)
+    timestamp = Column(DateTime, nullable=False, index=True)
 
     temp = Column(Float)
-    feels_like = Column(Float)
+
+    humidity = Column(Float)
+
+    precipitation = Column(Float)
+    rain = Column(Float)
+    showers = Column(Float)
+    snowfall = Column(Float)
+
+    soil_temperature_0cm = Column(Float)
+    soil_moisture_0_to_1cm = Column(Float)
 
     pressure = Column(Float)
-    humidity = Column(Float)
+
+    cloud_coverage = Column(Float)
 
     wind_speed = Column(Float)
     wind_deg = Column(Float)
 
-    cloud_coverage = Column(Float)
-    rain_1h = Column(Float, nullable=True)
-    snow_1h = Column(Float, nullable=True)
+    dew_point = Column(Float)
+    vapour_pressure_deficit = Column(Float)
 
-    weather_id = Column(Integer)
-    weather_main = Column(String)
-    weather_description = Column(String)
+    data_source = Column(String, default="open-meteo")
 
-    data_source = Column(String, default="openweathermap")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
     metrics_status = Column(Boolean, default=False)
 
-    raw_json = Column(JSON, nullable=True)
-
-    location = relationship("UserLocation")
+    __table_args__ = (
+        UniqueConstraint(
+            "location_id",
+            "timestamp",
+            name="uq_weather_location_timestamp"
+        ),
+    )
 
 
 class WeatherMetrics(Base):
