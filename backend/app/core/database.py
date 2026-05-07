@@ -10,7 +10,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
-
+from geoalchemy2 import Geometry
 
 # =========================
 # Engine / Session
@@ -51,8 +51,8 @@ class UserLocation(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
 
     label = Column(String)
-    lat = Column(Float)
-    lon = Column(Float)
+
+    location = Column(Geometry(geometry_type='POINT', srid=4326))
 
     last_image_date = Column(DateTime, nullable=True)
     last_image_url = Column(String, nullable=True)
@@ -115,9 +115,6 @@ class WeatherHistory(Base):
     location_id = Column(Integer, ForeignKey("user_locations.id"))
 
     timestamp = Column(DateTime, nullable=False, index=True)
-
-    lat = Column(Float)
-    lon = Column(Float)
 
     temp = Column(Float)
 

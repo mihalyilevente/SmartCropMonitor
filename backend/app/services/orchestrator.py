@@ -13,6 +13,7 @@ from app.services.ndvi_processor import sateline_metrics
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
 from app.monitoring.alerting import format_alert, AlertService
 from app.core.config import WEBHOOK_URL
+from geoalchemy2.shape import to_shape
 
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
@@ -61,11 +62,13 @@ def download_sentinel_data(db: Session):
 
     for loc in locations:
         try:
-            print(f"[DEBUG] Processing location_id={loc.id}")
+            point = to_shape(loc.location)
+            lon, lat = point.x, point.y
+            print(f"[DEBUG] Processing location_id={loc.id} at ({lat}, {lon})")
 
             search = client.search(
                 collections=["sentinel-2-l2a"],
-                bbox=[loc.lon - 0.05, loc.lat - 0.05, loc.lon + 0.05, loc.lat + 0.05],
+                bbox=[lon - 0.05, lat - 0.05, lon + 0.05, lat + 0.05],
                 datetime=date_range,
                 max_items=20,
                 sortby=[{"field": "properties.datetime", "direction": "desc"}]
@@ -78,9 +81,8 @@ def download_sentinel_data(db: Session):
                 alert_service.send(
                     key=f"no_data_{loc.id}",
                     message=format_alert("DATA_MISSING",
-                                         f"No Sentinel-2 items found for location {loc.label}",
-                                         {"location_id": loc.id,
-                                          "coords": f"{loc.lat}, {loc.lon}"})
+                                         f"No items for {loc.label}",
+                                         {"location_id": loc.id, "coords": f"{lat}, {lon}"})
                 )
                 continue
 
@@ -120,10 +122,10 @@ def download_sentinel_data(db: Session):
                     da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                     clipped = da.rio.clip_box(
-                        minx=loc.lon - 0.02,
-                        miny=loc.lat - 0.02,
-                        maxx=loc.lon + 0.02,
-                        maxy=loc.lat + 0.02,
+                        minx=lon - 0.02,
+                        miny=lat - 0.02,
+                        maxx=lon + 0.02,
+                        maxy=lat + 0.02,
                         crs="EPSG:4326"
                     )
 
@@ -157,10 +159,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(scl_asset.href, chunks=True)
 
                         clipped = da.rio.clip_box(
-                            minx=loc.lon - 0.02,
-                            miny=loc.lat - 0.02,
-                            maxx=loc.lon + 0.02,
-                            maxy=loc.lat + 0.02,
+                            minx=lon - 0.02,
+                            miny=lat - 0.02,
+                            maxx=lon + 0.02,
+                            maxy=lat + 0.02,
                             crs="EPSG:4326"
                         )
 
@@ -187,10 +189,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                         clipped = da.rio.clip_box(
-                            minx=loc.lon - 0.02,
-                            miny=loc.lat - 0.02,
-                            maxx=loc.lon + 0.02,
-                            maxy=loc.lat + 0.02,
+                            minx=lon - 0.02,
+                            miny=lat - 0.02,
+                            maxx=lon + 0.02,
+                            maxy=lat + 0.02,
                             crs="EPSG:4326"
                         )
 
@@ -215,10 +217,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(visual_asset.href)
 
                         clipped = da.rio.clip_box(
-                            minx=loc.lon - 0.02,
-                            miny=loc.lat - 0.02,
-                            maxx=loc.lon + 0.02,
-                            maxy=loc.lat + 0.02,
+                            minx=lon - 0.02,
+                            miny=lat - 0.02,
+                            maxx=lon + 0.02,
+                            maxy=lat + 0.02,
                             crs="EPSG:4326"
                         )
 
