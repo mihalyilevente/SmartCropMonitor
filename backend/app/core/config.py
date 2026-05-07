@@ -35,7 +35,7 @@ TARGET_BANDS = ["blue", "green", "red", "nir"]
 QUALITY_THRESHOLD = 1
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
-SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"
+SQLALCHEMY_DATABASE_URL = os.getenv("WEBHOOK_URL")
 HASKELL_URL = os.getenv("HASKELL_SERVICE_URL", "http://localhost:8081/field-stats")
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
