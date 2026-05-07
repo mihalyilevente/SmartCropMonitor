@@ -2,8 +2,6 @@
 # Imports
 # =========================
 import datetime
-from asyncio.windows_events import NULL
-
 from sqlalchemy import (
     create_engine, Column, Integer, Float,
     ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint
