@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from './api/client';
 
 const Auth = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,12 +10,10 @@ const Auth = ({ onLogin }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const url = isLogin
-      ? 'http://127.0.0.1:8000/login'
-      : 'http://127.0.0.1:8000/register';
+    const url = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
 
     try {
-      const response = await axios.post(url, { username, password });
+      const response = await api.post(url, { username, password });
       setIsError(false);
 
       if (isLogin) {
