@@ -69,6 +69,58 @@ stack run
     *   `requirements.txt`: Global Python dependencies.
 
 ---
+## Dual Licensing
+
+This project is distributed under a dual licensing model.
+
+You may choose between an open-source license or a commercial license depending on your use case.
+
+---
+
+## 1. Open Source License (AGPLv3)
+
+This software is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+You may use, modify, and distribute this software under the terms of the AGPL-3.0 license.
+
+### Key obligations under AGPL-3.0:
+
+- If you run this software as a network service (e.g., SaaS, API, web application),
+  you must provide access to the corresponding source code, including modifications.
+- Any distributed or network-deployed version must remain under AGPL-3.0.
+
+See the LICENSE file for full license terms.
+
+---
+
+## 2. Commercial License
+
+A separate commercial license is available for individuals or organizations
+that do not wish to comply with the requirements of the AGPL-3.0 license.
+
+The commercial license grants additional rights, including:
+
+- Use in proprietary or closed-source software
+- Use in commercial SaaS or hosted services without source code disclosure
+- Embedding into paid products or services
+- Redistribution without AGPL obligations
+
+---
+
+## Commercial Licensing
+
+For commercial licensing inquiries, please contact:
+
+📧 nikita.manaenkov@gmail.com
+
+---
+
+## 3. Important Note
+
+The commercial license is an alternative to the AGPL license.
+You must choose one of the two licensing options depending on your use case.
+---
+
 
 git commit -m "chore(data): ingest latest weather and satellite imagery"
 

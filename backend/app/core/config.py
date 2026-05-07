@@ -16,6 +16,9 @@ os.makedirs(GRID_DIR, exist_ok=True)
 os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
 
+API_TITLE = "SmartCropMonitor API"
+API_VERSION = "0.0.18"
+
 REQUIRED_BANDS = [
     "blue", "green", "red", "nir",
     "rededge1", "rededge2", "rededge3",
@@ -28,8 +31,7 @@ AUX_LAYERS = ["scl", "aot", "wvp"]
 VISUAL_ASSET = "visual"
 TARGET_BANDS = ["blue", "green", "red", "nir"]
 
-API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.0.17"
+QUALITY_THRESHOLD = 1
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 SQLALCHEMY_DATABASE_URL = "sqlite:///./users.db"

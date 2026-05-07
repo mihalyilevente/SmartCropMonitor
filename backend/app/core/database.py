@@ -77,7 +77,7 @@ class FieldAnalysis(Base):
     mask_filename = Column(String, nullable=True)
     last_data_request_date = Column(DateTime, default=datetime.datetime.utcnow)
 
-    is_valid = Column(Boolean, default=None)
+    is_valid = Column(Float, nullable=True, default=None)
     quality_report = Column(String, nullable=True)
     results_json = Column(JSON, nullable=True)
 
