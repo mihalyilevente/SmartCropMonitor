@@ -4,7 +4,9 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - PYTHONPATH=/app
       - HASKELL_SERVICE_URL=http://haskell-service:8081/field-stats
+      # - DATABASE_URL=postgresql://user:pass@db:5432/db # Пока закомментируй, если нет Postgres
     depends_on:
       - haskell-service
 
