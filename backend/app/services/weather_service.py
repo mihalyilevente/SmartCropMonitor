@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
 from app.utils.general import safe_float, safe_int
 from sqlalchemy import desc
-from app.core.config import MIN_RECORDS_7D, WEATHER_API_KEY, HASKELL_SERVICE_URL
+from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL
 
 # =========================
 # Config
