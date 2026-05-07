@@ -1,0 +1,16 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - HASKELL_SERVICE_URL=http://haskell-service:8081/field-stats
+      - SQLALCHEMY_DATABASE_URL=${SQLALCHEMY_DATABASE_URL}
+    depends_on:
+      - haskell-service
+
+  haskell-service:
+    build: ./haskell-service
+    ports:
+      - "8081:8081"

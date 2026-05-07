@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 smartcrop-venv/
 .venv/
 venv/
@@ -7,3 +8,22 @@ env/
 .env
 .env.local
 .env.*.local
+=======
+.env
+
+
+
+__pycache__/
+
+*.py[cod]
+
+*$py.class
+
+venv/
+
+.venv/
+
+
+
+.dockerignore
+>>>>>>> e0f3b40aad9cdfe5337960bc28b0a72f78e15370
