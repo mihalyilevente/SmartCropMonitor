@@ -1,0 +1,14 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - HASKELL_SERVICE_URL=http://haskell-service:8081/field-stats
+    depends_on:
+      - haskell-service
+
+  haskell-service:
+    build: ./haskell-service
+    ports:
+      - "8081:8081"
