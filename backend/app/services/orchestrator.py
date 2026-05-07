@@ -9,7 +9,6 @@ from pystac_client import Client
 from app.core.config import DATA_DIR, MASK_DIR, VIS_DIR, REQUIRED_BANDS, AUX_LAYERS, VISUAL_ASSET,  STAC_API_URL
 from app.services.field_analysis import validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis
-from app.services.segmentation import perform_temp_segmentation_and_save
 from app.services.ndvi_processor import sateline_metrics
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
 from app.monitoring.alerting import format_alert, AlertService
@@ -47,33 +46,7 @@ def run_full_data_cycle(db: Session):
     all_locations = db.query(UserLocation).all()
     for loc in all_locations:
         print(f"[PROCESS] Fetching weather for: {loc.label}")
-        perform_temp_segmentation_and_save(loc.id, db)
         fetch_and_save_weather(db, loc)
-
-    pending_segmentation = (
-        db.query(FieldAnalysis)
-        .join(UserLocation)
-        .filter(UserLocation.segmentation_status == None)
-        .all()
-    )
-
-    if not pending_segmentation:
-        print("[INFO] No locations pending segmentation.")
-        return
-
-    print(f"[INFO] Found {len(pending_segmentation)} analysis records for segmentation.")
-
-    for analysis in pending_segmentation:
-        try:
-            print(f"[PROCESS] Segmenting location ID: {analysis.location_id} (Analysis ID: {analysis.id})")
-
-
-        except Exception as e:
-            print(f"[ERROR] Failed to segment analysis {analysis.id}: {e}")
-            loc = db.query(UserLocation).filter(UserLocation.id == analysis.location_id).first()
-            if loc:
-                loc.segmentation_status = False
-                db.commit()
 
 
 def download_sentinel_data(db: Session):

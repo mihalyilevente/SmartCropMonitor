@@ -3,10 +3,11 @@ import time
 import numpy as np
 import requests
 import xarray as xr
-from app.core.config import DATA_DIR,NDVI_DIR, HASKELL_SERVICE_URL
+from app.core.config import DATA_DIR,NDVI_DIR, HASKELL_SERVICE_URL, QUALITY_THRESHOLD
 from app.core.database import FieldAnalysis
 from app.utils.general import safe_array
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
 
 def perform_haskell_calculation(payload):
@@ -30,7 +31,17 @@ def perform_haskell_calculation(payload):
 
 
 def sateline_metrics(db: Session):
-    pending_list = db.query(FieldAnalysis).filter(FieldAnalysis.metrics_status == None).all()
+    pending_list = (
+        db.query(FieldAnalysis)
+        .filter(
+            and_(
+                FieldAnalysis.metrics_status == None,
+                FieldAnalysis.is_valid != None,
+                FieldAnalysis.is_valid >= QUALITY_THRESHOLD
+            )
+        )
+        .all()
+    )
 
     if not pending_list:
         print("[INFO] No pending NDVI calculation to processed.")
