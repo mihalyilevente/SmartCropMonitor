@@ -1,0 +1,825 @@
+[1mdiff --git a/.claude/settings.local.json b/.claude/settings.local.json[m
+[1mdeleted file mode 100644[m
+[1mindex da5b91c..0000000[m
+[1m--- a/.claude/settings.local.json[m
+[1m+++ /dev/null[m
+[36m@@ -1,7 +0,0 @@[m
+[31m-{[m
+[31m-  "permissions": {[m
+[31m-    "allow": [[m
+[31m-      "Bash(npm install *)"[m
+[31m-    ][m
+[31m-  }[m
+[31m-}[m
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 9e35e67..0cff4f4 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -1,12 +1,3 @@[m
+[31m-smartcrop-venv/[m
+[31m-.venv/[m
+[31m-venv/[m
+[31m-env/[m
+[31m-[m
+[31m-# Environment files (keep .env.example tracked)[m
+[31m-.env[m
+[31m-.env.local[m
+[31m-.env.*.local[m
+ .env[m
+ [m
+ [m
+[1mdiff --git a/backend/app/__pycache__/__init__.cpython-311.pyc b/backend/app/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 07de9d6..0000000[m
+Binary files a/backend/app/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/__pycache__/main.cpython-311.pyc b/backend/app/__pycache__/main.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 9f7b12b..0000000[m
+Binary files a/backend/app/__pycache__/main.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/api/__pycache__/__init__.cpython-311.pyc b/backend/app/api/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex fd7d8b3..0000000[m
+Binary files a/backend/app/api/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/api/endpoints/__pycache__/auth_router.cpython-311.pyc b/backend/app/api/endpoints/__pycache__/auth_router.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 71b9a94..0000000[m
+Binary files a/backend/app/api/endpoints/__pycache__/auth_router.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/api/endpoints/__pycache__/data_router.cpython-311.pyc b/backend/app/api/endpoints/__pycache__/data_router.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex dd75fb9..0000000[m
+Binary files a/backend/app/api/endpoints/__pycache__/data_router.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/api/endpoints/__pycache__/field_router.cpython-311.pyc b/backend/app/api/endpoints/__pycache__/field_router.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex f874afc..0000000[m
+Binary files a/backend/app/api/endpoints/__pycache__/field_router.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/core/__pycache__/__init__.cpython-311.pyc b/backend/app/core/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 586c58e..0000000[m
+Binary files a/backend/app/core/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/core/__pycache__/config.cpython-311.pyc b/backend/app/core/__pycache__/config.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex c9d44bd..0000000[m
+Binary files a/backend/app/core/__pycache__/config.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/core/__pycache__/database.cpython-311.pyc b/backend/app/core/__pycache__/database.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex a3852b1..0000000[m
+Binary files a/backend/app/core/__pycache__/database.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/models/__pycache__/__init__.cpython-311.pyc b/backend/app/models/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 144b727..0000000[m
+Binary files a/backend/app/models/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/models/__pycache__/unet.cpython-311.pyc b/backend/app/models/__pycache__/unet.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex c76efbb..0000000[m
+Binary files a/backend/app/models/__pycache__/unet.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/models/__pycache__/utae.cpython-311.pyc b/backend/app/models/__pycache__/utae.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex c1617e0..0000000[m
+Binary files a/backend/app/models/__pycache__/utae.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/services/__pycache__/__init__.cpython-311.pyc b/backend/app/services/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex e3160b7..0000000[m
+Binary files a/backend/app/services/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/services/__pycache__/field_analysis.cpython-311.pyc b/backend/app/services/__pycache__/field_analysis.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 82f7487..0000000[m
+Binary files a/backend/app/services/__pycache__/field_analysis.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/services/__pycache__/orchestrator.cpython-311.pyc b/backend/app/services/__pycache__/orchestrator.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 972d52b..0000000[m
+Binary files a/backend/app/services/__pycache__/orchestrator.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/services/__pycache__/segmentation.cpython-311.pyc b/backend/app/services/__pycache__/segmentation.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 350aab6..0000000[m
+Binary files a/backend/app/services/__pycache__/segmentation.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/services/__pycache__/spatial_harmonizer.cpython-311.pyc b/backend/app/services/__pycache__/spatial_harmonizer.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 4b5eeb3..0000000[m
+Binary files a/backend/app/services/__pycache__/spatial_harmonizer.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/services/__pycache__/weather_service.cpython-311.pyc b/backend/app/services/__pycache__/weather_service.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex b42f9cc..0000000[m
+Binary files a/backend/app/services/__pycache__/weather_service.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/tasks/__pycache__/__init__.cpython-311.pyc b/backend/app/tasks/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex f4ea7c9..0000000[m
+Binary files a/backend/app/tasks/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/tasks/__pycache__/scheduler.cpython-311.pyc b/backend/app/tasks/__pycache__/scheduler.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 624f557..0000000[m
+Binary files a/backend/app/tasks/__pycache__/scheduler.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/utils/__pycache__/__init__.cpython-311.pyc b/backend/app/utils/__pycache__/__init__.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 3b0609e..0000000[m
+Binary files a/backend/app/utils/__pycache__/__init__.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/app/utils/__pycache__/general.cpython-311.pyc b/backend/app/utils/__pycache__/general.cpython-311.pyc[m
+[1mdeleted file mode 100644[m
+[1mindex 52214b5..0000000[m
+Binary files a/backend/app/utils/__pycache__/general.cpython-311.pyc and /dev/null differ
+[1mdiff --git a/backend/users.db b/backend/users.db[m
+[1mindex cf08e73..6ffdd79 100644[m
+Binary files a/backend/users.db and b/backend/users.db differ
+[1mdiff --git a/frontend/.env.example b/frontend/.env.example[m
+[1mdeleted file mode 100644[m
+[1mindex ad82eb2..0000000[m
+[1m--- a/frontend/.env.example[m
+[1m+++ /dev/null[m
+[36m@@ -1 +0,0 @@[m
+[31m-VITE_API_URL=http://127.0.0.1:8000[m
+[1mdiff --git a/frontend/package-lock.json b/frontend/package-lock.json[m
+[1mindex 198548f..03da62f 100644[m
+[1m--- a/frontend/package-lock.json[m
+[1m+++ b/frontend/package-lock.json[m
+[36m@@ -12,8 +12,7 @@[m
+         "plotly.js-dist-min": "^3.5.0",[m
+         "react": "^18.3.1",[m
+         "react-dom": "^18.3.1",[m
+[31m-        "react-plotly.js": "^2.6.0",[m
+[31m-        "react-router-dom": "^7.15.0"[m
+[32m+[m[32m        "react-plotly.js": "^2.6.0"[m
+       },[m
+       "devDependencies": {[m
+         "@eslint/js": "^9.13.0",[m
+[36m@@ -2279,19 +2278,6 @@[m
+       "integrity": "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==",[m
+       "dev": true[m
+     },[m
+[31m-    "node_modules/cookie": {[m
+[31m-      "version": "1.1.1",[m
+[31m-      "resolved": "https://registry.npmjs.org/cookie/-/cookie-1.1.1.tgz",[m
+[31m-      "integrity": "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==",[m
+[31m-      "license": "MIT",[m
+[31m-      "engines": {[m
+[31m-        "node": ">=18"[m
+[31m-      },[m
+[31m-      "funding": {[m
+[31m-        "type": "opencollective",[m
+[31m-        "url": "https://opencollective.com/express"[m
+[31m-      }[m
+[31m-    },[m
+     "node_modules/core-util-is": {[m
+       "version": "1.0.3",[m
+       "resolved": "https://registry.npmjs.org/core-util-is/-/core-util-is-1.0.3.tgz",[m
+[36m@@ -5715,44 +5701,6 @@[m
+         "node": ">=0.10.0"[m
+       }[m
+     },[m
+[31m-    "node_modules/react-router": {[m
+[31m-      "version": "7.15.0",[m
+[31m-      "resolved": "https://registry.npmjs.org/react-router/-/react-router-7.15.0.tgz",[m
+[31m-      "integrity": "sha512-HW9vYwuM8f4yx66Izy8xfrzCM+SBJluoZcCbww9A1TySax11S5Vgw6fi3ZjMONw9J4gQwngL7PzkyIpJJpJ7RQ==",[m
+[31m-      "license": "MIT",[m
+[31m-      "dependencies": {[m
+[31m-        "cookie": "^1.0.1",[m
+[31m-        "set-cookie-parser": "^2.6.0"[m
+[31m-      },[m
+[31m-      "engines": {[m
+[31m-        "node": ">=20.0.0"[m
+[31m-      },[m
+[31m-      "peerDependencies": {[m
+[31m-        "react": ">=18",[m
+[31m-        "react-dom": ">=18"[m
+[31m-      },[m
+[31m-      "peerDependenciesMeta": {[m
+[31m-        "react-dom": {[m
+[31m-          "optional": true[m
+[31m-        }[m
+[31m-      }[m
+[31m-    },[m
+[31m-    "node_modules/react-router-dom": {[m
+[31m-      "version": "7.15.0",[m
+[31m-      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.15.0.tgz",[m
+[31m-      "integrity": "sha512-VcrVg64Fo8nwBvDscajG8gRTLIuTC6N50nb22l2HOOV4PTOHgoGp8mUjy9wLiHYoYTSYI36tUnXZgasSRFZorQ==",[m
+[31m-      "license": "MIT",[m
+[31m-      "dependencies": {[m
+[31m-        "react-router": "7.15.0"[m
+[31m-      },[m
+[31m-      "engines": {[m
+[31m-        "node": ">=20.0.0"[m
+[31m-      },[m
+[31m-      "peerDependencies": {[m
+[31m-        "react": ">=18",[m
+[31m-        "react-dom": ">=18"[m
+[31m-      }[m
+[31m-    },[m
+     "node_modules/readable-stream": {[m
+       "version": "2.3.8",[m
+       "resolved": "https://registry.npmjs.org/readable-stream/-/readable-stream-2.3.8.tgz",[m
+[36m@@ -6097,12 +6045,6 @@[m
+         "semver": "bin/semver.js"[m
+       }[m
+     },[m
+[31m-    "node_modules/set-cookie-parser": {[m
+[31m-      "version": "2.7.2",[m
+[31m-      "resolved": "https://registry.npmjs.org/set-cookie-parser/-/set-cookie-parser-2.7.2.tgz",[m
+[31m-      "integrity": "sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==",[m
+[31m-      "license": "MIT"[m
+[31m-    },[m
+     "node_modules/set-function-length": {[m
+       "version": "1.2.2",[m
+       "resolved": "https://registry.npmjs.org/set-function-length/-/set-function-length-1.2.2.tgz",[m
+[1mdiff --git a/frontend/package.json b/frontend/package.json[m
+[1mindex 637af0a..df1169a 100644[m
+[1m--- a/frontend/package.json[m
+[1m+++ b/frontend/package.json[m
+[36m@@ -14,8 +14,7 @@[m
+     "plotly.js-dist-min": "^3.5.0",[m
+     "react": "^18.3.1",[m
+     "react-dom": "^18.3.1",[m
+[31m-    "react-plotly.js": "^2.6.0",[m
+[31m-    "react-router-dom": "^7.15.0"[m
+[32m+[m[32m    "react-plotly.js": "^2.6.0"[m
+   },[m
+   "devDependencies": {[m
+     "@eslint/js": "^9.13.0",[m
+[1mdiff --git a/frontend/src/App.jsx b/frontend/src/App.jsx[m
+[1mindex 28741db..1f6dea5 100644[m
+[1m--- a/frontend/src/App.jsx[m
+[1m+++ b/frontend/src/App.jsx[m
+[36m@@ -1,5 +1,4 @@[m
+ import React, { useState } from 'react';[m
+[31m-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';[m
+ import Auth from './Auth';[m
+ import Dashboard from './Dashboard';[m
+ [m
+[36m@@ -17,21 +16,13 @@[m [mfunction App() {[m
+   };[m
+ [m
+   return ([m
+[31m-    <BrowserRouter>[m
+[31m-      <div style={{ minHeight: '100vh', backgroundColor: '#f4f7f6' }}>[m
+[31m-        <Routes>[m
+[31m-          <Route[m
+[31m-            path="/login"[m
+[31m-            element={userId ? <Navigate to="/" replace /> : <Auth onLogin={handleLogin} />}[m
+[31m-          />[m
+[31m-          <Route[m
+[31m-            path="/"[m
+[31m-            element={userId ? <Dashboard userId={userId} onLogout={handleLogout} /> : <Navigate to="/login" replace />}[m
+[31m-          />[m
+[31m-          <Route path="*" element={<Navigate to="/" replace />} />[m
+[31m-        </Routes>[m
+[31m-      </div>[m
+[31m-    </BrowserRouter>[m
+[32m+[m[32m    <div className="App" style={{ minHeight: '100vh', backgroundColor: '#f4f7f6' }}>[m
+[32m+[m[32m      {!userId ? ([m
+[32m+[m[32m        <Auth onLogin={handleLogin} />[m
+[32m+[m[32m      ) : ([m
+[32m+[m[32m        <Dashboard userId={userId} onLogout={handleLogout} />[m
+[32m+[m[32m      )}[m
+[32m+[m[32m    </div>[m
+   );[m
+ }[m
+ [m
+[1mdiff --git a/frontend/src/Auth.jsx b/frontend/src/Auth.jsx[m
+[1mindex 41c9722..0167423 100644[m
+[1m--- a/frontend/src/Auth.jsx[m
+[1m+++ b/frontend/src/Auth.jsx[m
+[36m@@ -1,5 +1,5 @@[m
+ import React, { useState } from 'react';[m
+[31m-import api from './api/client';[m
+[32m+[m[32mimport axios from 'axios';[m
+ [m
+ const Auth = ({ onLogin }) => {[m
+   const [isLogin, setIsLogin] = useState(true);[m
+[36m@@ -10,10 +10,12 @@[m [mconst Auth = ({ onLogin }) => {[m
+ [m
+   const handleSubmit = async (e) => {[m
+     e.preventDefault();[m
+[31m-    const url = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';[m
+[32m+[m[32m    const url = isLogin[m
+[32m+[m[32m      ? 'http://127.0.0.1:8000/login'[m
+[32m+[m[32m      : 'http://127.0.0.1:8000/register';[m
+ [m
+     try {[m
+[31m-      const response = await api.post(url, { username, password });[m
+[32m+[m[32m      const response = await axios.post(url, { username, password });[m
+       setIsError(false);[m
+ [m
+       if (isLogin) {[m
+[1mdiff --git a/frontend/src/Dashboard.jsx b/frontend/src/Dashboard.jsx[m
+[1mindex 58d8a61..f3cbe98 100644[m
+[1m--- a/frontend/src/Dashboard.jsx[m
+[1m+++ b/frontend/src/Dashboard.jsx[m
+[36m@@ -1,41 +1,250 @@[m
+ import React, { useState, useEffect } from 'react';[m
+[31m-import { getUserFiles } from './api/fields';[m
+[31m-import FieldPanel from './components/FieldPanel';[m
+[31m-import FileHistory from './components/FileHistory';[m
+[31m-import PlotViewer from './components/PlotViewer';[m
+[32m+[m[32mimport axios from 'axios';[m
+[32m+[m[32mimport Plot from 'react-plotly.js';[m
+ [m
+ const Dashboard = ({ userId, onLogout }) => {[m
+   const [files, setFiles] = useState([]);[m
+[31m-  const [selectedFile, setSelectedFile] = useState(null);[m
+[32m+[m[32m  const [newLoc, setNewLoc] = useState({ label: '', lat: '', lon: '' });[m
+[32m+[m
+[32m+[m[32m  const [plotData, setPlotData] = useState(null);[m
+[32m+[m[32m  const [loadingPlot, setLoadingPlot] = useState(false);[m
+[32m+[m
+[32m+[m[32m  const [mode, setMode] = useState("heatmap");[m
+[32m+[m[32m  const [filter, setFilter] = useState("none");[m
+[32m+[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  // LOAD FILES[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  const loadData = async () => {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const res = await axios.get([m
+[32m+[m[32m        `http://127.0.0.1:8000/user/files?user_id=${userId}`[m
+[32m+[m[32m      );[m
+[32m+[m[32m      setFiles(res.data);[m
+[32m+[m[32m    } catch (e) {[m
+[32m+[m[32m      console.error("Error loading history", e);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+ [m
+   useEffect(() => {[m
+[31m-    getUserFiles(userId)[m
+[31m-      .then(setFiles)[m
+[31m-      .catch(() => console.error('Error loading files'));[m
+[32m+[m[32m    loadData();[m
+   }, [userId]);[m
+ [m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  // ADD LOCATION[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  const addLocation = async (e) => {[m
+[32m+[m[32m    e.preventDefault();[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      await axios.post([m
+[32m+[m[32m        `http://127.0.0.1:8000/api/v1/locations?user_id=${userId}`,[m
+[32m+[m[32m        newLoc[m
+[32m+[m[32m      );[m
+[32m+[m[32m      setNewLoc({ label: '', lat: '', lon: '' });[m
+[32m+[m[32m    } catch (e) {[m
+[32m+[m[32m      alert("Error adding location");[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  // SYNC[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  const triggerSync = async () => {[m
+[32m+[m[32m    await axios.post('http://127.0.0.1:8000/sync-manual');[m
+[32m+[m[32m    alert("Sync started");[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  // LOAD PLOT[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  const loadPlot = async (filename) => {[m
+[32m+[m[32m    setLoadingPlot(true);[m
+[32m+[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const res = await axios.get([m
+[32m+[m[32m        `http://127.0.0.1:8000/api/v1/plot-data/${filename}`,[m
+[32m+[m[32m        {[m
+[32m+[m[32m          params: {[m
+[32m+[m[32m            mode,[m
+[32m+[m[32m            filter[m
+[32m+[m[32m          }[m
+[32m+[m[32m        }[m
+[32m+[m[32m      );[m
+[32m+[m
+[32m+[m[32m      setPlotData({[m
+[32m+[m[32m        ...res.data,[m
+[32m+[m[32m        filename[m
+[32m+[m[32m      });[m
+[32m+[m
+[32m+[m[32m    } catch (e) {[m
+[32m+[m[32m      console.error(e);[m
+[32m+[m[32m      alert("Error loading plot");[m
+[32m+[m[32m    } finally {[m
+[32m+[m[32m      setLoadingPlot(false);[m
+[32m+[m[32m    }[m
+[32m+[m[32m  };[m
+[32m+[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  // SAFE DATA CHECK[m
+[32m+[m[32m  // =========================[m
+[32m+[m[32m  const safeZ = (() => {[m
+[32m+[m[32m    if (!plotData?.z) return null;[m
+[32m+[m[32m    if (!Array.isArray(plotData.z)) return null;[m
+[32m+[m[32m    if (!Array.isArray(plotData.z[0])) return null;[m
+[32m+[m[32m    return plotData.z;[m
+[32m+[m[32m  })();[m
+[32m+[m
+[32m+[m[32m  const isRaw = plotData?.type === "raw";[m
+[32m+[m
+   return ([m
+     <div style={styles.container}>[m
+       <div style={styles.header}>[m
+         <h1>SmartCrop Dashboard</h1>[m
+[31m-        <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>[m
+[32m+[m[32m        <button onClick={onLogout} style={styles.logoutBtn}>[m
+[32m+[m[32m          Logout[m
+[32m+[m[32m        </button>[m
+       </div>[m
+ [m
+       <div style={styles.main}>[m
+[31m-        <FieldPanel userId={userId} />[m
+[31m-        <FileHistory files={files} onSelect={setSelectedFile} />[m
+[32m+[m
+[32m+[m[32m        {/* LEFT */}[m
+[32m+[m[32m        <section style={styles.card}>[m
+[32m+[m[32m          <h3>Add Field</h3>[m
+[32m+[m
+[32m+[m[32m          <form onSubmit={addLocation} style={styles.form}>[m
+[32m+[m[32m            <input[m
+[32m+[m[32m              placeholder="Name"[m
+[32m+[m[32m              value={newLoc.label}[m
+[32m+[m[32m              onChange={e => setNewLoc({ ...newLoc, label: e.target.value })}[m
+[32m+[m[32m              style={styles.input}[m
+[32m+[m[32m            />[m
+[32m+[m[32m            <input[m
+[32m+[m[32m              placeholder="Lat"[m
+[32m+[m[32m              type="number"[m
+[32m+[m[32m              step="0.0001"[m
+[32m+[m[32m              value={newLoc.lat}[m
+[32m+[m[32m              onChange={e => setNewLoc({ ...newLoc, lat: e.target.value })}[m
+[32m+[m[32m              style={styles.input}[m
+[32m+[m[32m            />[m
+[32m+[m[32m            <input[m
+[32m+[m[32m              placeholder="Lon"[m
+[32m+[m[32m              type="number"[m
+[32m+[m[32m              step="0.0001"[m
+[32m+[m[32m              value={newLoc.lon}[m
+[32m+[m[32m              onChange={e => setNewLoc({ ...newLoc, lon: e.target.value })}[m
+[32m+[m[32m              style={styles.input}[m
+[32m+[m[32m            />[m
+[32m+[m
+[32m+[m[32m            <button type="submit" style={styles.addBtn}>[m
+[32m+[m[32m              Save[m
+[32m+[m[32m            </button>[m
+[32m+[m[32m          </form>[m
+[32m+[m
+[32m+[m[32m          <button onClick={triggerSync} style={styles.syncBtn}>[m
+[32m+[m[32m            Sync Sentinel[m
+[32m+[m[32m          </button>[m
+[32m+[m[32m        </section>[m
+[32m+[m
+[32m+[m[32m        {/* RIGHT */}[m
+[32m+[m[32m        <section style={styles.card}>[m
+[32m+[m[32m          <h3>Files</h3>[m
+[32m+[m
+[32m+[m[32m          <div style={styles.list}>[m
+[32m+[m[32m            {files.map(f => ([m
+[32m+[m[32m              <div key={f.id} style={styles.fileItem}>[m
+[32m+[m[32m                <strong>{f.location}</strong>[m
+[32m+[m[32m                <code>{f.filename}</code>[m
+[32m+[m
+[32m+[m[32m                <button[m
+[32m+[m[32m                  onClick={() => loadPlot(f.filename)}[m
+[32m+[m[32m                  style={styles.plotBtn}[m
+[32m+[m[32m                >[m
+[32m+[m[32m                  Analyze[m
+[32m+[m[32m                </button>[m
+[32m+[m[32m              </div>[m
+[32m+[m[32m            ))}[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        </section>[m
+       </div>[m
+ [m
+[31m-      {selectedFile && <PlotViewer filename={selectedFile} />}[m
+[32m+[m[32m      {/* ================= PLOT ================= */}[m
+[32m+[m[32m      {(plotData || loadingPlot) && ([m
+[32m+[m[32m        <section style={styles.cardFull}>[m
+[32m+[m
+[32m+[m[32m          <h3>{plotData?.filename}</h3>[m
+[32m+[m
+[32m+[m[32m          {/* CONTROLS */}[m
+[32m+[m[32m          <div style={styles.controls}>[m
+[32m+[m
+[32m+[m[32m            <select value={mode} onChange={(e) => setMode(e.target.value)}>[m
+[32m+[m[32m              <option value="heatmap">Heatmap</option>[m
+[32m+[m[32m              <option value="raw">Raw</option>[m
+[32m+[m[32m            </select>[m
+[32m+[m
+[32m+[m[32m            <select value={filter} onChange={(e) => setFilter(e.target.value)}>[m
+[32m+[m[32m              <option value="none">No filter</option>[m
+[32m+[m[32m              <option value="ndvi">NDVI</option>[m
+[32m+[m[32m              <option value="log">Log</option>[m
+[32m+[m[32m            </select>[m
+[32m+[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              onClick={() => loadPlot(plotData.filename)}[m
+[32m+[m[32m              style={styles.applyBtn}[m
+[32m+[m[32m            >[m
+[32m+[m[32m              Apply[m
+[32m+[m[32m            </button>[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          {/* RENDER */}[m
+[32m+[m[32m          {loadingPlot ? ([m
+[32m+[m[32m            <p>Processing...</p>[m
+[32m+[m[32m          ) : !safeZ ? ([m
+[32m+[m[32m            <p style={{ color: 'red' }}>Invalid raster</p>[m
+[32m+[m[32m          ) : isRaw ? ([m
+[32m+[m[32m            <pre style={{ textAlign: 'left', fontSize: 12 }}>[m
+[32m+[m[32m              {JSON.stringify(plotData.z, null, 2)}[m
+[32m+[m[32m            </pre>[m
+[32m+[m[32m          ) : ([m
+[32m+[m[32m            <Plot[m
+[32m+[m[32m              data={[[m
+[32m+[m[32m                {[m
+[32m+[m[32m                  z: safeZ,[m
+[32m+[m[32m                  type: 'heatmap',[m
+[32m+[m[32m                  colorscale: 'Greens',[m
+[32m+[m[32m                  showscale: true,[m
+[32m+[m[32m                  zsmooth: 'best'[m
+[32m+[m[32m                }[m
+[32m+[m[32m              ]}[m
+[32m+[m[32m              layout={{[m
+[32m+[m[32m                width: 650,[m
+[32m+[m[32m                height: 550,[m
+[32m+[m[32m                margin: { t: 30 }[m
+[32m+[m[32m              }}[m
+[32m+[m[32m              config={{ responsive: true }}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          )}[m
+[32m+[m[32m        </section>[m
+[32m+[m[32m      )}[m
+     </div>[m
+   );[m
+ };[m
+ [m
+ const styles = {[m
+[31m-  container: { padding: 20, maxWidth: 1100, margin: '0 auto' },[m
+[31m-  header: { display: 'flex', justifyContent: 'space-between' },[m
+[31m-  main: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 },[m
+[31m-  logoutBtn: { background: 'red', color: '#fff', padding: 6 },[m
+[32m+[m[32m  container: { padding: 20, maxWidth: 1100, margin: "0 auto" },[m
+[32m+[m[32m  header: { display: "flex", justifyContent: "space-between" },[m
+[32m+[m[32m  main: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 },[m
+[32m+[m[32m  card: { padding: 15, background: "#fff", borderRadius: 8 },[m
+[32m+[m[32m  cardFull: { marginTop: 20, padding: 15, background: "#fff", borderRadius: 8 },[m
+[32m+[m[32m  form: { display: "flex", flexDirection: "column", gap: 10 },[m
+[32m+[m[32m  input: { padding: 10, border: "1px solid #ddd" },[m
+[32m+[m[32m  addBtn: { background: "#4caf50", color: "#fff", padding: 10 },[m
+[32m+[m[32m  syncBtn: { marginTop: 10, background: "#2196f3", color: "#fff", padding: 10 },[m
+[32m+[m[32m  list: { marginTop: 10 },[m
+[32m+[m[32m  fileItem: { marginBottom: 10, display: "flex", flexDirection: "column", gap: 5 },[m
+[32m+[m[32m  plotBtn: { background: "#ff9800", color: "#fff", padding: 5 },[m
+[32m+[m[32m  controls: { display: "flex", gap: 10, justifyContent: "center" },[m
+[32m+[m[32m  applyBtn: { background: "#333", color: "#fff", padding: 5 },[m
+[32m+[m[32m  logoutBtn: { background: "red", color: "#fff", padding: 6 }[m
+ };[m
+ [m
+[31m-export default Dashboard;[m
+[32m+[m[32mexport default Dashboard;[m
+\ No newline at end of file[m
+[1mdiff --git a/frontend/src/api/client.js b/frontend/src/api/client.js[m
+[1mdeleted file mode 100644[m
+[1mindex a08c68e..0000000[m
+[1m--- a/frontend/src/api/client.js[m
+[1m+++ /dev/null[m
+[36m@@ -1,7 +0,0 @@[m
+[31m-import axios from 'axios';[m
+[31m-[m
+[31m-const api = axios.create({[m
+[31m-  baseURL: import.meta.env.VITE_API_URL,[m
+[31m-});[m
+[31m-[m
+[31m-export default api;[m
+[1mdiff --git a/frontend/src/api/fields.js b/frontend/src/api/fields.js[m
+[1mdeleted file mode 100644[m
+[1mindex aee2ece..0000000[m
+[1m--- a/frontend/src/api/fields.js[m
+[1m+++ /dev/null[m
+[36m@@ -1,10 +0,0 @@[m
+[31m-import api from './client';[m
+[31m-[m
+[31m-export const getUserFiles = (userId) =>[m
+[31m-  api.get(`/user/files?user_id=${userId}`).then(r => r.data);[m
+[31m-[m
+[31m-export const addLocation = (userId, location) =>[m
+[31m-  api.post(`/api/v1/locations?user_id=${userId}`, location);[m
+[31m-[m
+[31m-export const triggerSync = () =>[m
+[31m-  api.post('/sync-manual');[m
+[1mdiff --git a/frontend/src/api/plots.js b/frontend/src/api/plots.js[m
+[1mdeleted file mode 100644[m
+[1mindex a639072..0000000[m
+[1m--- a/frontend/src/api/plots.js[m
+[1m+++ /dev/null[m
+[36m@@ -1,4 +0,0 @@[m
+[31m-import api from './client';[m
+[31m-[m
+[31m-export const getPlotData = (filename, mode, filter) =>[m
+[31m-  api.get(`/api/v1/plot-data/${filename}`, { params: { mode, filter } }).then(r => r.data);[m
+[1mdiff --git a/frontend/src/components/FieldPanel.jsx b/frontend/src/components/FieldPanel.jsx[m
+[1mdeleted file mode 100644[m
+[1mindex 3b192ee..0000000[m
+[1m--- a/frontend/src/components/FieldPanel.jsx[m
+[1m+++ /dev/null[m
+[36m@@ -1,67 +0,0 @@[m
+[31m-import React, { useState } from 'react';[m
+[31m-import { addLocation, triggerSync } from '../api/fields';[m
+[31m-[m
+[31m-const FieldPanel = ({ userId }) => {[m
+[31m-  const [loc, setLoc] = useState({ label: '', lat: '', lon: '' });[m
+[31m-[m
+[31m-  const handleAdd = async (e) => {[m
+[31m-    e.preventDefault();[m
+[31m-    try {[m
+[31m-      await addLocation(userId, loc);[m
+[31m-      setLoc({ label: '', lat: '', lon: '' });[m
+[31m-    } catch {[m
+[31m-      alert('Error adding location');[m
+[31m-    }[m
+[31m-  };[m
+[31m-[m
+[31m-  const handleSync = async () => {[m
+[31m-    try {[m
+[31m-      await triggerSync();[m
+[31m-      alert('Sync started');[m
+[31m-    } catch {[m
+[31m-      alert('Error starting sync');[m
+[31m-    }[m
+[31m-  };[m
+[31m-[m
+[31m-  return ([m
+[31m-    <section style={styles.card}>[m
+[31m-      <h3>Add Field</h3>[m
+[31m-      <form onSubmit={handleAdd} style={styles.form}>[m
+[31m-        <input[m
+[31m-          placeholder="Name"[m
+[31m-          value={loc.label}[m
+[31m-          onChange={e => setLoc({ ...loc, label: e.target.value })}[m
+[31m-          style={styles.input}[m
+[31m-        />[m
+[31m-        <input[m
+[31m-          placeholder="Lat"[m
+[31m-          type="number"[m
+[31m-          step="0.0001"[m
+[31m-          value={loc.lat}[m
+[31m-          onChange={e => setLoc({ ...loc, lat: e.target.value })}[m
+[31m-          style={styles.input}[m
+[31m-        />[m
+[31m-        <input[m
+[31m-          placeholder="Lon"[m
+[31m-          type="number"[m
+[31m-          step="0.0001"[m
+[31m-          value={loc.lon}[m
+[31m-          onChange={e => setLoc({ ...loc, lon: e.target.value })}[m
+[31m-          style={styles.input}[m
+[31m-        />[m
+[31m-        <button type="submit" style={styles.addBtn}>Save</button>[m
+[31m-      </form>[m
+[31m-      <button onClick={handleSync} style={styles.syncBtn}>Sync Sentinel</button>[m
+[31m-    </section>[m
+[31m-  );[m
+[31m-};[m
+[31m-[m
+[31m-const styles = {[m
+[31m-  card: { padding: 15, background: '#fff', borderRadius: 8 },[m
+[31m-  form: { display: 'flex', flexDirection: 'column', gap: 10 },[m
+[31m-  input: { padding: 10, border: '1px solid #ddd' },[m
+[31m-  addBtn: { background: '#4caf50', color: '#fff', padding: 10 },[m
+[31m-  syncBtn: { marginTop: 10, background: '#2196f3', color: '#fff', padding: 10 },[m
+[31m-};[m
+[31m-[m
+[31m-export default FieldPanel;[m
+[1mdiff --git a/frontend/src/components/FileHistory.jsx b/frontend/src/components/FileHistory.jsx[m
+[1mdeleted file mode 100644[m
+[1mindex c3f7c19..0000000[m
+[1m--- a/frontend/src/components/FileHistory.jsx[m
+[1m+++ /dev/null[m
+[36m@@ -1,27 +0,0 @@[m
+[31m-import React from 'react';[m
+[31m-[m
+[31m-const FileHistory = ({ files, onSelect }) => ([m
+[31m-  <section style={styles.card}>[m
+[31m-    <h3>Files</h3>[m
+[31m-    <div style={styles.list}>[m
+[31m-      {files.map(f => ([m
+[31m-        <div key={f.id} style={styles.fileItem}>[m
+[31m-          <strong>{f.location}</strong>[m
+[31m-          <code>{f.filename}</code>[m
+[31m-          <button onClick={() => onSelect(f.filename)} style={styles.plotBtn}>[m
+[31m-            Analyze[m
+[31m-          </button>[m
+[31m-        </div>[m
+[31m-      ))}[m
+[31m-    </div>[m
+[31m-  </section>[m
+[31m-);[m
+[31m-[m
+[31m-const styles = {[m
+[31m-  card: { padding: 15, background: '#fff', borderRadius: 8 },[m
+[31m-  list: { marginTop: 10 },[m
+[31m-  fileItem: { marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 5 },[m
+[31m-  plotBtn: { background: '#ff9800', color: '#fff', padding: 5 },[m
+[31m-};[m
+[31m-[m
+[31m-export default FileHistory;[m
+[1mdiff --git a/frontend/src/components/PlotViewer.jsx b/frontend/src/components/PlotViewer.jsx[m
+[1mdeleted file mode 100644[m
+[1mindex caa230d..0000000[m
+[1m--- a/frontend/src/components/PlotViewer.jsx[m
+[1m+++ /dev/null[m
+[36m@@ -1,79 +0,0 @@[m
+[31m-import React, { useState, useEffect } from 'react';[m
+[31m-import Plot from 'react-plotly.js';[m
+[31m-import { getPlotData } from '../api/plots';[m
+[31m-[m
+[31m-const PlotViewer = ({ filename }) => {[m
+[31m-  const [plotData, setPlotData] = useState(null);[m
+[31m-  const [loading, setLoading] = useState(false);[m
+[31m-  const [mode, setMode] = useState('heatmap');[m
+[31m-  const [filter, setFilter] = useState('none');[m
+[31m-[m
+[31m-  const load = async (f, m, fi) => {[m
+[31m-    setLoading(true);[m
+[31m-    setPlotData(null);[m
+[31m-    try {[m
+[31m-      const data = await getPlotData(f, m, fi);[m
+[31m-      setPlotData({ ...data, filename: f });[m
+[31m-    } catch {[m
+[31m-      alert('Error loading plot');[m
+[31m-    } finally {[m
+[31m-      setLoading(false);[m
+[31m-    }[m
+[31m-  };[m
+[31m-[m
+[31m-  useEffect(() => {[m
+[31m-    load(filename, mode, filter);[m
+[31m-  }, [filename]);[m
+[31m-[m
+[31m-  const safeZ = (() => {[m
+[31m-    if (!Array.isArray(plotData?.z) || !Array.isArray(plotData.z[0])) return null;[m
+[31m-    return plotData.z;[m
+[31m-  })();[m
+[31m-[m
+[31m-  const isRaw = plotData?.type === 'raw';[m
+[31m-[m
+[31m-  return ([m
+[31m-    <section style={styles.card}>[m
+[31m-      <h3>{filename}</h3>[m
+[31m-[m
+[31m-      <div style={styles.controls}>[m
+[31m-        <select value={mode} onChange={e => setMode(e.target.value)}>[m
+[31m-          <option value="heatmap">Heatmap</option>[m
+[31m-          <option value="raw">Raw</option>[m
+[31m-        </select>[m
+[31m-        <select value={filter} onChange={e => setFilter(e.target.value)}>[m
+[31m-          <option value="none">No filter</option>[m
+[31m-          <option value="ndvi">NDVI</option>[m
+[31m-          <option value="log">Log</option>[m
+[31m-        </select>[m
+[31m-        <button onClick={() => load(filename, mode, filter)} style={styles.applyBtn}>[m
+[31m-          Apply[m
+[31m-        </button>[m
+[31m-      </div>[m
+[31m-[m
+[31m-      {loading ? ([m
+[31m-        <p>Processing...</p>[m
+[31m-      ) : !safeZ ? ([m
+[31m-        <p style={{ color: 'red' }}>Invalid raster</p>[m
+[31m-      ) : isRaw ? ([m
+[31m-        <pre style={{ textAlign: 'left', fontSize: 12 }}>[m
+[31m-          {JSON.stringify(plotData.z, null, 2)}[m
+[31m-        </pre>[m
+[31m-      ) : ([m
+[31m-        <Plot[m
+[31m-          data={[{ z: safeZ, type: 'heatmap', colorscale: 'Greens', showscale: true, zsmooth: 'best' }]}[m
+[31m-          layout={{ width: 650, height: 550, margin: { t: 30 } }}[m
+[31m-          config={{ responsive: true }}[m
+[31m-        />[m
+[31m-      )}[m
+[31m-    </section>[m
+[31m-  );[m
+[31m-};[m
+[31m-[m
+[31m-const styles = {[m
+[31m-  card: { marginTop: 20, padding: 15, background: '#fff', borderRadius: 8 },[m
+[31m-  controls: { display: 'flex', gap: 10, justifyContent: 'center' },[m
+[31m-  applyBtn: { background: '#333', color: '#fff', padding: 5 },[m
+[31m-};[m
+[31m-[m
+[31m-export default PlotViewer;[m
+[1mdiff --git a/git_log.log b/git_log.log[m
+[1mindex a41f4db..2466d90 100644[m
+[1m--- a/git_log.log[m
+[1m+++ b/git_log.log[m
+[36m@@ -4,18 +4,3 @@[m
+ To github.com:niki8885/SmartCropMonitor.git[m
+    ddece16..5c2b329  master -> master[m
+ Changes pushed successfully at Thu May  7 09:00:04 PM UTC 2026[m
+[31m-[master fb3bbf2] chore(data): 2026-05-07 21:30:01[m
+[31m- 1 file changed, 6 insertions(+)[m
+[31m-To github.com:niki8885/SmartCropMonitor.git[m
+[31m-   5c2b329..fb3bbf2  master -> master[m
+[31m-Changes pushed successfully at Thu May  7 09:30:03 PM UTC 2026[m
+[31m-[master 8fc781c] chore(data): 2026-05-07 22:00:01[m
+[31m- 1 file changed, 5 insertions(+)[m
+[31m-To github.com:niki8885/SmartCropMonitor.git[m
+[31m-   fb3bbf2..8fc781c  master -> master[m
+[31m-Changes pushed successfully at Thu May  7 10:00:03 PM UTC 2026[m
+[31m-[master e0f3b40] chore(data): 2026-05-07 22:30:01[m
+[31m- 1 file changed, 5 insertions(+)[m
+[31m-To github.com:niki8885/SmartCropMonitor.git[m
+[31m-   8fc781c..e0f3b40  master -> master[m
+[31m-Changes pushed successfully at Thu May  7 10:30:03 PM UTC 2026[m

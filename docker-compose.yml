@@ -14,3 +14,21 @@ services:
     build: ./haskell-service
     ports:
       - "8081:8081"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+
+    container_name: smartcrop_frontend
+
+    ports:
+      - "3000:80"
+
+    environment:
+      - VITE_API_URL=http://backend:8000
+
+    depends_on:
+      - backend
+
+    restart: unless-stopped
