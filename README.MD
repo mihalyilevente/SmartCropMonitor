@@ -54,19 +54,45 @@ stack run
 
 ## Documentation
 
-*   **`docs/`** — Core project guidelines:
-    *   `CONTRIBUTING.md`: Instructions on how to contribute to the project.
-    *   `SECURITY.md`: Security policies and vulnerability reporting.
-    *   `MODEL_CARD.md`: Characteristics and performance indicators for the models.
-    *    `DATA_SPEC.md`: Definition of Sentinel-2 data schema, band selection, spatial resolution rules, and auxiliary layer structure.
-*   **`.github/`** — GitHub-specific workflows and templates:
-    *   `ISSUE_TEMPLATE/`: Pre-defined formats for reporting bugs, requesting features, or documenting ML experiments.
-    *   `PULL_REQUEST_TEMPLATE.md`: A checklist to ensure quality for all code submissions.
-*   **`notebooks/`** — Contains research, data analysis, and experimental code.
-*   **Root Directory**:
-    *   `LICENSE.MD`: Legal terms regarding the use of this software.
-    *   `CODE_OF_CONDUCT.md`: Standards for community engagement.
-    *   `requirements.txt`: Global Python dependencies.
+* **`docs/`** — Core project documentation and technical guidelines:
+    * `CONTRIBUTING.md` — Instructions for contributing to the project.
+    * `SECURITY.md` — Security policies and vulnerability disclosure process.
+    * `MODEL_CARD.md` — ML model characteristics, limitations, and performance indicators.
+    * `DATA_SPEC.md` — Sentinel-2 data schema, band selection rules, spatial resolution definitions, and auxiliary layer structure.
+    * `ARCHITECTURE.md` — System architecture, processing pipeline, and service interaction overview.
+    * `API_SPEC.md` — API endpoints, request/response schemas, and authentication details.
+
+### Documentation Assets
+
+* **`docs/assets/`** — Static assets used across documentation:
+    * `diagrams/` — System architecture, workflow, and database diagrams.
+    * `ui/` — UI screenshots and interface mockups.
+    * `visualizations/` — Generated plots, graphs, NDVI maps, and analytical figures.
+
+---
+
+## GitHub Configuration
+
+* **`.github/`** — GitHub workflows and collaboration templates:
+    * `ISSUE_TEMPLATE/` — Templates for bug reports, feature requests, and ML experiment tracking.
+    * `PULL_REQUEST_TEMPLATE.md` — Standardized checklist for pull requests.
+
+---
+
+## Research and Experimentation
+
+* **`notebooks/`** — Research notebooks, exploratory analysis, prototyping, and experiments.
+
+---
+
+## Root Directory
+
+* `LICENSE.md` — AGPLv3 open-source license.
+* `COMMERCIAL-LICENSE.md` — Commercial licensing terms and usage conditions.
+* `CODE_OF_CONDUCT.md` — Community participation and behavior standards.
+* `README.md` — Project overview, setup instructions, and quick start guide.
+* `requirements.txt` — Global Python dependencies.
+* `.env.example` — Example environment configuration template.
 
 ---
 ## Dual Licensing
