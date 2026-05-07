@@ -11,6 +11,7 @@ from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistor
 from app.services.segmentation import perform_temp_segmentation_and_save
 from app.services.orchestrator import full_sync_process
 from app.services.spatial_harmonizer import process_and_align_nc
+from geoalchemy2.elements import WKTElement
 
 
 # =========================
@@ -35,11 +36,12 @@ async def add_location(
     user_id: int,
     db: Session = Depends(get_db)
 ):
+    point = f"POINT({loc.lon} {loc.lat})"
+
     new_loc = UserLocation(
         user_id=user_id,
         label=loc.label,
-        lat=loc.lat,
-        lon=loc.lon
+        location=WKTElement(point, srid=4326)
     )
 
     db.add(new_loc)

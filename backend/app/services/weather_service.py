@@ -8,16 +8,19 @@ from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
 from app.utils.general import safe_float, safe_int
 from sqlalchemy import desc
 from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL
+from geoalchemy2.shape import to_shape
 
 # =========================
 # Config
 # =========================
 
 def fetch_and_save_weather(db: Session, location: UserLocation):
+    point = to_shape(location.location)
+    lon, lat = point.x, point.y
     url = (
         "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={location.lat}"
-        f"&longitude={location.lon}"
+        f"?latitude={lat}"
+        f"&longitude={lon}"
         "&hourly="
         "temperature_2m,"
         "relative_humidity_2m,"
@@ -55,9 +58,6 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
                 location_id=location.id,
 
                 timestamp=datetime.fromisoformat(ts),
-
-                lat=data["latitude"],
-                lon=data["longitude"],
 
                 temp=hourly["temperature_2m"][i],
 
