@@ -7,6 +7,10 @@ services:
       - PYTHONPATH=/app
       - HASKELL_SERVICE_URL=http://haskell-service:8081/field-stats
       - SQLALCHEMY_DATABASE_URL=${SQLALCHEMY_DATABASE_URL}
+
+    volumes:
+      - ./backend/data:/app/data
+
     depends_on:
       - haskell-service
 
