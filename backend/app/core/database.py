@@ -197,12 +197,48 @@ class WeatherMetrics(Base):
     location = relationship("UserLocation")
     weather = relationship("WeatherHistory")
 
-# =========================
-# Schemas
-# =========================
-class UserCreate(BaseModel):
-    username: str
-    password: str
+class SensorsDB(Base):
+    __tablename__ = "sensors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+
+    location = Column(Geometry(geometry_type='POINT', srid=4326))
+    label = Column(String)
+
+    hashed_key = Column(String, unique=True, index=True, nullable=False)
+
+    added_at = Column(DateTime, nullable=True, default=datetime.datetime.utcnow)
+    meteorological = Column(Boolean, nullable=True)
+    activation_status = Column(Boolean, nullable=True, default=True)
+
+    extra_data = Column(JSON, nullable=True)
+
+
+class WeatherSensors(Base):
+    __tablename__ = "weather_sensors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sensor_id = Column(Integer, ForeignKey("sensors.id"))
+
+    timestamp = Column(DateTime, nullable=False, index=True)
+
+    temp = Column(Float)
+    pressure = Column(Float)
+    humidity = Column(Float)
+
+    sensor_status = Column(Boolean, nullable=True)
+
+    extra_data = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "sensor_id",
+            "timestamp",
+            name="uq_sensor_timestamp"
+        ),
+    )
+
 
 # =========================
 # DB Dependency
