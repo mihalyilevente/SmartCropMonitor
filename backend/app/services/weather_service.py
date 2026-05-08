@@ -341,7 +341,7 @@ def weather_metrics(db: Session, location: UserLocation):
 def perform_haskell_weather_metrics(location_data):
     try:
         payload = {
-            "dataField": location_data,
+            "raw_data": location_data,
             "config": 3
         }
 
