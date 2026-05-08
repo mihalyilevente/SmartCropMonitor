@@ -344,26 +344,31 @@ def current_weather_request(location: UserLocation):
     point = to_shape(location.location)
     lon, lat = point.x, point.y
 
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric"
+    url = (
+        f"https://api.openweathermap.org/data/2.5/weather"
+        f"?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric"
+    )
 
     try:
         response = requests.get(url)
         response.raise_for_status()
+
         data = response.json()
 
-        weather_current = WeatherHistory(
-            timestamp=datetime.fromtimestamp(data.get("dt")),
-            temp=data["main"]["temp"],
-            pressure=data["main"]["pressure"],
-            humidity=data["main"]["humidity"],
-            wind_speed=data["wind"]["speed"],
-            wind_deg=data["wind"]["deg"],
-            cloud_coverage=data["clouds"]["all"],
-            weather_main=data["weather"][0]["main"],
-            weather_description=data["weather"][0]["description"],
-        )
+        weather_current = {
+            "timestamp": datetime.fromtimestamp(data.get("dt")).isoformat(),
+            "temp": data["main"]["temp"],
+            "pressure": data["main"]["pressure"],
+            "humidity": data["main"]["humidity"],
+            "wind_speed": data.get("wind", {}).get("speed"),
+            "wind_deg": data.get("wind", {}).get("deg"),
+            "cloud_coverage": data.get("clouds", {}).get("all"),
+            "weather_main": data["weather"][0]["main"],
+            "weather_description": data["weather"][0]["description"],
+        }
 
         print(f"[INFO] Weather received for {location.label}")
+
         return weather_current
     except Exception as e:
         alert_service.send(
