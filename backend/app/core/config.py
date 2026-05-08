@@ -18,7 +18,7 @@ os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.1.6"
+API_VERSION = "0.1.7"
 
 REQUIRED_BANDS = [
     "blue", "green", "red", "nir",
@@ -45,7 +45,7 @@ TEMP_MODEL_PATH = os.path.join("app", "models", "utae_pastis.pth")
 RANDOM_SEED = 28
 MAX_SEGM_INPUT = 5
 
-MIN_RECORDS_7D = 7 #24 * 7 * 0.8
+MIN_RECORDS_7D = 24 * 7 * 0.8
 WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")

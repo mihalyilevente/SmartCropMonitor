@@ -1,7 +1,7 @@
 import requests
 from time import sleep
 import datetime
-from datetime import datetime, timedelta
+from datetime import timedelta
 import math
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
@@ -36,6 +36,7 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
         "cloud_cover,"
         "wind_speed_10m,"
         "wind_direction_10m"
+        "&daily=sunrise,sunset"
         "&timezone=UTC"
     )
 
@@ -46,9 +47,25 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
         data = response.json()
         hourly = data["hourly"]
         times = hourly["time"]
+        daily = data.get("daily", {})
+
+        sun_map = {
+            daily["time"][i]: (daily["sunrise"][i], daily["sunset"][i])
+            for i in range(len(daily.get("time", [])))
+        }
 
         for i, ts in enumerate(times):
             timestamp = datetime.fromisoformat(ts)
+            date_key = ts.split("T")[0]  # Get YYYY-MM-DD
+
+            sunrise_str, sunset_str = sun_map.get(date_key, (None, None))
+            sunrise_dt = datetime.fromisoformat(sunrise_str) if sunrise_str else None
+            sunset_dt = datetime.fromisoformat(sunset_str) if sunset_str else None
+
+            is_night = True
+            if sunrise_dt and sunset_dt:
+                is_night = not (sunrise_dt <= timestamp <= sunset_dt)
+
             insert_data = {
                 "location_id": location.id,
                 "timestamp": timestamp,
@@ -66,6 +83,9 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
                 "cloud_coverage": hourly["cloud_cover"][i],
                 "wind_speed": hourly["wind_speed_10m"][i],
                 "wind_deg": hourly["wind_direction_10m"][i],
+                "sunrise": sunrise_dt,
+                "sunset": sunset_dt,
+                "is_night": is_night,
                 "metrics_status": False
             }
 
@@ -88,6 +108,9 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
                     "cloud_coverage": stmt.excluded.cloud_coverage,
                     "wind_speed": stmt.excluded.wind_speed,
                     "wind_deg": stmt.excluded.wind_deg,
+                    "sunrise": stmt.excluded.sunrise,
+                    "sunset": stmt.excluded.sunset,
+                    "is_night": stmt.excluded.is_night,
                     "metrics_status": stmt.excluded.metrics_status
                 }
             )
@@ -201,7 +224,8 @@ def weather_metrics(db: Session, location: UserLocation):
                 "humidity": weather_record.humidity,
                 "wind_speed": weather_record.wind_speed,
                 "clouds": weather_record.cloud_coverage,
-                "timestamp": weather_record.timestamp.isoformat()
+                "timestamp": weather_record.timestamp.isoformat(),
+                "is_night": weather_record.is_night
             },
             "history_7d": [
                 {
@@ -213,7 +237,8 @@ def weather_metrics(db: Session, location: UserLocation):
                     "cc": h.cloud_coverage,
                     "r": h.rain or 0.0,
                     "s": h.snowfall or 0.0,
-                    "dt": h.timestamp.isoformat()
+                    "dt": h.timestamp.isoformat(),
+                    "is_night": h.is_night
                 } for h in history_7d
             ],
             "history_30d": [
@@ -221,7 +246,10 @@ def weather_metrics(db: Session, location: UserLocation):
                     "t": h.temp,
                     "r": h.rain or 0.0,
                     "h": h.humidity,
-                    "dt": h.timestamp.isoformat()
+                    "p": h.pressure,
+                    "ws": h.wind_speed,
+                    "dt": h.timestamp.isoformat(),
+                    "is_night": h.is_night
                 } for h in history_30d
             ]
         }
@@ -253,7 +281,7 @@ def weather_metrics(db: Session, location: UserLocation):
                 et0=None,
                 water_deficit_7d=None,
                 water_deficit_30d=None,
-                spi_3m=None,
+                spi_1m=None,
 
                 ra_mj_m2_day=None,
                 rs_mj_m2_day=None
@@ -288,7 +316,7 @@ def weather_metrics(db: Session, location: UserLocation):
                 water_deficit_7d=result.get("water_deficit_7d"),
                 water_deficit_30d=result.get("water_deficit_30d"),
 
-                spi_3m=result.get("spi_3m"),
+                spi_1m=result.get("spi1m"),
 
                 ra_mj_m2_day=result.get("ra"),
                 rs_mj_m2_day=result.get("rs")
