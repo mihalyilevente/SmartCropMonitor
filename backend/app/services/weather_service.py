@@ -375,7 +375,6 @@ def current_weather_request(location: UserLocation):
         weather_current = WeatherHistory(
             timestamp=datetime.fromtimestamp(data.get("dt")),
             temp=data["main"]["temp"],
-            feels_like=data["main"]["feels_like"],
             pressure=data["main"]["pressure"],
             humidity=data["main"]["humidity"],
             wind_speed=data["wind"]["speed"],
