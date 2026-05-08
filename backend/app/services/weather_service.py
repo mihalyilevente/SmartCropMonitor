@@ -157,6 +157,22 @@ def request_elevation(lat, lon, retries=3):
     return None
 
 
+def _serialize_weather_point(weather_record):
+    """Convert weather record to JSON-compatible dict, excluding None values."""
+    return {
+        "t": weather_record.temp,
+        "h": weather_record.humidity,
+        "p": weather_record.pressure,
+        "ws": weather_record.wind_speed,
+        "wd": weather_record.wind_deg,
+        "cc": weather_record.cloud_coverage,
+        "r": weather_record.rain or 0.0,
+        "s": weather_record.snowfall or 0.0,
+        "dt": weather_record.timestamp.isoformat(),
+        "is_night": weather_record.is_night
+    }
+
+
 def weather_metrics(db: Session, location: UserLocation):
     pending_list = db.query(WeatherHistory).filter(
         WeatherHistory.location_id == location.id,
@@ -218,46 +234,9 @@ def weather_metrics(db: Session, location: UserLocation):
                 "elevation": safe_float(elevation),
                 "day_of_year": day_of_year
             },
-            "current": {
-                "t": weather_record.temp,
-                "h": weather_record.humidity,
-                "p": weather_record.pressure,
-                "ws": weather_record.wind_speed,
-                "wd": weather_record.wind_deg,
-                "cc": weather_record.cloud_coverage,
-                "r": weather_record.rain or 0.0,
-                "s": weather_record.snowfall or 0.0,
-                "dt": weather_record.timestamp.isoformat(),
-                "is_night": weather_record.is_night
-            },
-            "history_7d": [
-                {
-                    "t": h.temp,
-                    "h": h.humidity,
-                    "p": h.pressure,
-                    "ws": h.wind_speed,
-                    "wd": h.wind_deg,
-                    "cc": h.cloud_coverage,
-                    "r": h.rain or 0.0,
-                    "s": h.snowfall or 0.0,
-                    "dt": h.timestamp.isoformat(),
-                    "is_night": h.is_night
-                } for h in history_7d
-            ],
-            "history_30d": [
-                {
-                    "t": h.temp,
-                    "h": h.humidity,
-                    "p": h.pressure,
-                    "ws": h.wind_speed,
-                    "wd": h.wind_deg,
-                    "cc": h.cloud_coverage,
-                    "r": h.rain or 0.0,
-                    "s": h.snowfall or 0.0,
-                    "dt": h.timestamp.isoformat(),
-                    "is_night": h.is_night
-                } for h in history_30d
-            ]
+            "current": _serialize_weather_point(weather_record),
+            "history_7d": [_serialize_weather_point(h) for h in history_7d],
+            "history_30d": [_serialize_weather_point(h) for h in history_30d]
         }
 
         result = perform_haskell_weather_metrics(location_data)
