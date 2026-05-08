@@ -380,7 +380,6 @@ def current_weather_request(location: UserLocation):
             wind_speed=data["wind"]["speed"],
             wind_deg=data["wind"]["deg"],
             cloud_coverage=data["clouds"]["all"],
-            weather_id=data["weather"][0]["id"],
             weather_main=data["weather"][0]["main"],
             weather_description=data["weather"][0]["description"],
         )
