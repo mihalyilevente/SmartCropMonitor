@@ -4,6 +4,7 @@ import datetime
 from datetime import datetime, timedelta
 import math
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
 from app.utils.general import safe_float, safe_int
 from sqlalchemy import desc
@@ -47,42 +48,51 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
         times = hourly["time"]
 
         for i, ts in enumerate(times):
+            timestamp = datetime.fromisoformat(ts)
+            insert_data = {
+                "location_id": location.id,
+                "timestamp": timestamp,
+                "temp": hourly["temperature_2m"][i],
+                "humidity": hourly["relative_humidity_2m"][i],
+                "dew_point": hourly["dew_point_2m"][i],
+                "vapour_pressure_deficit": hourly["vapour_pressure_deficit"][i],
+                "precipitation": hourly["precipitation"][i],
+                "rain": hourly["rain"][i],
+                "showers": hourly["showers"][i],
+                "snowfall": hourly["snowfall"][i],
+                "soil_temperature_0cm": hourly["soil_temperature_0cm"][i],
+                "soil_moisture_0_to_1cm": hourly["soil_moisture_0_to_1cm"][i],
+                "pressure": hourly["surface_pressure"][i],
+                "cloud_coverage": hourly["cloud_cover"][i],
+                "wind_speed": hourly["wind_speed_10m"][i],
+                "wind_deg": hourly["wind_direction_10m"][i],
+                "metrics_status": False
+            }
 
-            weather_entry = WeatherHistory(
-                location_id=location.id,
-                timestamp=datetime.fromisoformat(ts),
-                temp=hourly["temperature_2m"][i],
+            stmt = insert(WeatherHistory).values(insert_data)
 
-                humidity=hourly["relative_humidity_2m"][i],
-
-                dew_point=hourly["dew_point_2m"][i],
-
-                vapour_pressure_deficit=hourly[
-                    "vapour_pressure_deficit"
-                ][i],
-
-                precipitation=hourly["precipitation"][i],
-                rain=hourly["rain"][i],
-                showers=hourly["showers"][i],
-                snowfall=hourly["snowfall"][i],
-
-                soil_temperature_0cm=hourly["soil_temperature_0cm"][i],
-
-                soil_moisture_0_to_1cm=hourly[
-                    "soil_moisture_0_to_1cm"
-                ][i],
-
-                pressure=hourly["surface_pressure"][i],
-
-                cloud_coverage=hourly["cloud_cover"][i],
-
-                wind_speed=hourly["wind_speed_10m"][i],
-
-                wind_deg=hourly["wind_direction_10m"][i],
-
+            stmt = stmt.on_conflict_do_update(
+                constraint="uq_weather_location_timestamp",
+                set_={
+                    "temp": stmt.excluded.temp,
+                    "humidity": stmt.excluded.humidity,
+                    "dew_point": stmt.excluded.dew_point,
+                    "vapour_pressure_deficit": stmt.excluded.vapour_pressure_deficit,
+                    "precipitation": stmt.excluded.precipitation,
+                    "rain": stmt.excluded.rain,
+                    "showers": stmt.excluded.showers,
+                    "snowfall": stmt.excluded.snowfall,
+                    "soil_temperature_0cm": stmt.excluded.soil_temperature_0cm,
+                    "soil_moisture_0_to_1cm": stmt.excluded.soil_moisture_0_to_1cm,
+                    "pressure": stmt.excluded.pressure,
+                    "cloud_coverage": stmt.excluded.cloud_coverage,
+                    "wind_speed": stmt.excluded.wind_speed,
+                    "wind_deg": stmt.excluded.wind_deg,
+                    "metrics_status": stmt.excluded.metrics_status
+                }
             )
 
-            db.add(weather_entry)
+            db.execute(stmt)
 
         db.commit()
 
@@ -166,7 +176,7 @@ def weather_metrics(db: Session, location: UserLocation):
 
         humidity_7d = [h.humidity for h in history_7d if h.humidity is not None]
 
-        gdd_base_10 = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None)
+        gdd_base_10 = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
 
         heat_days_7d = sum(1 for h in history_7d if h.temp and h.temp > 30)
         frost_days_7d = sum(1 for h in history_7d if h.temp is not None and h.temp < 0)
@@ -180,8 +190,8 @@ def weather_metrics(db: Session, location: UserLocation):
 
         location_data = {
             "metadata": {
-                "lat": safe_float(location.lat),
-                "lon": safe_float(location.lon),
+                "lat": safe_float(lat),
+                "lon": safe_float(lon),
                 "elevation": safe_float(elevation),
                 "day_of_year": day_of_year
             },
