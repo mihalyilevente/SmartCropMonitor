@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
+from app.core.database import UserLocation, FieldAnalysis, get_db
 from app.services.segmentation import perform_temp_segmentation_and_save
 from app.services.orchestrator import full_sync_process
 from app.services.spatial_harmonizer import process_and_align_nc
@@ -113,18 +113,6 @@ async def generate_location_grid(
     except Exception as e:
         print(f"[ERROR] Grid generation failed: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
-
-
-@router.get("/user/weather-history", tags=["Weather"])
-async def get_weather_history(user_id: int, db: Session = Depends(get_db)):
-    history = (
-        db.query(WeatherHistory)
-        .join(UserLocation)
-        .filter(UserLocation.user_id == user_id)
-        .order_by(WeatherHistory.timestamp.desc())
-        .all()
-    )
-    return history
 
 
 @router.post("/sync-manual", tags=["Data"])
