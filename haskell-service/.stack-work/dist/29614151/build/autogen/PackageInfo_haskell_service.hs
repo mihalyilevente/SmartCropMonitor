@@ -15,7 +15,7 @@ import Prelude
 name :: String
 name = "haskell_service"
 version :: Version
-version = Version [0,1,0,0] []
+version = Version [0,1,7,0] []
 
 synopsis :: String
 synopsis = ""

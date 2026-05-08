@@ -5,9 +5,9 @@ C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\.stack-work\dist
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\.stack-work\dist\29614151\build\autogen\cabal_macros.h:
   hash: 3ae7005d103b8ec7635dd46ab695a5411b39b48fd310090ea5d0fc8561f3689b
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\haskell-service.cabal:
-  hash: c5a47cef4503b9d5a82c75aee3082f3cc65b51b7f79532e0d1974140512988fc
+  hash: a61f66b33203d7f1d6564c595f2f2380bcc05f5f0d29a8be7cc1f7b838e2c443
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\package.yaml:
-  hash: 0bf0b6815ac05a01995df940a6272256e1b344921871036530e7d6155850a51c
+  hash: 2a26054f5ded5b33d05f5734607af00246cb894cd135b589c8184132d3dccf47
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Main.hs:
   hash: 9923a48d5b4c00f37a09561abe9a977a5b2911747ccd4d2d8644e9bf77e527e1
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Stats.hs:
@@ -15,4 +15,4 @@ C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Stats.hs:
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\Validation.hs:
   hash: 979974d9a715f79a0f98015997ff55942697b458f87794633b4a6e3b2b567aa9
 C:\Users\nikit\PycharmProjects\SmartCropMonitor\haskell-service\src\WeatherMetrics.hs:
-  hash: a2f1c6c03f652ec0489876398bd06eaadd8c16a60da2e1ac830949944472f232
+  hash: 6289882d30e06c6d0390a7d611d7a7c7caff5ff50f9b96668312847468191c76

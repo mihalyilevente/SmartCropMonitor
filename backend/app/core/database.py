@@ -138,6 +138,10 @@ class WeatherHistory(Base):
     dew_point = Column(Float)
     vapour_pressure_deficit = Column(Float)
 
+    sunrise = Column(DateTime)
+    sunset = Column(DateTime)
+    is_night = Column(Boolean, default=False)
+
     data_source = Column(String, default="open-meteo")
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -185,7 +189,7 @@ class WeatherMetrics(Base):
     frost_days_count_7d = Column(Integer)
     frost_days_count_30d = Column(Integer)
 
-    spi_3m = Column(Float)
+    spi_1m = Column(Float)
 
     ra_mj_m2_day = Column(Float)
     rs_mj_m2_day = Column(Float)

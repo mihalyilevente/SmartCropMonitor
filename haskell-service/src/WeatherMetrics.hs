@@ -7,7 +7,7 @@ import Data.Aeson
 import GHC.Generics
 import Data.Maybe (mapMaybe, fromMaybe)
 import Prelude hiding (sum)
-import Data.List (sum)
+import Data.List (sum, partition)
 
 -- =========================
 -- DATA MODELS (FULL MATCH YOUR PYTHON)
@@ -23,6 +23,7 @@ data WeatherPoint = WeatherPoint
   , r  :: Maybe Double
   , s  :: Maybe Double
   , dt :: String
+  , is_night :: Maybe Bool
   } deriving (Show, Generic)
 
 instance FromJSON WeatherPoint where
@@ -37,6 +38,7 @@ instance FromJSON WeatherPoint where
       <*> v .:? "r"
       <*> v .:? "s"
       <*> v .:? "dt" .!= "2026-05-02T00:00:00"
+      <*> v .:? "is_night"
 
 data Metadata = Metadata
   { elevation   :: Double
@@ -59,11 +61,16 @@ instance FromJSON LocationData
 data MetricsResult = MetricsResult
   { temp_min_7d      :: Double
   , temp_max_7d      :: Double
+  , temp_min_night_7d:: Double
+  , temp_max_night_7d:: Double
   , gdd              :: Double
   , rain_sum_7d      :: Double
   , hum_mean_7d      :: Double
+  , hum_mean_30d     :: Double
   , et0              :: Double
+  , spi1m            :: Double
   , water_deficit_7d :: Double
+  , water_deficit_30d:: Double
   , ra               :: Double
   , rs               :: Double
   } deriving (Show, Generic)
@@ -173,12 +180,29 @@ computeMetrics (LocationData meta current h7 h30) =
   let
     temps7 = mapMaybe t h7
     hums7  = mapMaybe h h7
+    hums30  = mapMaybe h h30
     rain7  = sum (map (fromMaybe 0 . r) h7)
     snow7  = sum (map (fromMaybe 0 . s) h7)
+    rain30 = map (fromMaybe 0 . r) h30
+    sumRain30 = sum rain30
+
+    n30 = fromIntegral (length rain30)
+    mean30 = sumRain30 / n30
+    variance30 = sum [(r_val - mean30)^2 | r_val <- rain30] / n30
+    stdDev30 = sqrt variance30
+
+    spi1mVal = if stdDev30 > 0
+            then (sumRain30 - (mean30 * n30)) / stdDev30
+            else 0.0
+
+    (nightPoints, _) = partition (fromMaybe False . is_night) h7
+    tMinNight = safeMin (mapMaybe t nightPoints)
+    tMaxNight = safeMax (mapMaybe t nightPoints)
 
     tMin = safeMin temps7
     tMax = safeMax temps7
     humM = safeMean hums7
+    humM30 = safeMean hums30
 
     gddVal = gddCalc h7
 
@@ -193,17 +217,23 @@ computeMetrics (LocationData meta current h7 h30) =
     hum  = fromMaybe 60 (h current)
 
     et0Val = et0Calc temp raVal rsVal wind hum
-
     waterDef = et0Val - (rain7 + snow7)
+
+    waterDef30 = (et0Val * 4) - sumRain30
 
   in MetricsResult
     { temp_min_7d      = tMin
     , temp_max_7d      = tMax
+    , temp_min_night_7d = tMinNight
+    , temp_max_night_7d = tMaxNight
     , gdd              = gddVal
     , rain_sum_7d      = rain7
     , hum_mean_7d      = humM
+    , hum_mean_30d      = humM30
     , et0              = et0Val
+    , spi1m            = spi1mVal
     , water_deficit_7d = waterDef
+    , water_deficit_30d = waterDef30
     , ra               = raVal
     , rs               = rsVal
     }
