@@ -126,7 +126,8 @@ def download_sentinel_data(db: Session):
                         miny=lat - 0.02,
                         maxx=lon + 0.02,
                         maxy=lat + 0.02,
-                        crs="EPSG:4326"
+                        crs="EPSG:4326",
+                        allow_one_dimensional_raster=True
                     )
 
                     if reference_da is None:
@@ -163,7 +164,8 @@ def download_sentinel_data(db: Session):
                             miny=lat - 0.02,
                             maxx=lon + 0.02,
                             maxy=lat + 0.02,
-                            crs="EPSG:4326"
+                            crs="EPSG:4326",
+                            allow_one_dimensional_raster=True
                         )
 
                         scl_da = clipped.rio.reproject_match(reference_da)
@@ -193,7 +195,8 @@ def download_sentinel_data(db: Session):
                             miny=lat - 0.02,
                             maxx=lon + 0.02,
                             maxy=lat + 0.02,
-                            crs="EPSG:4326"
+                            crs="EPSG:4326",
+                            allow_one_dimensional_raster=True
                         )
 
                         final_da = clipped.rio.reproject_match(reference_da)
@@ -221,7 +224,8 @@ def download_sentinel_data(db: Session):
                             miny=lat - 0.02,
                             maxx=lon + 0.02,
                             maxy=lat + 0.02,
-                            crs="EPSG:4326"
+                            crs="EPSG:4326",
+                            allow_one_dimensional_raster=True
                         )
 
                         clipped.rio.to_raster(vis_path)
