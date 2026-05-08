@@ -5,6 +5,7 @@ module Main where
 
 import Web.Scotty
 import Data.Aeson hiding (json)
+import Data.Aeson (Value, eitherDecode, encode)
 import qualified Data.Text.Lazy as TL
 import GHC.Generics
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
@@ -20,7 +21,7 @@ import WeatherMetrics (computeMetrics, LocationData)
 
 data RequestWrapper = RequestWrapper
   { config :: Int
-  , raw_data :: Maybe RawData
+  , raw_data :: Maybe Value
   , labels :: Maybe [[Int]]
   , ndvi :: Maybe [[Double]]
   , num_features :: Maybe Int
@@ -69,8 +70,13 @@ main = scotty 8081 $ do
               text "Missing raw_data for config=3"
 
       1 -> case raw_data req of
-          Just rd -> do
-            json (computeNDVIMetrics rd)
+          Just d -> do
+            let parsed = fromJSON d :: Result RawData
+            case parsed of
+              Success rd -> json (computeNDVIMetrics rd)
+              Error err -> do
+                status status400
+                text (mconcat ["Invalid NDVI payload: ", TL.pack err])
           Nothing -> do
             status status400
             text "Missing raw_data for config=1"

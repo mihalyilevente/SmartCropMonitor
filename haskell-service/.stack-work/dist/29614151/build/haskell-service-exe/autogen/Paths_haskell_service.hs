@@ -33,7 +33,7 @@ catchIO :: IO a -> (Exception.IOException -> IO a) -> IO a
 catchIO = Exception.catch
 
 version :: Version
-version = Version [0,1,7,0] []
+version = Version [0,1,8,0] []
 
 getDataFileName :: FilePath -> IO FilePath
 getDataFileName name = do
@@ -47,10 +47,10 @@ getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: 
 
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
 bindir     = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\bin"
-libdir     = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\lib\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.7.0-1agDypbyvvsBfOOnunv2BR-haskell-service-exe"
+libdir     = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\lib\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.8.0-GfJctbEefwuKREw4HanlTp-haskell-service-exe"
 dynlibdir  = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\lib\\x86_64-windows-ghc-9.6.7"
-datadir    = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\share\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.7.0"
-libexecdir = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\libexec\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.7.0"
+datadir    = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\share\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.8.0"
+libexecdir = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\libexec\\x86_64-windows-ghc-9.6.7\\haskell-service-0.1.8.0"
 sysconfdir = "C:\\Users\\nikit\\PycharmProjects\\SmartCropMonitor\\haskell-service\\.stack-work\\install\\9b6c9856\\etc"
 
 getBinDir     = catchIO (getEnv "haskell_service_bindir")     (\_ -> return bindir)
