@@ -1,7 +1,7 @@
 import requests
 from time import sleep
 import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 import math
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
