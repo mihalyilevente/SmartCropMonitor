@@ -219,12 +219,15 @@ def weather_metrics(db: Session, location: UserLocation):
                 "day_of_year": day_of_year
             },
             "current": {
-                "temp": weather_record.temp,
-                "pressure": weather_record.pressure,
-                "humidity": weather_record.humidity,
-                "wind_speed": weather_record.wind_speed,
-                "clouds": weather_record.cloud_coverage,
-                "timestamp": weather_record.timestamp.isoformat(),
+                "t": weather_record.temp,
+                "h": weather_record.humidity,
+                "p": weather_record.pressure,
+                "ws": weather_record.wind_speed,
+                "wd": weather_record.wind_deg,
+                "cc": weather_record.cloud_coverage,
+                "r": weather_record.rain or 0.0,
+                "s": weather_record.snowfall or 0.0,
+                "dt": weather_record.timestamp.isoformat(),
                 "is_night": weather_record.is_night
             },
             "history_7d": [
@@ -244,10 +247,13 @@ def weather_metrics(db: Session, location: UserLocation):
             "history_30d": [
                 {
                     "t": h.temp,
-                    "r": h.rain or 0.0,
                     "h": h.humidity,
                     "p": h.pressure,
                     "ws": h.wind_speed,
+                    "wd": h.wind_deg,
+                    "cc": h.cloud_coverage,
+                    "r": h.rain or 0.0,
+                    "s": h.snowfall or 0.0,
                     "dt": h.timestamp.isoformat(),
                     "is_night": h.is_night
                 } for h in history_30d
@@ -347,6 +353,8 @@ def perform_haskell_weather_metrics(location_data):
 
         if response.status_code == 200:
             return response.json()
+        else:
+            print(f"[ERROR] Haskell service returned status {response.status_code}: {response.text}")
         return None
     except Exception as e:
         print(f"[ERROR] Haskell service communication error: {e}")
