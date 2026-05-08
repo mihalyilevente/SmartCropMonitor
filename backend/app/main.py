@@ -62,7 +62,7 @@ app.include_router(data_router, prefix="/api/v1", tags=["Data & Visualization"])
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 
-app.include_router(auth_router, prefix="/api/v1/weather", tags=["Weather"])
+app.include_router(weather_router, prefix="/api/v1/weather", tags=["Weather"])
 
 # =========================
 # Health Check

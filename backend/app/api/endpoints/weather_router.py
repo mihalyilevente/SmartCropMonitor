@@ -4,11 +4,6 @@ from pydantic import BaseModel
 
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
 from app.services.weather_service import current_weather_request
-from app.services.segmentation import perform_temp_segmentation_and_save
-from app.services.orchestrator import full_sync_process
-from app.services.spatial_harmonizer import process_and_align_nc
-from geoalchemy2.elements import WKTElement
-
 
 router = APIRouter()
 
