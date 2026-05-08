@@ -10,7 +10,7 @@ from app.utils.general import safe_float, safe_int
 from sqlalchemy import desc
 from geoalchemy2.shape import to_shape
 from app.monitoring.alerting import AlertService, format_alert
-from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL, WEBHOOK_URL
+from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL, WEBHOOK_URL, WEATHER_API_KEY
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 
@@ -350,4 +350,39 @@ def perform_haskell_weather_metrics(location_data):
         return None
     except Exception as e:
         print(f"[ERROR] Haskell service communication error: {e}")
+        return None
+
+
+def current_weather_request(location: UserLocation):
+    point = to_shape(location.location)
+    lon, lat = point.x, point.y
+
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        weather_current = WeatherHistory(
+            timestamp=datetime.fromtimestamp(data.get("dt")),
+            temp=data["main"]["temp"],
+            feels_like=data["main"]["feels_like"],
+            pressure=data["main"]["pressure"],
+            humidity=data["main"]["humidity"],
+            wind_speed=data["wind"]["speed"],
+            wind_deg=data["wind"]["deg"],
+            cloud_coverage=data["clouds"]["all"],
+            weather_id=data["weather"][0]["id"],
+            weather_main=data["weather"][0]["main"],
+            weather_description=data["weather"][0]["description"],
+        )
+
+        print(f"[INFO] Weather received for {location.label}")
+        return weather_current
+    except Exception as e:
+        alert_service.send(
+            key=f"weather_err_{location.id}",
+            message=f"Error for {location.label}: {str(e)}"
+        )
         return None

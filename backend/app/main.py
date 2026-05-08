@@ -9,6 +9,7 @@ from app.core.database import engine, Base
 from app.api.endpoints.field_router import router as field_router
 from app.api.endpoints.auth_router import router as auth_router
 from app.api.endpoints.data_router import router as data_router
+from app.api.endpoints.weather_router import router as weather_router
 from app.tasks.scheduler import scheduler
 
 # =========================
@@ -60,6 +61,8 @@ app.include_router(field_router, prefix="/api/v1", tags=["Field Analysis"])
 app.include_router(data_router, prefix="/api/v1", tags=["Data & Visualization"])
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
+
+app.include_router(auth_router, prefix="/api/v1/weather", tags=["Weather"])
 
 # =========================
 # Health Check
