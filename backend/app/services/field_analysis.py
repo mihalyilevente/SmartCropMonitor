@@ -5,7 +5,11 @@ import xarray as xr
 import requests
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis
-from app.core.config import HASKELL_SERVICE_URL, MASK_DIR
+from app.core.config import HASKELL_SERVICE_URL, MASK_DIR, WEBHOOK_URL
+from app.monitoring.alerting import AlertService, format_alert
+
+
+alert_service = AlertService(webhook_url=WEBHOOK_URL)
 
 def perform_haskell_validation(mask_path, threshold=0.3):
     try:
@@ -39,6 +43,11 @@ def perform_haskell_validation(mask_path, threshold=0.3):
                     return response.json()
             except requests.RequestException:
                 time.sleep(1)
+
+        alert_service.send(
+            key="haskell_validation_timeout",
+            message=format_alert("HASKELL_UNREACHABLE", f"Validation service failed for mask: {mask_path}")
+        )
         return None
 
     except Exception as e:
@@ -65,7 +74,8 @@ def validate_pending_analyses(db: Session):
         result = perform_haskell_validation(mask_path, threshold=0.3)
 
         if result:
-            analysis.is_valid = result.get('is_valid')
+            is_valid_bool = result.get('is_valid')
+            analysis.is_valid = 1.0 if is_valid_bool is True else 0.0
             analysis.quality_report = result.get('quality_report')
 
             if analysis.results_json is None:

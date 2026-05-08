@@ -7,12 +7,11 @@ from sqlalchemy.orm import Session
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
 from app.utils.general import safe_float, safe_int
 from sqlalchemy import desc
-from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL
 from geoalchemy2.shape import to_shape
+from app.monitoring.alerting import AlertService, format_alert
+from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL, WEBHOOK_URL
 
-# =========================
-# Config
-# =========================
+alert_service = AlertService(webhook_url=WEBHOOK_URL)
 
 def fetch_and_save_weather(db: Session, location: UserLocation):
     point = to_shape(location.location)
@@ -42,23 +41,16 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
     try:
 
         response = requests.get(url, timeout=30)
-
         response.raise_for_status()
-
         data = response.json()
-
         hourly = data["hourly"]
-
         times = hourly["time"]
 
         for i, ts in enumerate(times):
 
             weather_entry = WeatherHistory(
-
                 location_id=location.id,
-
                 timestamp=datetime.fromisoformat(ts),
-
                 temp=hourly["temperature_2m"][i],
 
                 humidity=hourly["relative_humidity_2m"][i],
@@ -88,7 +80,6 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
 
                 wind_deg=hourly["wind_direction_10m"][i],
 
-                raw_json=hourly
             )
 
             db.add(weather_entry)
@@ -100,14 +91,20 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
             f"for {location.label}"
         )
 
+
     except Exception as e:
 
         db.rollback()
+        alert_service.send(
+            key=f"weather_fetch_error_{location.id}",
+            message=format_alert(
+                "WEATHER_SYNC_FAILURE",
+                f"Could not fetch weather for {location.label}: {str(e)}",
+                {"location_id": location.id, "url": url}
 
-        print(
-            f"[ERROR] Weather fetch failed "
-            f"for loc {location.id}: {e}"
+            )
         )
+        print(f"[ERROR] Weather fetch failed for loc {location.id}: {e}")
 
 
 def request_elevation(lat, lon, retries=3):
@@ -162,8 +159,8 @@ def weather_metrics(db: Session, location: UserLocation):
 
         temps = [h.temp for h in history_7d if h.temp is not None]
 
-        rain_7d = sum(h.rain_1h or 0.0 for h in history_7d)
-        rain_30d = sum(h.rain_1h or 0.0 for h in history_30d)
+        rain_7d = sum(h.rain or 0.0 for h in history_7d)
+        rain_30d = sum(h.rain or 0.0 for h in history_30d)
 
         humidity_7d = [h.humidity for h in history_7d if h.humidity is not None]
 
@@ -202,15 +199,15 @@ def weather_metrics(db: Session, location: UserLocation):
                     "ws": h.wind_speed,
                     "wd": h.wind_deg,
                     "cc": h.cloud_coverage,
-                    "r": h.rain_1h or 0.0,
-                    "s": h.snow_1h or 0.0,
+                    "r": h.rain or 0.0,
+                    "s": h.snowfall or 0.0,
                     "dt": h.timestamp.isoformat()
                 } for h in history_7d
             ],
             "history_30d": [
                 {
                     "t": h.temp,
-                    "r": h.rain_1h or 0.0,
+                    "r": h.rain or 0.0,
                     "h": h.humidity,
                     "dt": h.timestamp.isoformat()
                 } for h in history_30d

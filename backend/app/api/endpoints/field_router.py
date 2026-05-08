@@ -78,7 +78,7 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
         {
             "id": h.id,
             "location_label": h.location.label,
-            "date": h.analysis_date,
+            "date": h.last_data_request_date,
             "filename": h.nc_filename,
             "fields_found": h.fields_count,
             "download_url": f"/api/v1/download/{h.nc_filename}"
