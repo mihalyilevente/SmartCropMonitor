@@ -133,7 +133,9 @@ def weather_metrics(db: Session, location: UserLocation):
     if not pending_list:
         return
 
-    elevation = request_elevation(location.lat, location.lon) or 0.0
+    point = to_shape(location.location)
+    lon, lat = point.x, point.y
+    elevation = request_elevation(lat, lon) or 0.0
 
     for weather_record in pending_list:
 
