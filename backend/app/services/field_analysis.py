@@ -145,16 +145,21 @@ def validate_pending_analyses(db: Session):
         result = perform_haskell_validation(mask_path, threshold=0.3)
 
         if result:
-            is_valid_bool = result.get('is_valid')
-            analysis.is_valid = 1.0 if is_valid_bool is True else 0.0
+            confidence_score = result.get('confidence_score', 0.0)
+
+            analysis.is_valid = max(0.0, confidence_score)
             analysis.quality_report = result.get('quality_report')
 
             if analysis.results_json is None:
                 analysis.results_json = {}
+
+            analysis.results_json['confidence_score'] = confidence_score
             analysis.results_json['cloud_ratio'] = result.get('cloud_ratio')
+            analysis.results_json['snow_ratio'] = result.get('snow_ratio')
+            analysis.results_json['issues'] = result.get('issues', [])
 
             db.commit()
-            print(f"[INFO] Analysis {analysis.id} validated. Result: {analysis.is_valid}")
+            print(f"[INFO] Analysis {analysis.id} validated. Confidence: {confidence_score}")
         else:
             print(f"[ERROR] Haskell service failed for analysis_id={analysis.id}")
 
