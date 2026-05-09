@@ -42,8 +42,8 @@ class UserDB(Base):
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
 
-    # relationship to locations
     locations = relationship("UserLocation", back_populates="owner")
+    sensors = relationship("SensorsDB", back_populates="owner")
 
 
 class UserLocation(Base):
@@ -62,7 +62,6 @@ class UserLocation(Base):
     last_segm_mask_url = Column(String, nullable=True)
     last_grid_mask_url = Column(String, nullable=True)
 
-    # relationship to user
     owner = relationship("UserDB", back_populates="locations")
 
 
@@ -85,7 +84,6 @@ class FieldAnalysis(Base):
 
     fields_count = Column(Integer, default=0)
 
-    # relationship to location
     location = relationship("UserLocation")
 
 
@@ -141,9 +139,7 @@ class FieldUnit(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     location = relationship("UserLocation", back_populates="fields")
-
-
-UserLocation.fields = relationship("FieldUnit", back_populates="location")
+    field_data = relationship("FieldData", back_populates="field")
 
 
 class FieldData(Base):
@@ -219,6 +215,8 @@ class WeatherHistory(Base):
         ),
     )
 
+    location = relationship("UserLocation")
+
 
 class WeatherMetrics(Base):
     __tablename__ = "weather_metrics"
@@ -279,6 +277,8 @@ class SensorsDB(Base):
 
     extra_data = Column(JSON, nullable=True)
 
+    owner = relationship("UserDB")
+
 
 class WeatherSensors(Base):
     __tablename__ = "weather_sensors"
@@ -303,6 +303,8 @@ class WeatherSensors(Base):
             name="uq_sensor_timestamp"
         ),
     )
+
+    sensor = relationship("SensorsDB")
 
 
 # =========================
