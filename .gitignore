@@ -1,29 +1,55 @@
-smartcrop-venv/
+# Python virtual environments
 .venv/
 venv/
 env/
+smartcrop-venv/
+backend/.venv/
 
-# Environment files (keep .env.example tracked)
+# Python generated files and tooling caches
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environment files
 .env
 .env.local
 .env.*.local
 
-# Claude Code local settings
+# Node/Vite generated files
+node_modules/
+dist/
+build/
+frontend/dist/
+frontend/build/
+
+# Haskell/Stack generated files
+.stack-work/
+haskell-service/.stack-work/
+*.hi
+*.o
+*.a
+*.exe
+
+# Jupyter generated files
+.ipynb_checkpoints/
+
+# Editor and IDE local files
+.idea/
+.vscode/
+*.swp
+*.swo
 .claude/settings.local.json
-.env
 
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
 
-
-__pycache__/
-
-*.py[cod]
-
-*$py.class
-
-venv/
-
-.venv/
-
-
-
-.dockerignore
+# OS metadata
+.DS_Store
+Thumbs.db
