@@ -66,39 +66,51 @@ def perform_nc_validation(nc_path):
     try:
         with xr.open_dataset(nc_path) as nc:
 
-            missing_bands = [b for b in REQUIRED_BANDS if b not in nc.data_vars]
+            if 'band' in nc.coords:
+                actual_bands = nc.coords['band'].values.tolist()
+                missing_bands = [b for b in REQUIRED_BANDS if b not in actual_bands]
+            else:
+                missing_bands = [b for b in REQUIRED_BANDS if b not in nc.data_vars]
+
             if missing_bands:
-                report.append(f"Missing bands: {missing_bands}")
+                report.append(f"Missing required bands: {missing_bands}")
                 status_flag = 0
 
-            width = nc.dims.get('x', 0)
-            height = nc.dims.get('y', 0)
+            width = nc.sizes.get('x', 0)
+            height = nc.sizes.get('y', 0)
 
             if width < MIN_DIM or height < MIN_DIM:
                 report.append(f"Resolution too low: {width}x{height}")
                 status_flag = 0
 
-            if missing_bands and not nc.data_vars:
-                report.append("No data variables found in file")
-                return 0, "; ".join(report)
+            try:
+                if 'band' in nc.coords:
+                    available = nc.coords['band'].values.tolist()
+                    target = REQUIRED_BANDS[0] if REQUIRED_BANDS[0] in available else available[0]
+                    data_array = nc.sel(band=target).values
+                else:
+                    target = REQUIRED_BANDS[0] if REQUIRED_BANDS[0] in nc.data_vars else list(nc.data_vars)[0]
+                    data_array = nc[target].values
 
-            check_band = REQUIRED_BANDS[0] if not missing_bands else list(nc.data_vars)[0]
-            data_array = nc[check_band].values
+                valid_pixels = np.count_nonzero(~np.isnan(data_array) & (data_array > 0))
+                total_pixels = data_array.size
 
-            valid_pixels = np.count_nonzero(~np.isnan(data_array) & (data_array > 0))
-            total_pixels = data_array.size
+                if total_pixels == 0:
+                    report.append("Data array is empty")
+                    return 0, "; ".join(report)
 
-            if total_pixels == 0:
-                report.append("Data array is empty")
-                return 0, "; ".join(report)
+                fill_rate = valid_pixels / total_pixels
 
-            fill_rate = valid_pixels / total_pixels
+                if fill_rate < 0.1:
+                    report.append(f"File is mostly empty. Fill rate: {fill_rate:.2%}")
+                    status_flag = 0
+                elif status_flag == 1:
+                else:
+                    report.append(f"Fill rate: {fill_rate:.2%}")
 
-            if fill_rate < 0.1:
-                report.append(f"File is mostly empty. Fill rate: {fill_rate:.2%}")
+            except Exception as e:
+                report.append(f"Fill rate check failed: {str(e)}")
                 status_flag = 0
-            elif status_flag == 1:
-                report.append(f"Validation passed. Fill rate: {fill_rate:.2%}")
 
     except Exception as e:
         report.append(f"Corrupted file or read error: {str(e)}")
