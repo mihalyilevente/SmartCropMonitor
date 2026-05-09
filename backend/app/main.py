@@ -11,6 +11,7 @@ from app.api.endpoints.auth_router import router as auth_router
 from app.api.endpoints.data_router import router as data_router
 from app.api.endpoints.weather_router import router as weather_router
 from app.api.endpoints.sensor_router import router as sensor_router
+from app.api.endpoints.utils_router import router as utils_router
 from app.tasks.scheduler import scheduler
 
 # =========================
@@ -66,6 +67,8 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(weather_router, prefix="/api/v1/weather", tags=["Weather"])
 
 app.include_router(sensor_router, prefix="/api/v1/sensors", tags=["Sensors"])
+
+app.include_router(utils_router, prefix="/api/v1/utils", tags=["Utils"])
 
 
 # =========================
