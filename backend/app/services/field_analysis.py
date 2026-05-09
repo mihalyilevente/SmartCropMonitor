@@ -83,35 +83,33 @@ def perform_nc_validation(nc_path):
                 report.append(f"Resolution too low: {width}x{height}")
                 status_flag = 0
 
-            try:
-                if 'band' in nc.coords:
-                    available = nc.coords['band'].values.tolist()
-                    target = REQUIRED_BANDS[0] if REQUIRED_BANDS[0] in available else available[0]
-                    data_array = nc.sel(band=target).values
-                else:
-                    target = REQUIRED_BANDS[0] if REQUIRED_BANDS[0] in nc.data_vars else list(nc.data_vars)[0]
-                    data_array = nc[target].values
+            if not missing_bands:
+                check_band = REQUIRED_BANDS[0]
+            elif nc.data_vars:
+                check_band = list(nc.data_vars)[0]
+            else:
+                report.append("No data variables found in file")
+                return 0, "; ".join(report)
 
-                valid_pixels = np.count_nonzero(~np.isnan(data_array) & (data_array > 0))
-                total_pixels = data_array.size
+            if check_band not in nc.data_vars:
+                report.append(f"Cannot access band '{check_band}' in data variables")
+                return 0, "; ".join(report)
 
-                if total_pixels == 0:
-                    report.append("Data array is empty")
-                    return 0, "; ".join(report)
+            data_array = nc[check_band].values
 
-                fill_rate = valid_pixels / total_pixels
+            if data_array.size == 0:
+                report.append("Data array is empty")
+                return 0, "; ".join(report)
 
-                if fill_rate < 0.1:
-                    report.append(f"File is mostly empty. Fill rate: {fill_rate:.2%}")
-                    status_flag = 0
-                elif status_flag == 1:
-                    report.append(f"Success!")
-                else:
-                    report.append(f"Fill rate: {fill_rate:.2%}")
+            valid_pixels = np.count_nonzero(~np.isnan(data_array) & (data_array > 0))
+            total_pixels = data_array.size
+            fill_rate = valid_pixels / total_pixels
 
-            except Exception as e:
-                report.append(f"Fill rate check failed: {str(e)}")
+            if fill_rate < 0.05:
+                report.append(f"File is mostly empty. Fill rate: {fill_rate:.2%}")
                 status_flag = 0
+            elif status_flag == 1:
+                report.append(f"Validation passed. Fill rate: {fill_rate:.2%}")
 
     except Exception as e:
         report.append(f"Corrupted file or read error: {str(e)}")
