@@ -105,6 +105,7 @@ def perform_nc_validation(nc_path):
                     report.append(f"File is mostly empty. Fill rate: {fill_rate:.2%}")
                     status_flag = 0
                 elif status_flag == 1:
+                    report.append(f"Success!")
                 else:
                     report.append(f"Fill rate: {fill_rate:.2%}")
 
