@@ -66,11 +66,15 @@ def perform_nc_validation(nc_path):
     try:
         with xr.open_dataset(nc_path) as nc:
 
-            if 'band' in nc.coords:
+            has_band_coord = 'band' in nc.coords
+
+            if has_band_coord:
                 actual_bands = nc.coords['band'].values.tolist()
                 missing_bands = [b for b in REQUIRED_BANDS if b not in actual_bands]
+                data_var_name = list(nc.data_vars)[0] if nc.data_vars else None
             else:
                 missing_bands = [b for b in REQUIRED_BANDS if b not in nc.data_vars]
+                data_var_name = None
 
             if missing_bands:
                 report.append(f"Missing required bands: {missing_bands}")
@@ -83,19 +87,15 @@ def perform_nc_validation(nc_path):
                 report.append(f"Resolution too low: {width}x{height}")
                 status_flag = 0
 
-            if not missing_bands:
-                check_band = REQUIRED_BANDS[0]
+            if has_band_coord and data_var_name:
+                data_array = nc[data_var_name].sel(band=actual_bands[0]).values
+            elif not missing_bands and REQUIRED_BANDS[0] in nc.data_vars:
+                data_array = nc[REQUIRED_BANDS[0]].values
             elif nc.data_vars:
-                check_band = list(nc.data_vars)[0]
+                data_array = nc[list(nc.data_vars)[0]].values
             else:
-                report.append("No data variables found in file")
+                report.append("No data variables or band coordinates found in file")
                 return 0, "; ".join(report)
-
-            if check_band not in nc.data_vars:
-                report.append(f"Cannot access band '{check_band}' in data variables")
-                return 0, "; ".join(report)
-
-            data_array = nc[check_band].values
 
             if data_array.size == 0:
                 report.append("Data array is empty")
