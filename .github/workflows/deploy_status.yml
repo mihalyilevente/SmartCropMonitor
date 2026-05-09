@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Create Deployment Status
+      - name: Create GitHub Deployment
         uses: chrnorm/deployment-action@v2
         id: deployment
         with:
@@ -29,18 +29,18 @@ jobs:
             git pull origin master
             docker compose up -d --build
 
-      - name: Update Status to Success
+      - name: Update Deployment Status (Success)
         if: success()
-        uses: chrnorm/deployment-status-update@v2
+        uses: chrnorm/deployment-status-update@v2.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: success
           environment-url: http://46.225.7.134
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
 
-      - name: Update Status to Failure
+      - name: Update Deployment Status (Failure)
         if: failure()
-        uses: chrnorm/deployment-status-update@v2
+        uses: chrnorm/deployment-status-update@v2.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           status: failure
