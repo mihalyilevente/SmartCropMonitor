@@ -207,3 +207,20 @@ Uploading LFS objects: 100% (35/35), 16 MB | 4.9 MB/s, done.
 To github.com:niki8885/SmartCropMonitor.git
    b0add27..9d6aaa7  master -> master
 Changes pushed successfully at Fri May  8 06:00:14 PM UTC 2026
+[master b460634] chore(data): 2026-05-09 00:00:01
+ 12 files changed, 74 insertions(+)
+ delete mode 100644 ..env.swp
+ create mode 100644 backend/data/storage/data/user_3_loc_4_20260507T101216.nc
+ create mode 100644 backend/data/storage/data/user_3_loc_4_20260507T101230.nc
+ create mode 100644 backend/data/storage/masks/aot_user_3_loc_4_20260507T101216.nc
+ create mode 100644 backend/data/storage/masks/aot_user_3_loc_4_20260507T101230.nc
+ create mode 100644 backend/data/storage/masks/scl_user_3_loc_4_20260507T101216.nc
+ create mode 100644 backend/data/storage/masks/scl_user_3_loc_4_20260507T101230.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_3_loc_4_20260507T101216.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_3_loc_4_20260507T101230.nc
+ create mode 100644 backend/data/storage/visual/vis_user_3_loc_4_20260507T101216.tif
+ create mode 100644 backend/data/storage/visual/vis_user_3_loc_4_20260507T101230.tif
+Uploading LFS objects: 100% (7/7), 3.0 MB | 0 B/s, done.
+To github.com:niki8885/SmartCropMonitor.git
+   5e48ba0..b460634  master -> master
+Changes pushed successfully at Sat May  9 12:00:10 AM UTC 2026
