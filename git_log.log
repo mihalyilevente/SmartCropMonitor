@@ -157,3 +157,53 @@ To github.com:niki8885/SmartCropMonitor.git
    261abea..aa96cd7  master -> master
 Changes pushed successfully at Fri May  8 06:00:16 AM UTC 2026
 No changes detected, skipping push.
+[master 9d6aaa7] chore(data): 2026-05-08 18:00:01
+ 45 files changed, 106 insertions(+)
+ create mode 100644 ..env.swp
+ create mode 100644 backend/data/storage/data/user_1_loc_1_20260508T094712.nc
+ create mode 100644 backend/data/storage/data/user_1_loc_1_20260508T094716.nc
+ create mode 100644 backend/data/storage/data/user_1_loc_1_20260508T094727.nc
+ create mode 100644 backend/data/storage/data/user_1_loc_1_20260508T094731.nc
+ create mode 100644 backend/data/storage/data/user_1_loc_2_20260507T093723.nc
+ create mode 100644 backend/data/storage/data/user_1_loc_2_20260508T094708.nc
+ create mode 100644 backend/data/storage/data/user_2_loc_3_20260508T094513.nc
+ create mode 100644 backend/data/storage/data/user_3_loc_4_20260508T103220.nc
+ create mode 100644 backend/data/storage/masks/aot_user_1_loc_1_20260508T094712.nc
+ create mode 100644 backend/data/storage/masks/aot_user_1_loc_1_20260508T094716.nc
+ create mode 100644 backend/data/storage/masks/aot_user_1_loc_1_20260508T094727.nc
+ create mode 100644 backend/data/storage/masks/aot_user_1_loc_1_20260508T094731.nc
+ create mode 100644 backend/data/storage/masks/aot_user_1_loc_2_20260507T093723.nc
+ create mode 100644 backend/data/storage/masks/aot_user_1_loc_2_20260508T094708.nc
+ create mode 100644 backend/data/storage/masks/aot_user_2_loc_3_20260508T094513.nc
+ create mode 100644 backend/data/storage/masks/aot_user_3_loc_4_20260508T103220.nc
+ create mode 100644 backend/data/storage/masks/scl_user_1_loc_1_20260508T094712.nc
+ create mode 100644 backend/data/storage/masks/scl_user_1_loc_1_20260508T094716.nc
+ create mode 100644 backend/data/storage/masks/scl_user_1_loc_1_20260508T094727.nc
+ create mode 100644 backend/data/storage/masks/scl_user_1_loc_1_20260508T094731.nc
+ create mode 100644 backend/data/storage/masks/scl_user_1_loc_2_20260507T093723.nc
+ create mode 100644 backend/data/storage/masks/scl_user_1_loc_2_20260508T094708.nc
+ create mode 100644 backend/data/storage/masks/scl_user_2_loc_3_20260508T094513.nc
+ create mode 100644 backend/data/storage/masks/scl_user_3_loc_4_20260508T103220.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_1_loc_1_20260508T094712.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_1_loc_1_20260508T094716.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_1_loc_1_20260508T094727.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_1_loc_1_20260508T094731.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_1_loc_2_20260507T093723.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_1_loc_2_20260508T094708.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_2_loc_3_20260508T094513.nc
+ create mode 100644 backend/data/storage/masks/wvp_user_3_loc_4_20260508T103220.nc
+ create mode 100644 backend/data/storage/ndvi/metrics_user_1_loc_1_20260508T094712.nc
+ create mode 100644 backend/data/storage/ndvi/metrics_user_1_loc_1_20260508T094716.nc
+ create mode 100644 backend/data/storage/ndvi/metrics_user_1_loc_1_20260508T094727.nc
+ create mode 100644 backend/data/storage/visual/vis_user_1_loc_1_20260508T094712.tif
+ create mode 100644 backend/data/storage/visual/vis_user_1_loc_1_20260508T094716.tif
+ create mode 100644 backend/data/storage/visual/vis_user_1_loc_1_20260508T094727.tif
+ create mode 100644 backend/data/storage/visual/vis_user_1_loc_1_20260508T094731.tif
+ create mode 100644 backend/data/storage/visual/vis_user_1_loc_2_20260507T093723.tif
+ create mode 100644 backend/data/storage/visual/vis_user_1_loc_2_20260508T094708.tif
+ create mode 100644 backend/data/storage/visual/vis_user_2_loc_3_20260508T094513.tif
+ create mode 100644 backend/data/storage/visual/vis_user_3_loc_4_20260508T103220.tif
+Uploading LFS objects: 100% (35/35), 16 MB | 4.9 MB/s, done.
+To github.com:niki8885/SmartCropMonitor.git
+   b0add27..9d6aaa7  master -> master
+Changes pushed successfully at Fri May  8 06:00:14 PM UTC 2026
