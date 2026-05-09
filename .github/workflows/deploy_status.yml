@@ -1,0 +1,47 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Deployment Status
+        uses: chrnorm/deployment-action@v2
+        id: deployment
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment-url: http://46.225.7.134
+          environment: production
+          initial-status: in_progress
+
+      - name: SSH and Update Docker
+        uses: appleboy/ssh-action@master
+        with:
+          host: 46.225.7.134
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd ~/SmartCropMonitor
+            git pull origin master
+            docker compose up -d --build
+
+      - name: Update Status to Success
+        if: success()
+        uses: chrnorm/deployment-status-update@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: success
+          environment-url: http://46.225.7.134
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+
+      - name: Update Status to Failure
+        if: failure()
+        uses: chrnorm/deployment-status-update@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          status: failure
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
