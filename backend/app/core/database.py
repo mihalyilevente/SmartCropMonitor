@@ -146,6 +146,31 @@ class FieldUnit(Base):
 UserLocation.fields = relationship("FieldUnit", back_populates="location")
 
 
+class FieldData(Base):
+    __tablename__ = "field_data"
+    id = Column(Integer, primary_key=True, index=True)
+
+    field_id = Column(
+        Integer,
+        ForeignKey("field_units.id"),
+        nullable=False,
+        index=True
+    )
+
+    timestamp = Column(DateTime, nullable=False, index=True)
+
+    metric_type = Column(String(50), nullable=False, index=True)
+    mean_metric = Column(Numeric(6, 4), nullable=True)
+    min_metric = Column(Numeric(6, 4), nullable=True)
+    max_metric = Column(Numeric(6, 4), nullable=True)
+    std_metric = Column(Numeric(6, 4), nullable=True)
+
+
+    extra = Column(JSON, nullable=True)
+
+    field = relationship("FieldUnit", back_populates="field_data")
+
+
 class WeatherHistory(Base):
     __tablename__ = "weather_history"
 
@@ -235,6 +260,7 @@ class WeatherMetrics(Base):
 
     location = relationship("UserLocation")
     weather = relationship("WeatherHistory")
+
 
 class SensorsDB(Base):
     __tablename__ = "sensors"
