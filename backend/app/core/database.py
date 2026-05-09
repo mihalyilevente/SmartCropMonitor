@@ -3,13 +3,15 @@
 # =========================
 import datetime
 from sqlalchemy import (
-    create_engine, Column, Integer, Float,
+    create_engine, Column, Integer, Float, Enum, Numeric,
     ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
+from app.core.schemas import FieldType
+import enum
 from geoalchemy2 import Geometry
 
 # =========================
@@ -91,15 +93,52 @@ class FieldUnit(Base):
     __tablename__ = "field_units"
 
     id = Column(Integer, primary_key=True, index=True)
-    location_id = Column(Integer, ForeignKey("user_locations.id"))
 
-    field_index = Column(Integer)
+    location_id = Column(
+        Integer,
+        ForeignKey("user_locations.id"),
+        nullable=False,
+        index=True
+    )
 
-    area_ha = Column(Float, nullable=True)
+    label = Column(String, nullable=False)
 
-    is_active = Column(Boolean, default=True)
+    geometry = Column(
+        Geometry(geometry_type="MULTIPOLYGON", srid=4326),
+        nullable=False
+    )
+
+    area_ha = Column(Numeric(12, 2), nullable=True)
+
+    field_type = Column(
+        Enum(FieldType),
+        nullable=False,
+        index=True
+    )
+
+    manual_added = Column(Boolean, default=False)
+
+    source = Column(String, nullable=True)
+
     crop_type = Column(String, nullable=True)
-    extra_data = Column(JSON, nullable=True)
+
+    season_year = Column(Integer, nullable=True)
+
+    status = Column(String, default="active", index=True)
+
+    created_at = Column(
+        DateTime,
+        default=datetime.datetime.utcnow,
+        nullable=False
+    )
+
+    updated_at = Column(
+        DateTime,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow
+    )
+
+    deleted_at = Column(DateTime, nullable=True)
 
     location = relationship("UserLocation", back_populates="fields")
 

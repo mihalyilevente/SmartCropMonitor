@@ -1,3 +1,4 @@
+import enum
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
@@ -5,6 +6,12 @@ from datetime import datetime
 class UserCreate(BaseModel):
     username: str
     password: str
+
+class FieldType(str, enum.Enum):
+    pasture = "pasture"
+    crop = "crop"
+    vineyard = "vineyard"
+    orchard = "orchard"
 
 class SensorCreate(BaseModel):
     label: str
