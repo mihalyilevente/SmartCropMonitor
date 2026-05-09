@@ -18,7 +18,7 @@ os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.1.9"
+API_VERSION = "0.1.10"
 
 REQUIRED_BANDS = [
     "blue", "green", "red", "nir",
