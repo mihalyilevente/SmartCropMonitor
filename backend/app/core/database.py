@@ -62,6 +62,8 @@ class UserLocation(Base):
     last_segm_mask_url = Column(String, nullable=True)
     last_grid_mask_url = Column(String, nullable=True)
 
+    owner = relationship("UserDB", back_populates="locations")
+    fields = relationship("FieldUnit", back_populates="location")
     weather_history = relationship("WeatherHistory", back_populates="location")
     weather_metrics = relationship("WeatherMetrics", back_populates="location")
     analyses = relationship("FieldAnalysis", back_populates="location")
@@ -280,7 +282,9 @@ class SensorsDB(Base):
 
     extra_data = Column(JSON, nullable=True)
 
-    owner = relationship("UserDB")
+    owner = relationship("UserDB", back_populates="sensors")
+
+    sensor_data = relationship("WeatherSensors", back_populates="sensor")
 
 
 class WeatherSensors(Base):
@@ -307,7 +311,7 @@ class WeatherSensors(Base):
         ),
     )
 
-    sensor = relationship("SensorsDB")
+    sensor = relationship("SensorsDB", back_populates="sensor_data")
 
 
 # =========================
