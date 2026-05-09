@@ -62,7 +62,9 @@ class UserLocation(Base):
     last_segm_mask_url = Column(String, nullable=True)
     last_grid_mask_url = Column(String, nullable=True)
 
-    owner = relationship("UserDB", back_populates="locations")
+    weather_history = relationship("WeatherHistory", back_populates="location")
+    weather_metrics = relationship("WeatherMetrics", back_populates="location")
+    analyses = relationship("FieldAnalysis", back_populates="location")
 
 
 class FieldAnalysis(Base):
@@ -84,7 +86,7 @@ class FieldAnalysis(Base):
 
     fields_count = Column(Integer, default=0)
 
-    location = relationship("UserLocation")
+    location = relationship("UserLocation", back_populates="analyses")
 
 
 class FieldUnit(Base):
@@ -215,7 +217,8 @@ class WeatherHistory(Base):
         ),
     )
 
-    location = relationship("UserLocation")
+    location = relationship("UserLocation", back_populates="weather_history")
+    metrics = relationship("WeatherMetrics", back_populates="weather")
 
 
 class WeatherMetrics(Base):
@@ -256,8 +259,8 @@ class WeatherMetrics(Base):
     ra_mj_m2_day = Column(Float)
     rs_mj_m2_day = Column(Float)
 
-    location = relationship("UserLocation")
-    weather = relationship("WeatherHistory")
+    location = relationship("UserLocation", back_populates="weather_metrics")
+    weather = relationship("WeatherHistory", back_populates="metrics")
 
 
 class SensorsDB(Base):
