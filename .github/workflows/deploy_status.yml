@@ -30,18 +30,18 @@ jobs:
             docker compose up -d --build
 
       - name: Update Deployment Status (Success)
-          if: success()
-          uses: chrnorm/deployment-status@v2
-          with:
-            token: ${{ secrets.GITHUB_TOKEN }}
-            state: success
-            environment-url: http://46.225.7.134
-            deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          state: success
+          environment-url: http://46.225.7.134
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
 
-            - name: Update Deployment Status (Failure)
-              if: failure()
-              uses: chrnorm/deployment-status@v2
-              with:
-                token: ${{ secrets.GITHUB_TOKEN }}
-                state: failure
-                deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+      - name: Update Deployment Status (Failure)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          state: failure
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
