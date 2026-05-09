@@ -5,7 +5,7 @@ import xarray as xr
 import requests
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis
-from app.core.config import HASKELL_SERVICE_URL, MASK_DIR, WEBHOOK_URL
+from app.core.config import HASKELL_SERVICE_URL, MASK_DIR, WEBHOOK_URL, DATA_DIR,REQUIRED_BANDS, MIN_DIM
 from app.monitoring.alerting import AlertService, format_alert
 
 
@@ -55,6 +55,58 @@ def perform_haskell_validation(mask_path, threshold=0.3):
         return None
 
 
+def perform_nc_validation(nc_path):
+    report = []
+    status_flag = 1
+
+    if not nc_path or not os.path.exists(nc_path):
+        report.append(f"NetCDF file not found: {nc_path}")
+        return 0, "; ".join(report)
+
+    try:
+        with xr.open_dataset(nc_path) as nc:
+
+            missing_bands = [b for b in REQUIRED_BANDS if b not in nc.data_vars]
+            if missing_bands:
+                report.append(f"Missing bands: {missing_bands}")
+                status_flag = 0
+
+            width = nc.dims.get('x', 0)
+            height = nc.dims.get('y', 0)
+
+            if width < MIN_DIM or height < MIN_DIM:
+                report.append(f"Resolution too low: {width}x{height}")
+                status_flag = 0
+
+            if missing_bands and not nc.data_vars:
+                report.append("No data variables found in file")
+                return 0, "; ".join(report)
+
+            check_band = REQUIRED_BANDS[0] if not missing_bands else list(nc.data_vars)[0]
+            data_array = nc[check_band].values
+
+            valid_pixels = np.count_nonzero(~np.isnan(data_array) & (data_array > 0))
+            total_pixels = data_array.size
+
+            if total_pixels == 0:
+                report.append("Data array is empty")
+                return 0, "; ".join(report)
+
+            fill_rate = valid_pixels / total_pixels
+
+            if fill_rate < 0.1:
+                report.append(f"File is mostly empty. Fill rate: {fill_rate:.2%}")
+                status_flag = 0
+            elif status_flag == 1:
+                report.append(f"Validation passed. Fill rate: {fill_rate:.2%}")
+
+    except Exception as e:
+        report.append(f"Corrupted file or read error: {str(e)}")
+        status_flag = 0
+
+    return status_flag, "; ".join(report)
+
+
 def validate_pending_analyses(db: Session):
     pending_list = db.query(FieldAnalysis).filter(FieldAnalysis.is_valid == None).all()
 
@@ -66,6 +118,14 @@ def validate_pending_analyses(db: Session):
 
     for analysis in pending_list:
         mask_path = os.path.join(MASK_DIR, analysis.mask_filename) if analysis.mask_filename else None
+        nc_path = os.path.join(DATA_DIR, analysis.nc_filename) if analysis.nc_filename else None
+
+        status_flag, report = perform_nc_validation(nc_path)
+        if status_flag == 0:
+            print(f"[INFO] NC file corrupted for analysis_id={analysis.id}.")
+            analysis.is_valid = 0.0
+            analysis.quality_report = report
+            continue
 
         if not mask_path or not os.path.exists(mask_path):
             print(f"[WARN] Mask file missing for analysis_id={analysis.id}. Skipping.")
