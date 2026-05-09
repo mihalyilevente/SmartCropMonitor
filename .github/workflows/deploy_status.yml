@@ -30,7 +30,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ~/SmartCropMonitor
-            git pull origin master
+            git fetch origin master
+            git reset --hard origin/master
             docker compose up -d --build
 
       - name: Update Deployment Status (Success)
