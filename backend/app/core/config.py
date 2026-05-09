@@ -33,6 +33,7 @@ VISUAL_ASSET = "visual"
 TARGET_BANDS = ["blue", "green", "red", "nir"]
 
 QUALITY_THRESHOLD = 1
+MIN_DIM = 128
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
