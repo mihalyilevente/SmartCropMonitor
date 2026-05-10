@@ -50,3 +50,20 @@ async def add_sensor_data(payload: SensorDataBatch, db: Session = Depends(get_db
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error during processing")
+
+
+@router.get("/user_sensors/{user_id}", tags=["sensor_management"])
+async def get_user_sensors(user_id: int, db: Session = Depends(get_db)):
+    query = select(SensorsDB).where(SensorsDB.user_id == user_id)
+    result = db.execute(query).scalars().all()
+
+    return [
+        {
+            "id": s.id,
+            "label": s.label,
+            "activation_status": s.activation_status,
+            "meteorological": s.meteorological,
+            "added_at": s.added_at
+        }
+        for s in result
+    ]
