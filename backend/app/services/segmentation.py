@@ -6,8 +6,11 @@ import xarray as xr
 from datetime import datetime
 from app.models.utae import AgriculturalSegmentationModel
 from scipy.ndimage import label
+from shapely.geometry import shape, MultiPolygon
+from rasterio import features
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
+from app.core.schemas import FieldType
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
 from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT,MIN_SEGM_INPUTS ,QUALITY_THRESHOLD_SEGM
 
@@ -305,12 +308,26 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             dims=list(mask_coords.keys()),
             name="segmentation_mask"
         )
+
+        mask_shapes = features.shapes(
+            labeled_mask.astype('int32'),
+            mask=(labeled_mask > 0)
+        )
+
         mask_da.to_netcdf(os.path.join(SEGM_DIR, segm_mask_filename))
         print(f"[DEBUG] Saved segmentation mask to {segm_mask_filename}")
 
         db.query(FieldUnit).filter(FieldUnit.location_id == location_id).delete()
-        for i in range(1, num_features + 1):
-            db.add(FieldUnit(location_id=location_id, field_index=i, is_active=True))
+        for geom, value in mask_shapes:
+            db_geom = f"SRID=4326;{shape(geom).wkt}"
+
+            db.add(FieldUnit(
+                location_id=location_id,
+                geometry=db_geom,
+                label=f"Field {int(value)}",
+                status="active",
+                field_type=FieldType.other
+            ))
 
         location.last_segm_mask_url = segm_mask_filename
         location.segmentation_status = True
