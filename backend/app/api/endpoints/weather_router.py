@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory
+from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory, WeatherMetrics
 from app.services.weather_service import current_weather_request
 
 router = APIRouter()
@@ -45,3 +45,39 @@ async def get_current_weather(
         )
 
     return weather
+
+
+@router.get("/location/{location_id}/latest-weather", tags=["Weather"])
+async def get_latest_location_weather(
+    location_id: int,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    location = db.query(UserLocation).filter(
+        UserLocation.id == location_id,
+        UserLocation.user_id == user_id
+    ).first()
+
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    latest_history = (
+        db.query(WeatherHistory)
+        .filter(WeatherHistory.location_id == location_id)
+        .order_by(WeatherHistory.timestamp.desc())
+        .first()
+    )
+
+    if not latest_history:
+        return {"history": None, "metrics": None}
+
+    latest_metrics = (
+        db.query(WeatherMetrics)
+        .filter(WeatherMetrics.reference_weather_id == latest_history.id)
+        .first()
+    )
+
+    return {
+        "history": latest_history,
+        "metrics": latest_metrics
+    }
