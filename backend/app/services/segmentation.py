@@ -9,7 +9,7 @@ from scipy.ndimage import label
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT
+from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT,MIN_SEGM_INPUTS ,QUALITY_THRESHOLD_SEGM
 
 
 def perform_segmentation_and_save(location_id: int, db: Session, analyzer):
@@ -105,12 +105,16 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         analyses = db.query(FieldAnalysis) \
             .filter(FieldAnalysis.location_id == location_id) \
-            .filter(FieldAnalysis.is_valid == True) \
+            .filter(FieldAnalysis.is_valid  >= QUALITY_THRESHOLD_SEGM) \
             .order_by(desc(FieldAnalysis.last_data_request_date)) \
             .limit(MAX_SEGM_INPUT).all()
 
         if not analyses:
             print(f"[ERROR] No valid data found for location {location_id}")
+            return
+
+        if len(analyses) < MIN_SEGM_INPUTS:
+            print(f"[WARNING] Not enough data: {len(analyses)}/{MIN_SEGM_INPUTS} required")
             return
 
         print(f"[DEBUG] Found {len(analyses)} valid analyses for location {location_id}")
@@ -151,33 +155,29 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
                 print(f"[DEBUG] Raw data shape: {data.shape}")
 
-                # Extract individual bands (assuming standard Sentinel-2 L2A order)
-                # data shape: [5, H, W] with bands: [blue, green, red, nir, swir]
-                blue = data[0].astype(np.float32)  # Band 2
-                green = data[1].astype(np.float32)  # Band 3
-                red = data[2].astype(np.float32)  # Band 4
-                nir = data[3].astype(np.float32)  # Band 8
-                swir = data[4].astype(np.float32)  # Band 11
-
-                eps = 1e-8
-
-                ndvi = (nir - red) / (nir + red + eps)
-                ndbi = (swir - nir) / (swir + nir + eps)
-                ndmi = (nir - swir) / (nir + swir + eps)
-                gndvi = (nir - green) / (nir + green + eps)
-                ndii = (nir - swir) / (nir + swir + eps)
+                # Order: blue, green, red, nir, rededge1, rededge2, rededge3, nir08, swir16, swir22
+                blue = data[0].astype(np.float32)
+                green = data[1].astype(np.float32)
+                red = data[2].astype(np.float32)
+                nir = data[3].astype(np.float32)
+                rededge1 = data[4].astype(np.float32)
+                rededge2 = data[5].astype(np.float32)
+                rededge3 = data[6].astype(np.float32)
+                nir08 = data[7].astype(np.float32)
+                swir16 = data[8].astype(np.float32)
+                swir22 = data[9].astype(np.float32)
 
                 ten_channels = np.stack([
                     blue,
                     green,
                     red,
                     nir,
-                    swir,
-                    ndvi,
-                    ndbi,
-                    ndmi,
-                    gndvi,
-                    ndii
+                    rededge1,
+                    rededge2,
+                    rededge3,
+                    nir08,
+                    swir16,
+                    swir22
                 ], axis=0)
 
                 print(f"[DEBUG] 10-channel data shape: {ten_channels.shape}")
@@ -185,6 +185,7 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
                 ten_channels = np.nan_to_num(ten_channels, nan=0.0, posinf=1.0, neginf=-1.0)
 
                 ten_channels = np.clip(ten_channels, -1, 1)
+
                 ten_channels = (ten_channels + 1) / 2.0
 
                 print(f"[DEBUG] Data range: [{ten_channels.min():.4f}, {ten_channels.max():.4f}]")
@@ -218,9 +219,8 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             padding = [torch.zeros_like(all_tensors[0]) for _ in range(MAX_SEGM_INPUT - num_found)]
             all_tensors.extend(padding)
 
-        # [Time=5, Channels=10, 128, 128] -> [Batch=1, Time=5, Channels=10, 128, 128]
         print(f"[DEBUG] Stacking {len(all_tensors)} tensors...")
-        input_tensor = torch.stack(all_tensors, dim=0)  # [Time=5, Channels=10, 128, 128]
+        input_tensor = torch.stack(all_tensors, dim=0)
         print(f"[DEBUG] Tensor shape after stack: {input_tensor.shape}")
 
         input_tensor = input_tensor.unsqueeze(0)
@@ -228,7 +228,8 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         assert len(input_tensor.shape) == 5, f"Expected 5D tensor, got {len(input_tensor.shape)}D"
         assert input_tensor.shape[0] == 1, f"Batch size should be 1, got {input_tensor.shape[0]}"
-        assert input_tensor.shape[1] == MAX_SEGM_INPUT, f"Time steps should be {MAX_SEGM_INPUT}, got {input_tensor.shape[1]}"
+        assert input_tensor.shape[
+                   1] == MAX_SEGM_INPUT, f"Time steps should be {MAX_SEGM_INPUT}, got {input_tensor.shape[1]}"
         assert input_tensor.shape[2] == 10, f"Channels should be 10, got {input_tensor.shape[2]}"
         assert input_tensor.shape[3] == MODEL_HEIGHT, f"Height should be {MODEL_HEIGHT}, got {input_tensor.shape[3]}"
         assert input_tensor.shape[4] == MODEL_WIDTH, f"Width should be {MODEL_WIDTH}, got {input_tensor.shape[4]}"
