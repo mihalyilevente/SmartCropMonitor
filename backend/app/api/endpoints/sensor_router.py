@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
-from app.core.database import get_db, SensorsDB
+from app.core.database import get_db, SensorsDB, WeatherSensors
 from app.services.sensor_servise import process_and_add_sensor_data
 from app.core.schemas import SensorCreate, SensorDataBatch
 from geoalchemy2.elements import WKTElement
@@ -50,3 +50,41 @@ async def add_sensor_data(payload: SensorDataBatch, db: Session = Depends(get_db
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error during processing")
+
+
+@router.get("/user_sensors/{user_id}", tags=["sensor_management"])
+async def get_user_sensors(user_id: int, db: Session = Depends(get_db)):
+    query = select(SensorsDB).where(SensorsDB.user_id == user_id)
+    result = db.execute(query).scalars().all()
+
+    return [
+        {
+            "id": s.id,
+            "label": s.label,
+            "activation_status": s.activation_status,
+            "meteorological": s.meteorological,
+            "added_at": s.added_at
+        }
+        for s in result
+    ]
+
+
+@router.get("/sensor_status/{sensor_id}", tags=["sensor_management"])
+async def get_sensor_status(sensor_id: int, db: Session = Depends(get_db)):
+    sensor = db.get(SensorsDB, sensor_id)
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+
+    last_data_query = (
+        select(func.max(WeatherSensors.timestamp))
+        .where(WeatherSensors.sensor_id == sensor_id)
+    )
+    last_contact = db.execute(last_data_query).scalar()
+
+    return {
+        "sensor_id": sensor.id,
+        "label": sensor.label,
+        "activation_status": sensor.activation_status,
+        "last_contact": last_contact,
+        "is_active": sensor.activation_status
+    }
