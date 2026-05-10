@@ -81,3 +81,51 @@ async def get_latest_location_weather(
         "history": latest_history,
         "metrics": latest_metrics
     }
+
+
+@router.get("/location/{location_id}/weather-charts", tags=["Weather"])
+async def get_weather_chart_data(
+    location_id: int,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    location = db.query(UserLocation).filter(
+        UserLocation.id == location_id,
+        UserLocation.user_id == user_id
+    ).first()
+
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    results = (
+        db.query(WeatherHistory, WeatherMetrics)
+        .outerjoin(WeatherMetrics, WeatherHistory.id == WeatherMetrics.reference_weather_id)
+        .filter(WeatherHistory.location_id == location_id)
+        .order_by(WeatherHistory.timestamp.asc())
+        .all()
+    )
+
+    chart_data = []
+    for history, metrics in results:
+        chart_data.append({
+            "timestamp": history.timestamp,
+            "weather_data": {
+                "temp": history.temp,
+                "humidity": history.humidity,
+                "precipitation": history.precipitation,
+                "soil_moisture": history.soil_moisture_0_to_1cm,
+                "soil_temperature": history.soil_temperature_0cm,
+                "wind_speed": history.wind_speed
+            },
+            "metrics_data": {
+                "gdd": metrics.gdd_base_10 if metrics else None,
+                "rain_cum_30d": metrics.rain_cum_30d if metrics else None,
+                "et0": metrics.et0 if metrics else None,
+                "water_deficit": metrics.water_deficit_7d if metrics else None,
+                "spi_1m": metrics.spi_1m if metrics else None,
+                "rs_mj_m2_day": metrics.rs_mj_m2_day if metrics else None
+
+            }
+        })
+
+    return chart_data
