@@ -8,6 +8,7 @@ from datetime import datetime
 from app.models.utae import AgriculturalSegmentationModel
 from scipy.ndimage import label
 from shapely.geometry import shape, MultiPolygon
+from shapely.ops import transform as shapely_transform
 from rasterio import features
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -53,6 +54,7 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             print(f"[DEBUG] Reference dataset shape: {data_var.shape}")
             print(f"[DEBUG] Reference dataset dims: {data_var.dims}")
 
+            source_crs = ds.rio.crs
             mask_coords = {dim: data_var.coords[dim].values for dim in data_var.dims if dim != 'band'}
             original_h = len(data_var.coords[data_var.dims[1]])
             original_w = len(data_var.coords[data_var.dims[2]])
@@ -133,8 +135,7 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
                 res_x = float(ds.x[1] - ds.x[0])
                 res_y = float(ds.y[1] - ds.y[0])
-                transform = affine.Affine.translation(float(ds.x[0]), float(ds.y[0])) * \
-                            affine.Affine.scale(res_x, res_y)
+                transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
 
         num_found = len(all_tensors)
         print(f"[DEBUG] Total tensors collected: {num_found}/{MAX_SEGM_INPUT}")
@@ -244,11 +245,11 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         db.query(FieldUnit).filter(FieldUnit.location_id == location_id).delete()
         for geom, value in mask_shapes:
-            from shapely.geometry import MultiPolygon, shape
             s = shape(geom)
-            if s.geom_type == 'Polygon':
-                s = MultiPolygon([s])
-            db_geom = f"SRID=4326;{s.wkt}"
+            s_wgs84 = shapely_transform(transformer.transform, s)
+            if s_wgs84.geom_type == 'Polygon':
+                s_wgs84 = MultiPolygon([s_wgs84])
+            db_geom = f"SRID=4326;{s_wgs84.wkt}"
 
             db.add(FieldUnit(
                 location_id=location_id,
