@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import UserLocation, FieldAnalysis, get_db
 
-from app.core.config import STORAGE_PATH
+from app.core.config import STORAGE_PATH,NDVI_DIR
 
 router = APIRouter()
 
@@ -33,96 +33,42 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/analysis/{analysis_id}/plotly/{metric}")
+def get_plotly_data(analysis_id: int, metric: str, db: Session = Depends(get_db)):
+    analysis = db.query(FieldAnalysis).filter(FieldAnalysis.id == analysis_id).first()
 
-@router.get("/api/v1/plot-data/{filename}")
-async def get_plot_data(
-    filename: str,
-    mode: str = "heatmap",   # heatmap | raw
-    filter: str = "none"     # none | ndvi | log
-):
-    file_path = os.path.join(STORAGE_PATH, filename)
+    if not analysis or not analysis.metrics_filename:
+        raise HTTPException(status_code=404, detail="Analysis result not found")
+
+    # building absolute path
+    file_path = os.path.join(NDVI_DIR, analysis.metrics_filename)
 
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="File on disk not found")
 
     try:
         with xr.open_dataset(file_path) as ds:
+            if metric not in ds:
+                raise HTTPException(status_code=400, detail=f"Metric {metric} not found")
 
-            if len(ds.data_vars) == 0:
-                return {"ok": False, "error": "no_data_vars"}
+            data = ds[metric].values
+            y_coords = ds.coords['y'].values.tolist()
+            x_coords = ds.coords['x'].values.tolist()
 
-            var_name = list(ds.data_vars)[0]
-            da = ds[var_name]
-
-            if "band" in da.coords:
-                try:
-                    da = da.sel(band="red")
-                except Exception:
-                    da = da.isel(band=0)
-
-            data = np.asarray(da.values)
-
-            # -------------------------
-            # scalar protection
-            # -------------------------
-            if data.ndim == 0:
-                return {"ok": False, "error": "scalar_raster"}
-
-            # -------------------------
-            # normalize dimensions
-            # -------------------------
-            if data.ndim == 1:
-                data = data.reshape(1, -1)
-
-            elif data.ndim >= 3:
-                data = data[0]
-
-            if data.size == 0:
-                return {"ok": False, "error": "empty_raster"}
-
-            data = np.nan_to_num(data).astype(np.float32)
-
-            # =========================
-            # FILTERS
-            # =========================
-
-            if filter == "log":
-                data = np.log1p(np.maximum(data, 0))
-
-            elif filter == "ndvi":
-                # placeholder NDVI-like transform (safe fallback)
-                data = data / (np.max(data) + 1e-6)
-
-            # =========================
-            # RAW MODE
-            # =========================
-            if mode == "raw":
-                return {
-                    "ok": True,
-                    "mode": "raw",
-                    "z": data.tolist()
-                }
-
-            # =========================
-            # HEATMAP MODE
-            # =========================
-            dmin, dmax = float(np.min(data)), float(np.max(data))
-
-            if dmax > dmin:
-                data = (data - dmin) / (dmax - dmin)
-            else:
-                data = np.zeros_like(data)
+            data_cleaned = np.where(np.isnan(data), None, data).tolist()
 
             return {
-                "ok": True,
-                "mode": "heatmap",
-                "filter": filter,
-                "z": data.tolist()
+                "z": data_cleaned,
+                "x": x_coords,
+                "y": y_coords,
+                "metric_name": metric.upper(),
+                "bounds": {
+                    "min_lat": min(y_coords),
+                    "max_lat": max(y_coords),
+                    "min_lon": min(x_coords),
+                    "max_lon": max(x_coords)
+                }
             }
-
     except Exception as e:
-        return {
-            "ok": False,
-            "error": "backend_exception",
-            "message": str(e)
-        }
+        print(f"[ERROR] Plotly data prep failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal processing error")
