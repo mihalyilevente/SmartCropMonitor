@@ -4,22 +4,23 @@ import matplotlib.pyplot as plt
 from shapely.geometry import shape
 
 ds = xr.open_dataset(
-    r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\ndvi\metrics_user_1_loc_1_20260503T095740.nc"
+    r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\ndvi\metrics_user_1_loc_2_20260505T093712.nc"
 )
 band = ds["ndvi"]
 
 geojson_geometry = {
     "type": "MultiPolygon",
-    "coordinates": [[[[19.638085, 47.728511],
-          [19.640167, 47.729888],
-          [19.643165, 47.732705],
-          [19.642286, 47.733369],
-          [19.644645, 47.735940],
-          [19.654341, 47.729301],
-          [19.654280, 47.728448],
-          [19.658303, 47.726320],
-          [19.649874, 47.720580],
-          [19.638085, 47.728511]]]]
+    "coordinates": [
+        [
+            [
+                [21.252509, 48.194911],
+                [21.252508, 48.194641],
+                [21.252777, 48.194641],
+                [21.252779, 48.194911],
+                [21.252509, 48.194911]
+            ]
+        ]
+    ]
 }
 gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[shape(geojson_geometry)], crs="EPSG:4326")
 
