@@ -11,7 +11,7 @@ NDVI_DIR = os.path.join(BASE_DIR, "backend", "data", "storage", "ndvi")
 
 DATA_PATH = os.path.join(DATA_DIR, "user_1_loc_2_20260505T093712.nc")
 MASK_PATH = os.path.join(MASK_DIR, "slc_user_1_loc_2_20260505T093712.nc")
-SEGM_PATH = os.path.join(SEGM_DIR, "mask_loc_2_1778426436.nc")
+SEGM_PATH = os.path.join(SEGM_DIR, "mask_loc_2_1778429660.nc")
 NDVI_PATH = os.path.join(NDVI_DIR, "metrics_user_1_loc_2_20260505T093712.nc")
 
 # =========================
