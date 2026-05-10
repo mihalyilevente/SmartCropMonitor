@@ -32,3 +32,10 @@ class SingleReading(BaseModel):
 class SensorDataBatch(BaseModel):
     key: str
     data: List[SingleReading]
+
+class SensorUpdate(BaseModel):
+    label: Optional[str] = None
+    longitude: Optional[float] = None
+    latitude: Optional[float] = None
+    meteorological: Optional[bool] = None
+    activation_status: Optional[bool] = None

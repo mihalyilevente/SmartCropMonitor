@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.core.database import get_db, SensorsDB, WeatherSensors
 from app.services.sensor_servise import process_and_add_sensor_data
-from app.core.schemas import SensorCreate, SensorDataBatch
+from app.core.schemas import SensorCreate, SensorDataBatch, SensorUpdate
 from geoalchemy2.elements import WKTElement
 import secrets
 
@@ -148,4 +148,42 @@ async def get_sensor_history(
             "humidity": [h.humidity for h in history],
             "pressure": [h.pressure for h in history]
         }
+    }
+
+
+@router.patch("/update_sensor/{sensor_id}", tags=["sensor_management"])
+async def update_sensor(
+        sensor_id: int,
+        payload: SensorUpdate,
+        db: Session = Depends(get_db)
+):
+    sensor = db.get(SensorsDB, sensor_id)
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+
+    update_data = payload.dict(exclude_unset=True)
+
+    if "longitude" in update_data or "latitude" in update_data:
+        lon = update_data.pop("longitude", None)
+        lat = update_data.pop("latitude", None)
+
+        if lon is not None and lat is not None:
+            point = f'POINT({lon} {lat})'
+            sensor.location = WKTElement(point, srid=4326)
+
+    for key, value in update_data.items():
+        setattr(sensor, key, value)
+
+    try:
+        db.commit()
+        db.refresh(sensor)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Error updating sensor")
+
+    return {
+        "status": "updated",
+        "sensor_id": sensor.id,
+        "updated_fields": list(update_data.keys()) + (
+            ["location"] if "longitude" in payload.dict(exclude_unset=True) else [])
     }
