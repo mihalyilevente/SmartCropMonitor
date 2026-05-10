@@ -244,7 +244,7 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         if os.path.exists(TEMP_MODEL_WEIGHTS):
             print(f"[DEBUG] Loading model weights from {TEMP_MODEL_WEIGHTS}")
-            state_dict = torch.load(TEMP_MODEL_WEIGHTS, map_location=device)
+            state_dict = torch.load(TEMP_MODEL_WEIGHTS, map_location=device, weights_only=False)
             model.load_state_dict(state_dict)
         else:
             print(f"[WARNING] Model weights not found at {TEMP_MODEL_WEIGHTS}")
