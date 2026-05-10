@@ -51,18 +51,33 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
         print(f"[DEBUG] Loading reference file: {first_nc}")
 
         with xr.open_dataset(first_nc) as ds:
+
+            if hasattr(ds, 'rio') and ds.rio.crs:
+                source_crs = ds.rio.crs
+            elif 'spatial_ref' in ds.variables:
+                source_crs = ds.spatial_ref.attrs.get('crs_wkt')
+            else:
+                print("[WARNING] Could not detect CRS, falling back to EPSG:32634")
+                source_crs = "EPSG:32634"
+
             data_var = ds[list(ds.data_vars)[0]]
+
             print(f"[DEBUG] Reference dataset shape: {data_var.shape}")
             print(f"[DEBUG] Reference dataset dims: {data_var.dims}")
 
-            source_crs = ds.rio.crs
             res_x = float(ds.x[1] - ds.x[0])
             res_y = float(ds.y[1] - ds.y[0])
             transform = affine.Affine.translation(float(ds.x[0]), float(ds.y[0])) * \
                         affine.Affine.scale(res_x, res_y)
+
             mask_coords = {dim: data_var.coords[dim].values for dim in data_var.dims if dim != 'band'}
+
             from pyproj import Transformer
             from shapely.ops import transform as shapely_transform
+
+            if not source_crs:
+                raise ValueError("source_crs is None. Check NetCDF metadata.")
+
             transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
 
             mask_coords = {dim: data_var.coords[dim].values for dim in data_var.dims if dim != 'band'}
