@@ -9,7 +9,7 @@ from scipy.ndimage import label
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT, QUALITY_THRESHOLD_SEGM
+from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT,MIN_SEGM_INPUTS ,QUALITY_THRESHOLD_SEGM
 
 
 def perform_segmentation_and_save(location_id: int, db: Session, analyzer):
@@ -111,6 +111,10 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         if not analyses:
             print(f"[ERROR] No valid data found for location {location_id}")
+            return
+
+        if len(analyses) < MIN_SEGM_INPUTS:
+            print(f"[WARNING] Not enough data: {len(analyses)}/{MIN_SEGM_INPUTS} required")
             return
 
         print(f"[DEBUG] Found {len(analyses)} valid analyses for location {location_id}")

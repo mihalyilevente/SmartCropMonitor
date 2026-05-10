@@ -46,7 +46,8 @@ TEMP_MODEL_WEIGHTS = "app/models/utae_pastis.pth"
 MODEL_PATH = os.path.join("app", "models", "unet_mitb2_ai4boundaries.pth")
 TEMP_MODEL_PATH = os.path.join("app", "models", "utae_pastis.pth")
 RANDOM_SEED = 28
-MAX_SEGM_INPUT = 5
+MAX_SEGM_INPUT = 4
+MIN_SEGM_INPUTS = 3
 
 MIN_RECORDS_7D = 24 * 7 * 0.8
 WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
