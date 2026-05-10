@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 import xarray as xr
 import affine
+from pyproj import Transformer
 from datetime import datetime
 from app.models.utae import AgriculturalSegmentationModel
 from scipy.ndimage import label
@@ -55,6 +56,15 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             print(f"[DEBUG] Reference dataset dims: {data_var.dims}")
 
             source_crs = ds.rio.crs
+            res_x = float(ds.x[1] - ds.x[0])
+            res_y = float(ds.y[1] - ds.y[0])
+            transform = affine.Affine.translation(float(ds.x[0]), float(ds.y[0])) * \
+                        affine.Affine.scale(res_x, res_y)
+            mask_coords = {dim: data_var.coords[dim].values for dim in data_var.dims if dim != 'band'}
+            from pyproj import Transformer
+            from shapely.ops import transform as shapely_transform
+            transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
+
             mask_coords = {dim: data_var.coords[dim].values for dim in data_var.dims if dim != 'band'}
             original_h = len(data_var.coords[data_var.dims[1]])
             original_w = len(data_var.coords[data_var.dims[2]])
@@ -132,10 +142,6 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
                 print(f"[DEBUG] Tensor shape after squeeze: {img_tensor.shape}")
 
                 all_tensors.append(img_tensor)
-
-                res_x = float(ds.x[1] - ds.x[0])
-                res_y = float(ds.y[1] - ds.y[0])
-                transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
 
         num_found = len(all_tensors)
         print(f"[DEBUG] Total tensors collected: {num_found}/{MAX_SEGM_INPUT}")
@@ -247,8 +253,10 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
         for geom, value in mask_shapes:
             s = shape(geom)
             s_wgs84 = shapely_transform(transformer.transform, s)
+
             if s_wgs84.geom_type == 'Polygon':
                 s_wgs84 = MultiPolygon([s_wgs84])
+
             db_geom = f"SRID=4326;{s_wgs84.wkt}"
 
             db.add(FieldUnit(
