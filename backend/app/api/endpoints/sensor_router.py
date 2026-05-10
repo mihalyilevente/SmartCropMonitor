@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
+from sqlalchemy import select, func, desc
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from app.core.database import get_db, SensorsDB, WeatherSensors
 from app.services.sensor_servise import process_and_add_sensor_data
@@ -87,4 +88,64 @@ async def get_sensor_status(sensor_id: int, db: Session = Depends(get_db)):
         "activation_status": sensor.activation_status,
         "last_contact": last_contact,
         "is_active": sensor.activation_status
+    }
+
+
+@router.get("/user_sensors_latest/{user_id}", tags=["sensor_data"])
+async def get_all_sensors_latest_data(user_id: int, db: Session = Depends(get_db)):
+    sensors = db.execute(
+        select(SensorsDB).where(SensorsDB.user_id == user_id)
+    ).scalars().all()
+
+    results = []
+    for sensor in sensors:
+        latest_data = db.execute(
+            select(WeatherSensors)
+            .where(WeatherSensors.sensor_id == sensor.id)
+            .order_by(desc(WeatherSensors.timestamp))
+            .limit(1)
+        ).scalar_one_or_none()
+
+        results.append({
+            "sensor_id": sensor.id,
+            "label": sensor.label,
+            "last_seen": latest_data.timestamp if latest_data else None,
+            "current_values": {
+                "temp": latest_data.temp if latest_data else None,
+                "humidity": latest_data.humidity if latest_data else None,
+                "pressure": latest_data.pressure if latest_data else None,
+                "status": latest_data.sensor_status if latest_data else None
+            }
+        })
+
+    return results
+
+
+@router.get("/sensor_history/{sensor_id}", tags=["sensor_data"])
+async def get_sensor_history(
+    sensor_id: int,
+    days: int = Query(default=7, ge=1, le=30),
+    db: Session = Depends(get_db)
+):
+    sensor_exists = db.execute(select(SensorsDB).where(SensorsDB.id == sensor_id)).scalar()
+    if not sensor_exists:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+
+    start_date = datetime.utcnow() - timedelta(days=days)
+
+    history = db.execute(
+        select(WeatherSensors)
+        .where(WeatherSensors.sensor_id == sensor_id)
+        .where(WeatherSensors.timestamp >= start_date)
+        .order_by(WeatherSensors.timestamp.asc())
+    ).scalars().all()
+
+    return {
+        "sensor_id": sensor_id,
+        "labels": [h.timestamp for h in history],
+        "datasets": {
+            "temp": [h.temp for h in history],
+            "humidity": [h.humidity for h in history],
+            "pressure": [h.pressure for h in history]
+        }
     }
