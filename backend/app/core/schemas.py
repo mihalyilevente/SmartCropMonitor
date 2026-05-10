@@ -12,6 +12,8 @@ class FieldType(str, enum.Enum):
     crop = "crop"
     vineyard = "vineyard"
     orchard = "orchard"
+    other = "other"
+
 
 class SensorCreate(BaseModel):
     label: str
