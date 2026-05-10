@@ -6,7 +6,7 @@ import math
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
-from app.utils.general import safe_float, safe_int
+from app.utils.general import safe_float, safe_int, r
 from sqlalchemy import desc
 from geoalchemy2.shape import to_shape
 from app.monitoring.alerting import AlertService, format_alert
@@ -251,12 +251,12 @@ def weather_metrics(db: Session, location: UserLocation):
                 temp_min_day_7d=min(temps) if temps else None,
                 temp_max_day_7d=max(temps) if temps else None,
 
-                gdd_base_10=gdd_base_10,
+                gdd_base_10=r(gdd_base_10),
 
-                rain_cum_7d=rain_7d,
-                rain_cum_30d=rain_30d,
+                rain_cum_7d=r(rain_7d),
+                rain_cum_30d=r(rain_30d),
 
-                humidity_mean_7d=sum(humidity_7d)/len(humidity_7d) if humidity_7d else None,
+                humidity_mean_7d=r(sum(humidity_7d)/len(humidity_7d)) if humidity_7d else None,
 
                 heat_days_count_7d=heat_days_7d,
                 frost_days_count_7d=frost_days_7d,
@@ -284,27 +284,27 @@ def weather_metrics(db: Session, location: UserLocation):
                 temp_min_night_7d=result.get("temp_min_night_7d"),
                 temp_max_night_7d=result.get("temp_max_night_7d"),
 
-                gdd_base_10=result.get("gdd"),
+                gdd_base_10=r(result.get("gdd")),
 
-                rain_cum_7d=rain_7d,
-                rain_cum_30d=rain_30d,
+                rain_cum_7d=r(rain_7d),
+                rain_cum_30d=r(rain_30d),
 
-                humidity_mean_7d=result.get("hum_mean_7d"),
-                humidity_mean_30d=result.get("hum_mean_30d"),
+                humidity_mean_7d=r(result.get("hum_mean_7d")),
+                humidity_mean_30d=r(result.get("hum_mean_30d")),
 
                 heat_days_count_7d=heat_days_7d,
                 frost_days_count_7d=frost_days_7d,
                 heat_days_count_30d=heat_days_30d,
                 frost_days_count_30d=frost_days_30d,
 
-                et0=result.get("et0"),
-                water_deficit_7d=result.get("water_deficit_7d"),
-                water_deficit_30d=result.get("water_deficit_30d"),
+                et0=r(result.get("et0")),
+                water_deficit_7d=r(result.get("water_deficit_7d")),
+                water_deficit_30d=r(result.get("water_deficit_30d")),
 
-                spi_1m=result.get("spi1m"),
+                spi_1m=r(result.get("spi1m")),
 
-                ra_mj_m2_day=result.get("ra"),
-                rs_mj_m2_day=result.get("rs")
+                ra_mj_m2_day=r(result.get("ra")),
+                rs_mj_m2_day=r(result.get("rs"))
             )
 
         db.add(metrics_entry)
