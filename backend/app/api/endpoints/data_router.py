@@ -42,7 +42,7 @@ def get_latest_plotly_data(
 ):
     analysis = (
         db.query(FieldAnalysis)
-        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .join(UserLocation, FieldAnalysis.location_id == UserLocation.id)
         .filter(
             UserLocation.id == location_id,
             UserLocation.user_id == user_id,
