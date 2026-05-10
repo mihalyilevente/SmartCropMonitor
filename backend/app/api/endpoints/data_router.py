@@ -5,7 +5,7 @@ import xarray as xr
 from fastapi import Depends, APIRouter, HTTPException
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from app.core.database import UserLocation, FieldAnalysis, get_db,FieldUnit
 import json
 from app.core.config import STORAGE_PATH,NDVI_DIR
@@ -33,22 +33,40 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/analysis/{analysis_id}/plotly/{metric}")
-def get_plotly_data(analysis_id: int, metric: str, db: Session = Depends(get_db)):
-    analysis = db.query(FieldAnalysis).filter(FieldAnalysis.id == analysis_id).first()
+@router.get("/location/{location_id}/latest-metrics/{metric}")
+def get_latest_plotly_data(
+    location_id: int,
+    metric: str,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    analysis = (
+        db.query(FieldAnalysis)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(
+            UserLocation.id == location_id,
+            UserLocation.user_id == user_id,
+            FieldAnalysis.metrics_status == True
+        )
+        .order_by(desc(FieldAnalysis.id))
+        .first()
+    )
 
     if not analysis or not analysis.metrics_filename:
-        raise HTTPException(status_code=404, detail="Analysis result not found")
+        raise HTTPException(
+            status_code=404,
+            detail="No successful analysis found for this location"
+        )
 
     file_path = os.path.join(NDVI_DIR, analysis.metrics_filename)
 
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File on disk not found")
+        raise HTTPException(status_code=404, detail="Metrics file not found on disk")
 
     try:
         with xr.open_dataset(file_path) as ds:
             if metric not in ds:
-                raise HTTPException(status_code=400, detail=f"Metric {metric} not found")
+                raise HTTPException(status_code=400, detail=f"Metric {metric} not found in file")
 
             data = ds[metric].values
             y_coords = ds.coords['y'].values.tolist()
@@ -57,6 +75,7 @@ def get_plotly_data(analysis_id: int, metric: str, db: Session = Depends(get_db)
             data_cleaned = np.where(np.isnan(data), None, data).tolist()
 
             return {
+                "analysis_id": analysis.id,
                 "z": data_cleaned,
                 "x": x_coords,
                 "y": y_coords,
@@ -69,8 +88,8 @@ def get_plotly_data(analysis_id: int, metric: str, db: Session = Depends(get_db)
                 }
             }
     except Exception as e:
-        print(f"[ERROR] Plotly data prep failed: {e}")
-        raise HTTPException(status_code=500, detail="Internal processing error")
+        print(f"[ERROR] Plotly extraction failed: {e}")
+        raise HTTPException(status_code=500, detail="Error processing NetCDF data")
 
 
 @router.get("/user/fields")
