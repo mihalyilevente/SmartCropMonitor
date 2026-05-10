@@ -326,7 +326,7 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
                 geometry=db_geom,
                 label=f"Field {int(value)}",
                 status="active",
-                field_type=FieldType.other
+                field_type=FieldType.crop
             ))
 
         location.last_segm_mask_url = segm_mask_filename
