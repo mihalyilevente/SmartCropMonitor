@@ -9,7 +9,7 @@ Below are the key characteristics and performance indicators for the models used
 | **DeepLabV3 + MiT-B2** |AI4Boundaries| LovaszLoss+BCEDiceLoss+DiceLoss | 0.4443                 | 0.3230         | v 6.0          |
 | **U-TAE**          |PASTIS | BCEDiceLoss | 0.8597                  | 0.7763           | v 6.0          |
 | **U-ConvLSTM**     |PASTIS | BCEDiceLoss | 0.8505                  | 0.7658           | v 1.0          |
-| **U-ConvLTC**      |PASTIS | BCEDiceLoss | 0                       | 0                | v 1.0          |
+| **U-ConvLTC**      |PASTIS | BCEDiceLoss | 0.8460                       | 0.7615                | v 2.0          |
 ---
 
 
