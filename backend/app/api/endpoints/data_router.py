@@ -5,9 +5,9 @@ import xarray as xr
 from fastapi import Depends, APIRouter, HTTPException
 
 from sqlalchemy.orm import Session
-
-from app.core.database import UserLocation, FieldAnalysis, get_db
-
+from sqlalchemy import func
+from app.core.database import UserLocation, FieldAnalysis, get_db,FieldUnit
+import json
 from app.core.config import STORAGE_PATH,NDVI_DIR
 
 router = APIRouter()
@@ -40,7 +40,6 @@ def get_plotly_data(analysis_id: int, metric: str, db: Session = Depends(get_db)
     if not analysis or not analysis.metrics_filename:
         raise HTTPException(status_code=404, detail="Analysis result not found")
 
-    # building absolute path
     file_path = os.path.join(NDVI_DIR, analysis.metrics_filename)
 
     if not os.path.exists(file_path):
@@ -72,3 +71,41 @@ def get_plotly_data(analysis_id: int, metric: str, db: Session = Depends(get_db)
     except Exception as e:
         print(f"[ERROR] Plotly data prep failed: {e}")
         raise HTTPException(status_code=500, detail="Internal processing error")
+
+
+@router.get("/user/fields")
+def get_user_fields(user_id: int, db: Session = Depends(get_db)):
+    fields = (
+        db.query(
+            FieldUnit.id,
+            FieldUnit.label,
+            FieldUnit.field_type,
+            FieldUnit.crop_type,
+            func.ST_AsGeoJSON(FieldUnit.geometry).label("geom_json")
+        )
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(UserLocation.user_id == user_id)
+        .all()
+    )
+
+    if not fields:
+        return {"type": "FeatureCollection", "features": []}
+
+    features = []
+    for f in fields:
+        features.append({
+            "type": "Feature",
+            "id": f.id,
+            "geometry": json.loads(f.geom_json),
+            "properties": {
+                "id": f.id,
+                "label": f.label,
+                "field_type": f.field_type.value if hasattr(f.field_type, "value") else f.field_type,
+                "crop_type": f.crop_type,
+            }
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }
