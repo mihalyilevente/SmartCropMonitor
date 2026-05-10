@@ -9,7 +9,7 @@ from scipy.ndimage import label
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT
+from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS,MAX_SEGM_INPUT, QUALITY_THRESHOLD_SEGM
 
 
 def perform_segmentation_and_save(location_id: int, db: Session, analyzer):
@@ -105,7 +105,7 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         analyses = db.query(FieldAnalysis) \
             .filter(FieldAnalysis.location_id == location_id) \
-            .filter(FieldAnalysis.is_valid == True) \
+            .filter(FieldAnalysis.is_valid  >= QUALITY_THRESHOLD_SEGM) \
             .order_by(desc(FieldAnalysis.last_data_request_date)) \
             .limit(MAX_SEGM_INPUT).all()
 
