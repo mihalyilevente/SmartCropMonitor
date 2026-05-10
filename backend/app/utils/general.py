@@ -12,3 +12,7 @@ def safe_array(x):
     x = x.astype("float32")
     x[~np.isfinite(x)] = 0
     return x
+
+
+def r(x, ndigits=6):
+    return round(x, ndigits) if x is not None else None
