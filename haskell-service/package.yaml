@@ -8,6 +8,7 @@ dependencies:
   - text
   - http-types
   - wai-extra
+  - time
 
 library:
   source-dirs: src
