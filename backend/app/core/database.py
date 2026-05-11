@@ -108,7 +108,7 @@ class FieldAnalysisResult(Base):
 
     source_file_id = Column(Integer, nullable=True, index=True)
 
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column(JSONB, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
@@ -365,7 +365,7 @@ class FieldWork(Base):
     work_status = Column(Enum(FieldWorkStatus), nullable=False, default=FieldWorkStatus.PLANNED)
     harvest_ton = Column(Numeric(10, 3), nullable=True)
 
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column(JSONB, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
@@ -404,7 +404,7 @@ class Events(Base):
 
     expires_at = Column(DateTime, nullable=True)
 
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column(JSONB, nullable=True)
 
 
 class EventsRules(Base):
@@ -449,7 +449,7 @@ class UserTask(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column(JSONB, nullable=True)
 
 # =========================
 # DB Dependency
