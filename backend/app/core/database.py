@@ -92,6 +92,27 @@ class FieldAnalysis(Base):
     location = relationship("UserLocation", back_populates="analyses")
 
 
+class FieldAnalysisResult(Base):
+    __tablename__ = "field_analysis_result"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    analysis_id = Column(
+        Integer,
+        ForeignKey("field_analysis_history.id"),
+        nullable=False,
+        index=True
+    )
+
+    result_type = Column(String(50), nullable=False, index=True)
+
+    source_file_id = Column(Integer, nullable=True, index=True)
+
+    metadata = Column(JSONB, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+
 class FieldUnit(Base):
     __tablename__ = "field_units"
 
