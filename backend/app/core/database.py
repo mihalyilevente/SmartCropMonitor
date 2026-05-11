@@ -2,6 +2,8 @@
 # Imports
 # =========================
 import datetime
+
+from prompt_toolkit.styles import Priority
 from sqlalchemy import (
     create_engine, Column, Integer, Float, Enum, Numeric,
     ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint, func, Index
@@ -11,7 +13,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
-from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus
+from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus, EventType, StatusType, Status_task, Priority_task
 import enum
 from geoalchemy2 import Geometry
 
@@ -361,6 +363,74 @@ class FieldWork(Base):
         Index("ix_field_work_user_date", "user_id", "work_date"),
         Index("ix_field_work_type_date", "work_type", "work_date"),
     )
+
+
+class Events(Base):
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    event_type = Column(Enum(EventType), nullable=False, index=True)
+
+    event_hash = Column(String(128), nullable=False, unique=True, index=True)
+    dedup_key = Column(String(255), nullable=False, index=True)
+
+    severity = Column(String(20), nullable=False, default="INFO")
+    status = Column(Enum(StatusType), nullable=False, default="ACTIVE")
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    expires_at = Column(DateTime, nullable=True)
+
+    metadata = Column(JSONB, nullable=True)
+
+
+class EventsRules(Base):
+    __tablename__ = "events_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    name = Column(String(100), nullable=False)
+
+    is_active = Column(Boolean, default=True)
+
+    event_type = Column(Enum(EventType), nullable=False)
+
+    condition = Column(JSONB, nullable=False)
+
+    action = Column(JSONB, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class UserTask(Base):
+    __tablename__ = "user_task"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    field_id = Column(Integer, ForeignKey("field_units.id"), nullable=True, index=True)
+    location = Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True, index=True)
+
+    task_type = Column(String(50), nullable=False)
+
+    status = Column(Enum(Status_task), nullable=False, default="TODO")
+
+    priority = Column(Enum(Priority_task), nullable=False, default="MEDIUM")
+
+    task_timestamp = Column(DateTime, nullable=False, index=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    metadata = Column(JSONB, nullable=True)
 
 # =========================
 # DB Dependency
