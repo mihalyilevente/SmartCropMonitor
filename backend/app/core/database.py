@@ -4,13 +4,14 @@
 import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, Float, Enum, Numeric,
-    ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint
+    ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint, func, Index
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
-from app.core.schemas import FieldType
+from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus
 import enum
 from geoalchemy2 import Geometry
 
@@ -144,6 +145,7 @@ class FieldUnit(Base):
 
     location = relationship("UserLocation", back_populates="fields")
     field_data = relationship("FieldData", back_populates="field")
+    field_work = relationship("FieldWork", back_populates="field")
 
 
 class FieldData(Base):
@@ -313,6 +315,52 @@ class WeatherSensors(Base):
 
     sensor = relationship("SensorsDB", back_populates="sensor_data")
 
+
+class FieldWork(Base):
+    __tablename__ = "field_work"
+    id = Column(Integer, primary_key=True, index=True)
+
+    field_id = Column(
+        Integer,
+        ForeignKey("field_units.id"),
+        nullable=False,
+        index=True
+    )
+
+    user_id = Column(Integer,
+                     ForeignKey("users.id"),
+                     nullable=False,
+                     index=True)
+
+    work_date = Column(DateTime, nullable=False, index=True)
+
+    work_type = Column(
+        Enum(FieldWorkType),
+        nullable=False,
+        index=True
+    )
+
+    work_cost = Column(Numeric(10, 2), nullable=True)
+    work_status = Column(Enum(FieldWorkStatus), nullable=False, default=FieldWorkStatus.PLANNED)
+    harvest_ton = Column(Numeric(10, 3), nullable=True)
+
+    metadata = Column(JSONB, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    field = relationship("FieldUnit", back_populates="field_work")
+
+    __table_args__ = (
+        Index("ix_field_work_field_date", "field_id", "work_date"),
+        Index("ix_field_work_user_date", "user_id", "work_date"),
+        Index("ix_field_work_type_date", "work_type", "work_date"),
+    )
 
 # =========================
 # DB Dependency
