@@ -13,6 +13,9 @@ library:
   source-dirs: src
   exposed-modules:
     - Stats
+    - SprayingWindow
+    - Validation
+    - WeatherMetrics
 
 executables:
   haskell-service-exe:
