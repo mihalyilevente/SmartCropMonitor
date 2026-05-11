@@ -114,9 +114,3 @@ main = scotty 8081 $ do
       _ -> do
         status status400
         text "Unknown config"
-
-findInObject :: TL.Text -> Value -> Value
-findInObject key (Object o) = fromMaybe Null (lookup (TL.toStrict key) (toList o))
-  where
-    toList = Prelude.id
-findInObject _ _ = Null
