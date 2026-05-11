@@ -93,10 +93,10 @@ const Dashboard = ({ userId, onLogout }) => {
         </div>
 
         <div style={styles.panel}>
-           <h3>Soil condition</h3>
-           <p><strong>Soil temperature:</strong> {currentWeather?.soil_temperature_0cm ?? '--'}°C</p>
-           <p><strong>Soil moisture:</strong> {currentWeather?.soil_moisture_0_to_1cm ?? '--'}</p>
-           <p><strong>Cloud coverage:</strong> {currentWeather?.cloud_coverage ?? '0'}%</p>
+          <h3>Soil condition</h3>
+          <p><strong>Soil temperature:</strong> {currentWeather?.soil_temperature_0cm ?? '--'}°C</p>
+          <p><strong>Soil moisture:</strong> {currentWeather?.soil_moisture_0_to_1cm ?? '--'}</p>
+          <p><strong>Cloud coverage:</strong> {currentWeather?.cloud_coverage ?? '0'}%</p>
         </div>
       </div>
     </div>
