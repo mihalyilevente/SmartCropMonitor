@@ -15,7 +15,6 @@ library
       SprayingWindow
       Validation
   other-modules:
-      Main
       Paths_haskell_service
   hs-source-dirs:
       src
@@ -25,16 +24,17 @@ library
     , http-types
     , scotty
     , text
+    , time
     , wai-extra
   default-language: Haskell2010
 
 executable haskell-service-exe
   main-is: Main.hs
   other-modules:
+      Paths_haskell_service
       Stats
       Validation
       WeatherMetrics
-      Paths_haskell_service
       SprayingWindow
   hs-source-dirs:
       src
@@ -45,6 +45,7 @@ executable haskell-service-exe
     , http-types
     , scotty
     , text
+    , time
     , wai-extra
   ghc-options:
       -threaded
