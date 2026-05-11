@@ -119,3 +119,9 @@ findInObject key (Object o) = fromMaybe Null (lookup (TL.toStrict key) (toList o
   where
     toList = Prelude.id
 findInObject _ _ = Null
+
+findInObject :: TL.Text -> Value -> Value
+findInObject key (Object o) =
+    let k = K.fromText (TL.toStrict key)
+    in fromMaybe Null (KM.lookup k o)
+findInObject _ _ = Null
