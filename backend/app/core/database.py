@@ -59,8 +59,6 @@ class UserLocation(Base):
 
     location = Column(Geometry(geometry_type='POINT', srid=4326))
 
-    last_image_date = Column(DateTime, nullable=True)
-    last_image_url = Column(String, nullable=True)
     segmentation_status = Column(Boolean, default=None, nullable=True)
     last_segm_mask_url = Column(String, nullable=True)
     last_grid_mask_url = Column(String, nullable=True)
