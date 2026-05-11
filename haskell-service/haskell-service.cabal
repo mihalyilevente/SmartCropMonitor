@@ -35,7 +35,6 @@ executable haskell-service-exe
       Validation
       WeatherMetrics
       Paths_haskell_service
-      WeatherMetrics
       SprayingWindow
   hs-source-dirs:
       src
