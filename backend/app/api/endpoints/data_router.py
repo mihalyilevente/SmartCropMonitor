@@ -33,6 +33,26 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/user/locations")
+async def get_user_locations(user_id: int, db: Session = Depends(get_db)):
+    locations = (
+        db.query(
+            UserLocation.id,
+            UserLocation.label
+        )
+        .filter(UserLocation.user_id == user_id)
+        .all()
+    )
+
+    return [
+        {
+            "id": loc.id,
+            "label": loc.label
+        }
+        for loc in locations
+    ]
+
+
 @router.get("/location/{location_id}/latest-metrics/{metric}")
 def get_latest_plotly_data(
     location_id: int,
