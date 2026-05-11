@@ -14,6 +14,7 @@ import Network.HTTP.Types (status400)
 import Stats
 import Validation
 import WeatherMetrics (computeMetrics, LocationData)
+import SprayingWindow (computeSprayingWindows, ForecastPoint)
 
 -- =========================
 -- WRAPPER PAYLOAD
@@ -56,6 +57,24 @@ main = scotty 8081 $ do
 
     case config req of
 
+      -- Sprying window
+      4 -> case raw_data req of
+            Just d -> do
+              let forecastResult = fromJSON d :: Result (Value)
+              case forecastResult of
+                Success val ->
+                  case fromJSON (findInObject "forecast_7d" val) of
+                    Success points -> json (computeSprayingWindows points)
+                    Error err -> do
+                      status status400
+                      text (mconcat ["Invalid Forecast format: ", TL.pack err])
+                Error err -> do
+                  status status400
+                  text (mconcat ["Invalid raw_data JSON: ", TL.pack err])
+            Nothing -> do
+              status status400
+              text "Missing raw_data for config=4"
+
       -- Agricultural metrics (Weather/Location)
       3 -> case raw_data req of
             Just d -> do
@@ -69,6 +88,7 @@ main = scotty 8081 $ do
               status status400
               text "Missing raw_data for config=3"
 
+      -- NDVI metrics
       1 -> case raw_data req of
           Just d -> do
             let parsed = fromJSON d :: Result RawData
@@ -93,3 +113,9 @@ main = scotty 8081 $ do
       _ -> do
         status status400
         text "Unknown config"
+
+findInObject :: TL.Text -> Value -> Value
+findInObject key (Object o) = fromMaybe Null (lookup (TL.toStrict key) (toList o))
+  where
+    toList = Prelude.id
+findInObject _ _ = Null
