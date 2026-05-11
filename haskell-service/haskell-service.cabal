@@ -36,6 +36,7 @@ executable haskell-service-exe
       WeatherMetrics
       Paths_haskell_service
       WeatherMetrics
+      SprayingWindow
   hs-source-dirs:
       src
   build-depends:
