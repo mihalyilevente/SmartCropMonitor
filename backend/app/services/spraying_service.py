@@ -23,7 +23,7 @@ def _serialize_spraying_point(weather: WeatherHistory, metric: Optional[WeatherM
         "r": clean_f(weather.rain),
         "et0": clean_f(metric.et0) if metric else 0.0,
         "vapour_pressure_deficit": clean_f(weather.vapour_pressure_deficit) if metric else 0.0,
-        "dt": weather.timestamp.isoformat()
+        "dt": weather.timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
     }
 
 
