@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory, WeatherMetrics
 from app.services.weather_service import current_weather_request
+from app.services.spraying_service import calculate_spraying_window
+from typing import Any
 
 router = APIRouter()
 
@@ -129,3 +131,29 @@ async def get_weather_chart_data(
         })
 
     return chart_data
+
+
+@router.get("/{location_id}/spraying-windows", tags=["Spaying"])
+def get_location_spraying_windows(
+    location_id: int,
+    db: Session = Depends(get_db)
+) -> Any:
+    location = db.query(UserLocation).filter(
+        UserLocation.id == location_id
+    ).first()
+
+    if not location:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Location with id {location_id} not found"
+        )
+
+    result = calculate_spraying_window(db, location)
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Spraying windows calculation failed. Check weather data availability."
+        )
+
+    return result
