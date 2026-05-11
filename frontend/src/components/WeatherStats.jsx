@@ -1,21 +1,34 @@
 const WeatherStats = ({ metrics }) => {
-  if (!metrics) return <p>Loading metrics...</p>;
+  if (!metrics) {
+    return <div style={styles.loading}>Loading metrics...</div>;
+  }
 
   return (
     <div style={styles.statsGrid}>
       <div style={styles.card}>
         <span style={styles.label}>Accumulated GDD (Base 10)</span>
-        <span style={styles.value}>{metrics.gdd_base_10 || 0}°C</span>
+        <span style={styles.value}>
+          {metrics.gdd_base_10?.toFixed(1) || '0.0'} °C
+        </span>
       </div>
+
       <div style={styles.card}>
-        <span style={styles.label}>Water Deficit (30d)</span>
-        <span style={{...styles.value, color: 'var(--color-accent-mulberry)'}}>
+        <span style={styles.label}>Water Deficit (30 Days)</span>
+        <span
+          style={{
+            ...styles.value,
+            color: 'var(--color-accent-mulberry)'
+          }}
+        >
           {metrics.water_deficit_30d || 0} mm
         </span>
       </div>
+
       <div style={styles.card}>
-        <span style={styles.label}>Evapotranspiration (ET0)</span>
-        <span style={styles.value}>{metrics.et0 || 'N/A'}</span>
+        <span style={styles.label}>Evapotranspiration (ET₀)</span>
+        <span style={styles.value}>
+          {metrics.et0 ?? 'N/A'}
+        </span>
       </div>
     </div>
   );

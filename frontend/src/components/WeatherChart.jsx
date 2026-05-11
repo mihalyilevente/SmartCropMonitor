@@ -12,7 +12,7 @@ const WeatherChart = ({ data }) => {
         <Tooltip labelFormatter={(label) => new Date(label).toLocaleString()} />
         <Line
           type="monotone"
-          dataKey="t"
+          dataKey="weather_data.temp"
           stroke="#054e05"
           strokeWidth={2}
           dot={false}
