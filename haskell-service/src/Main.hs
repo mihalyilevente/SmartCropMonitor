@@ -10,6 +10,7 @@ import qualified Data.Text.Lazy as TL
 import GHC.Generics
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.HTTP.Types (status400)
+import Data.Maybe (fromMaybe)
 
 import Stats
 import Validation
