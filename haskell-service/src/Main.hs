@@ -114,3 +114,9 @@ main = scotty 8081 $ do
       _ -> do
         status status400
         text "Unknown config"
+
+findInObject :: TL.Text -> Value -> Value
+findInObject key (Object o) =
+    let k = K.fromText (TL.toStrict key)
+    in fromMaybe Null (KM.lookup k o)
+findInObject _ _ = Null
