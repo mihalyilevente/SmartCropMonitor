@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from './api/client';
-import logo from './assets/logo.png';
+import logo from './assets/logo1.png';
 import bgImage from './assets/auth-bg.jpg';
 
 const Auth = ({ onLogin }) => {
