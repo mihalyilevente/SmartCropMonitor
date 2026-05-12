@@ -186,11 +186,15 @@ def run_per_field_metrics(db: Session):
                 print(f"[DEBUG] Opened raster: {file_path}")
                 print(f"[DEBUG] CRS before assignment: {ds.rio.crs}")
                 print(f"[DEBUG] Raster bounds: {ds.rio.bounds()}")
-                print(f"[DEBUG] Raster shape: {ds.shape}")
 
                 if not ds.rio.crs:
-                    ds.rio.write_crs("EPSG:4326", inplace=True)
+                    minx, miny, maxx, maxy = ds.rio.bounds()
+                    utm_zone = int((minx + 180) / 6) + 1
+                    utm_crs = f"EPSG:{32600 + utm_zone if miny >= 0 else 32700 + utm_zone}"
+                    print(f"[DEBUG] Auto-detected CRS: {utm_crs}")
+                    ds.rio.write_crs(utm_crs, inplace=True)
 
+                print(f"[DEBUG] CRS after assignment: {ds.rio.crs}")
                 raster_crs = ds.rio.crs
                 all_results = []
 
