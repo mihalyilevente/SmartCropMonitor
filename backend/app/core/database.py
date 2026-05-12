@@ -86,6 +86,7 @@ class FieldAnalysis(Base):
 
     metrics_status = Column(Boolean, default=None, nullable=True)
     metrics_filename = Column(String, nullable=True)
+    per_metrics_status = Column(Boolean, default=None, nullable=True)
 
     fields_count = Column(Integer, default=0)
 
