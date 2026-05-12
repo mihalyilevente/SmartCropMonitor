@@ -52,7 +52,7 @@ def get_location_analysis_stats(
     }
 
 
-@router.get("/users/{user_id}/locations/{location_id}/stats")
+@router.get("/test_func")
 def test_function(db: Session = Depends(get_db)):
     run_per_field_metrics(db)
     return 0
