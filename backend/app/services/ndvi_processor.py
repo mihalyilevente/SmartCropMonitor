@@ -183,6 +183,11 @@ def run_per_field_metrics(db: Session):
 
         try:
             with rxr.open_rasterio(file_path, masked=True) as ds:
+                print(f"[DEBUG] Opened raster: {file_path}")
+                print(f"[DEBUG] CRS before assignment: {ds.rio.crs}")
+                print(f"[DEBUG] Raster bounds: {ds.rio.bounds()}")
+                print(f"[DEBUG] Raster shape: {ds.shape}")
+
                 if not ds.rio.crs:
                     ds.rio.write_crs("EPSG:4326", inplace=True)
 
@@ -194,6 +199,8 @@ def run_per_field_metrics(db: Session):
                         [wkb.loads(bytes(field.geometry.data))],
                         crs="EPSG:4326"
                     ).to_crs(raster_crs)
+
+                    print(f"[DEBUG] Field {field.id} bounds: {prepared_geom.total_bounds}")
 
                     results = calculate_per_field_metrics(
                         field=field,

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import UserLocation, FieldAnalysis, get_db
+from app.services.ndvi_processor import run_per_field_metrics
+
 
 
 router = APIRouter()
@@ -48,3 +50,9 @@ def get_location_analysis_stats(
             "total_records_checked": len(analyses)
         }
     }
+
+
+@router.get("/users/{user_id}/locations/{location_id}/stats")
+def test_function(db: Session = Depends(get_db)):
+    run_per_field_metrics(db)
+    return 0
