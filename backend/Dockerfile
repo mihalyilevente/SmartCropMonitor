@@ -13,7 +13,7 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
 ENV C_INCLUDE_PATH=/usr/include/gdal
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt httpx geoalchemy2 psycopg2-binary
+RUN pip install --no-cache-dir -r requirements.txt httpx geoalchemy2 geopandas psycopg2-binary
 
 COPY . .
 
