@@ -11,7 +11,7 @@ from shapely import wkb
 import geopandas as gpd
 from app.utils.general import safe_array
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_,or_
 
 
 def perform_haskell_calculation(payload):
@@ -118,7 +118,10 @@ def get_pending_per_field_metric_tasks(db: Session):
         db.query(FieldAnalysis)
         .filter(
             FieldAnalysis.metrics_status == True,
-            FieldAnalysis.per_metrics_status != True
+            or_(
+                FieldAnalysis.per_metrics_status == False,
+                FieldAnalysis.per_metrics_status.is_(None)
+            )
         )
         .all()
     )
@@ -145,7 +148,7 @@ def get_fields_for_analysis(db: Session, analysis_id: int):
     )
 
     if not analysis:
-        return []
+        return {"analysis": None, "fields": []}
 
     fields = (
         db.query(FieldUnit)
@@ -161,7 +164,7 @@ def get_fields_for_analysis(db: Session, analysis_id: int):
 
 def run_per_field_metrics(db: Session):
     tasks = get_pending_per_field_metric_tasks(db)
-
+    print(f"[DEBUG] Found {len(tasks)} pending tasks")
     for task in tasks:
         data = get_fields_for_analysis(db, task["analysis_id"])
         analysis, fields = data["analysis"], data["fields"]
