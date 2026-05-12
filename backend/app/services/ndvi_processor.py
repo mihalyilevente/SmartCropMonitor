@@ -1,10 +1,14 @@
 import os
 import time
+import datetime
 import numpy as np
 import requests
 import xarray as xr
+import rioxarray as rxr
 from app.core.config import DATA_DIR,NDVI_DIR, HASKELL_SERVICE_URL, QUALITY_THRESHOLD
-from app.core.database import FieldAnalysis
+from app.core.database import FieldAnalysis, FieldUnit, FieldData
+from shapely import wkb
+import geopandas as gpd
 from app.utils.general import safe_array
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -106,3 +110,140 @@ def sateline_metrics(db: Session):
         except Exception as e:
             db.rollback()
             print(f"[ERROR] Error processing {data.nc_filename}: {e}")
+
+
+def get_pending_per_field_metric_tasks(db: Session):
+
+    analyses = (
+        db.query(FieldAnalysis)
+        .filter(
+            FieldAnalysis.metrics_status == True,
+            FieldAnalysis.per_metrics_status != True
+        )
+        .all()
+    )
+
+    tasks = []
+
+    for a in analyses:
+        tasks.append({
+            "analysis_id": a.id,
+            "location_id": a.location_id,
+            "nc_filename": a.nc_filename,
+            "metrics_filename": a.metrics_filename
+        })
+
+    return tasks
+
+
+def get_fields_for_analysis(db: Session, analysis_id: int):
+
+    analysis = (
+        db.query(FieldAnalysis)
+        .filter(FieldAnalysis.id == analysis_id)
+        .first()
+    )
+
+    if not analysis:
+        return []
+
+    fields = (
+        db.query(FieldUnit)
+        .filter(FieldUnit.location_id == analysis.location_id)
+        .all()
+    )
+
+    return {
+        "analysis": analysis,
+        "fields": fields
+    }
+
+
+def run_per_field_metrics(db: Session):
+    tasks = get_pending_per_field_metric_tasks(db)
+
+    for task in tasks:
+        data = get_fields_for_analysis(db, task["analysis_id"])
+        analysis, fields = data["analysis"], data["fields"]
+
+        if not fields:
+            analysis.per_metrics_status = True
+            db.commit()
+            continue
+
+        file_path = os.path.join(NDVI_DIR, analysis.metrics_filename)
+        if not os.path.exists(file_path):
+            print(f"[ERROR] Metrics file not found: {file_path}")
+            analysis.per_metrics_status = False
+            db.commit()
+            continue
+
+        try:
+            with rxr.open_rasterio(file_path, masked=True) as ds:
+                if not ds.rio.crs:
+                    ds.rio.write_crs("EPSG:4326", inplace=True)
+
+                raster_crs = ds.rio.crs
+                all_results = []
+
+                for field in fields:
+                    prepared_geom = gpd.GeoSeries(
+                        [wkb.loads(bytes(field.geometry.data))],
+                        crs="EPSG:4326"
+                    ).to_crs(raster_crs)
+
+                    results = calculate_per_field_metrics(
+                        field=field,
+                        ds=ds,
+                        nc_filename=analysis.metrics_filename,
+                        timestamp=analysis.last_data_request_date,
+                        prepared_geom=prepared_geom
+                    )
+                    all_results.extend(results)
+
+                if all_results:
+                    db.add_all(all_results)
+
+                analysis.per_metrics_status = True
+                db.commit()
+                print(f"[SUCCESS] Per-field metrics for analysis {analysis.id} completed.")
+        except Exception as e:
+            db.rollback()
+            print(f"[ERROR] Error processing analysis {analysis.id}: {e}")
+            analysis.per_metrics_status = False
+            db.commit()
+
+
+def calculate_per_field_metrics(field, ds, nc_filename, timestamp, prepared_geom):
+    try:
+        results_to_insert = []
+
+        for i, var in enumerate(ds.data_vars):
+            try:
+                da = ds.isel(band=i) if 'band' in ds.dims else ds[var]
+
+                clipped = da.rio.clip(prepared_geom.geometry, prepared_geom.crs, drop=True)
+
+                values = clipped.values.flatten()
+                values = values[np.isfinite(values)]
+
+                if values.size == 0:
+                    continue
+
+                results_to_insert.append(FieldData(
+                    field_id=field.id,
+                    timestamp=timestamp,
+                    metric_type=da.name if hasattr(da, 'name') else f"metric_{i}",
+                    mean_metric=float(np.mean(values)),
+                    min_metric=float(np.min(values)),
+                    max_metric=float(np.max(values)),
+                    std_metric=float(np.std(values)),
+                    extra={"count": int(values.size), "source_file": nc_filename}
+                ))
+            except Exception as e:
+                print(f"[ERROR] var={var} in field={field.id}: {e}")
+
+        return results_to_insert
+    except Exception as e:
+        print(f"[ERROR] calculate_per_field_metrics failed for field={field.id}: {e}")
+        return []
