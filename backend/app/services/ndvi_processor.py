@@ -221,9 +221,9 @@ def calculate_per_field_metrics(field, ds, nc_filename, timestamp, prepared_geom
     try:
         results_to_insert = []
 
-        for i, var in enumerate(ds.data_vars):
+        for var in ds.data_vars:
             try:
-                da = ds.isel(band=i) if 'band' in ds.dims else ds[var]
+                da = ds[var]
 
                 clipped = da.rio.clip(prepared_geom.geometry, prepared_geom.crs, drop=True)
 
@@ -236,7 +236,7 @@ def calculate_per_field_metrics(field, ds, nc_filename, timestamp, prepared_geom
                 results_to_insert.append(FieldData(
                     field_id=field.id,
                     timestamp=timestamp,
-                    metric_type=da.name if hasattr(da, 'name') else f"metric_{i}",
+                    metric_type=var,
                     mean_metric=float(np.mean(values)),
                     min_metric=float(np.min(values)),
                     max_metric=float(np.max(values)),
