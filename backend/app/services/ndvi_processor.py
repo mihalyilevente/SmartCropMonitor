@@ -184,17 +184,15 @@ def run_per_field_metrics(db: Session):
         try:
             with rxr.open_rasterio(file_path, masked=True) as ds:
                 print(f"[DEBUG] Opened raster: {file_path}")
-                print(f"[DEBUG] CRS before assignment: {ds.rio.crs}")
+                print(f"[DEBUG] CRS: {ds.rio.crs}")
                 print(f"[DEBUG] Raster bounds: {ds.rio.bounds()}")
 
                 if not ds.rio.crs:
-                    minx, miny, maxx, maxy = ds.rio.bounds()
-                    utm_zone = int((minx + 180) / 6) + 1
-                    utm_crs = f"EPSG:{32600 + utm_zone if miny >= 0 else 32700 + utm_zone}"
-                    print(f"[DEBUG] Auto-detected CRS: {utm_crs}")
-                    ds.rio.write_crs(utm_crs, inplace=True)
+                    print(f"[ERROR] Raster has no CRS metadata. Check source data.")
+                    analysis.per_metrics_status = False
+                    db.commit()
+                    continue
 
-                print(f"[DEBUG] CRS after assignment: {ds.rio.crs}")
                 raster_crs = ds.rio.crs
                 all_results = []
 
