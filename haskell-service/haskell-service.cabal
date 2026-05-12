@@ -11,10 +11,11 @@ build-type:     Simple
 library
   exposed-modules:
       Stats
-      WeatherMetrics
       SprayingWindow
       Validation
+      WeatherMetrics
   other-modules:
+      Main
       Paths_haskell_service
   hs-source-dirs:
       src
@@ -31,11 +32,11 @@ library
 executable haskell-service-exe
   main-is: Main.hs
   other-modules:
-      Paths_haskell_service
+      SprayingWindow
       Stats
       Validation
       WeatherMetrics
-      SprayingWindow
+      Paths_haskell_service
   hs-source-dirs:
       src
   build-depends:
