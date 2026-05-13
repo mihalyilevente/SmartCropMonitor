@@ -60,6 +60,9 @@ def sateline_metrics(db: Session):
             with xr.open_dataset(nc_path) as ds:
                 data_array = ds['__xarray_dataarray_variable__']
 
+                print(f"[DEBUG] data_array shape: {data_array.shape}, dims: {data_array.dims}")
+                print(f"[DEBUG] bands: {data_array.coords['band'].values.tolist()}")
+
                 payload = {
                     "config": 1,
                     "raw_data": {
@@ -75,6 +78,20 @@ def sateline_metrics(db: Session):
                 result = perform_haskell_calculation(payload)
 
                 if result:
+                    src_crs = None
+                    if "spatial_ref" in ds:
+                        crs_wkt = ds["spatial_ref"].attrs.get("crs_wkt")
+                        proj4  = ds["spatial_ref"].attrs.get("proj4")
+                        src_crs = crs_wkt or proj4
+                    if src_crs is None:
+                        src_crs = ds.rio.set_spatial_dims(
+                            x_dim="x", y_dim="y"
+                        ).rio.crs
+                    if src_crs is None:
+                        x_val = float(ds.x.mean())
+                        src_crs = "EPSG:4326" if abs(x_val) <= 180 else "EPSG:32634"
+                        print(f"[WARNING] CRS not found in raw file, using {src_crs}")
+
                     metrics_data = {
                         "ndvi":  (["y", "x"], np.array(result["ndvi_map"],  dtype=float)),
                         "gndvi": (["y", "x"], np.array(result["gndvi_map"], dtype=float)),
@@ -91,19 +108,11 @@ def sateline_metrics(db: Session):
                         }
                     )
 
-                    src_crs = ds.rio.crs
-                    if src_crs is None:
-                        for var in ds.data_vars:
-                            gm = ds[var].attrs.get("grid_mapping")
-                            if gm and gm in ds:
-                                src_crs = ds[gm].attrs.get("crs_wkt") or ds[gm].attrs.get("proj4")
-                                break
-
-                    if src_crs:
-                        metrics_ds = metrics_ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs(src_crs)
-                    else:
-                        metrics_ds = metrics_ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs("EPSG:32634")
-
+                    metrics_ds = (
+                        metrics_ds
+                        .rio.set_spatial_dims(x_dim="x", y_dim="y")
+                        .rio.write_crs(src_crs)
+                    )
 
                     output_filename = f"metrics_{data.nc_filename}"
                     output_path = os.path.join(NDVI_DIR, output_filename)
@@ -194,14 +203,22 @@ def run_per_field_metrics(db: Session):
 
                 ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y")
 
+                ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y")
+
                 if not ds.rio.crs:
-                    x_val = float(ds.x.mean())
-                    if abs(x_val) <= 180:
-                        assumed_crs = "EPSG:4326"
-                    else:
-                        assumed_crs = "EPSG:32634"
-                    print(f"[WARNING] No CRS in file, using {assumed_crs}")
-                    ds = ds.rio.write_crs(assumed_crs)
+                    if "spatial_ref" in ds:
+                        crs_wkt = ds["spatial_ref"].attrs.get("crs_wkt")
+                        proj4 = ds["spatial_ref"].attrs.get("proj4")
+                        crs_str = crs_wkt or proj4
+                        if crs_str:
+                            ds = ds.rio.write_crs(crs_str)
+                            print(f"[DEBUG] CRS restored from spatial_ref attrs")
+
+                    if not ds.rio.crs:
+                        x_val = float(ds.x.mean())
+                        assumed_crs = "EPSG:4326" if abs(x_val) <= 180 else "EPSG:32634"
+                        print(f"[WARNING] No CRS in file, using {assumed_crs}")
+                        ds = ds.rio.write_crs(assumed_crs)
 
                 raster_crs = ds.rio.crs
                 print(f"[DEBUG] CRS: {raster_crs}")
@@ -246,8 +263,10 @@ def run_per_field_metrics(db: Session):
 def calculate_per_field_metrics(field, ds, nc_filename, timestamp, prepared_geom):
     try:
         results_to_insert = []
-
+        SKIP_VARS = {"spatial_ref", "crs", "grid_mapping"}
         for var in ds.data_vars:
+            if var in SKIP_VARS:
+                continue
             try:
                 da = ds[var]
 
