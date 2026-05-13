@@ -1,9 +1,10 @@
 /**
  * Dashboard.jsx
- * Main view. Three collapsible panels below the header banner:
+ * Main view. Collapsible panels below the header banner:
  *  1. WeatherMetricsPanel  — latest-weather endpoint (history + metrics objects)
  *  2. WeatherCharts        — weather-charts endpoint (hourly time series)
- *  3. SensorPanel          — sensor management, status, history plots
+ *  3. FieldMapPanel        — Mapbox GL JS: field boundaries + metric heatmap  ← NEW
+ *  4. SensorPanel          — sensor management, status, history plots
  */
 import React, { useState, useEffect } from 'react';
 import api from './api/client';
@@ -11,6 +12,8 @@ import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/w
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
+import FieldMapPanel from './components/FieldMapPanel';
+import AddLocationModal from './components/AddLocationModal';
 import logo from './assets/logo1.png';
 
 const Dashboard = ({ userId, onLogout }) => {
@@ -20,18 +23,25 @@ const Dashboard = ({ userId, onLogout }) => {
   const [latestWeather, setLatestWeather]   = useState(null);   // { history, metrics }
   const [chartData, setChartData]           = useState([]);      // hourly array
   const [loading, setLoading]           = useState(true);
+  const [showAddLocation, setShowAddLocation] = useState(false); // ← NEW
 
-  // Fetch locations on mount
-  useEffect(() => {
+  // ── helpers ────────────────────────────────────────────────────────────────
+  const fetchLocations = () => {
     if (!userId) return;
     setLoading(true);
-    api.get('/api/v1/user/locations', { params: { user_id: userId } })
+    return api.get('/api/v1/user/locations', { params: { user_id: userId } })
       .then(res => {
         setLocations(res.data);
-        if (res.data.length > 0) setLocationId(res.data[0].id);
+        if (res.data.length > 0 && !locationId) setLocationId(res.data[0].id);
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  // Fetch locations on mount
+  useEffect(() => {
+    fetchLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // Fetch weather data when location changes
@@ -54,6 +64,14 @@ const Dashboard = ({ userId, onLogout }) => {
       .catch(() => setChartData([]));
   }, [locationId, userId]);
 
+  // Called from AddLocationModal after a successful save
+  const handleLocationAdded = (newLocation) => {
+    setShowAddLocation(false);
+    fetchLocations().then(() => {
+      if (newLocation?.id) setLocationId(newLocation.id);
+    });
+  };
+
   if (loading) return <div style={styles.container}>Loading…</div>;
 
   return (
@@ -65,24 +83,36 @@ const Dashboard = ({ userId, onLogout }) => {
           <h1 style={{ fontFamily: 'var(--font-heading)', margin: 0 }}>SmartCrop Monitor</h1>
         </div>
 
-        {locations.length > 0 ? (
-          <div style={styles.locationSelector}>
-            <label style={styles.label}>Location:</label>
-            <select
-              value={locationId || ''}
-              onChange={e => setLocationId(Number(e.target.value))}
-              style={styles.select}
-            >
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.label || `Location #${loc.id}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div style={{ color: 'red', fontSize: 13 }}>No locations configured</div>
-        )}
+        {/* Location selector + Add Location button */}
+        <div style={styles.locationRow}>
+          {locations.length > 0 ? (
+            <div style={styles.locationSelector}>
+              <label style={styles.label}>Location:</label>
+              <select
+                value={locationId || ''}
+                onChange={e => setLocationId(Number(e.target.value))}
+                style={styles.select}
+              >
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.label || `Location #${loc.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{ color: 'red', fontSize: 13 }}>No locations configured</div>
+          )}
+
+          {/* ── Add Location button ── */}
+          <button
+            onClick={() => setShowAddLocation(true)}
+            style={styles.addLocationBtn}
+            title="Add new location"
+          >
+            + Add Location
+          </button>
+        </div>
 
         <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>
       </header>
@@ -105,7 +135,20 @@ const Dashboard = ({ userId, onLogout }) => {
       {/* ── Collapsible panels ── */}
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
+
+      {/* ── Field Map (NEW) ── */}
+      <FieldMapPanel userId={userId} locationId={locationId} />
+
       <SensorPanel userId={userId} />
+
+      {/* ── Add Location Modal ── */}
+      {showAddLocation && (
+        <AddLocationModal
+          userId={userId}
+          onClose={() => setShowAddLocation(false)}
+          onSaved={handleLocationAdded}
+        />
+      )}
     </div>
   );
 };
@@ -125,6 +168,10 @@ const styles = {
     borderBottom: '1px solid var(--color-accent-soil)',
   },
   branding: { display: 'flex', alignItems: 'center', gap: 10 },
+
+  locationRow: {
+    display: 'flex', alignItems: 'center', gap: 8,
+  },
   locationSelector: {
     display: 'flex', alignItems: 'center',
     backgroundColor: 'var(--color-bg-magnolia)',
@@ -137,6 +184,19 @@ const styles = {
     border: '1px solid var(--color-accent-soil)',
     cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
   },
+  addLocationBtn: {
+    background: 'var(--color-accent-soil)',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 14px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: 13,
+    whiteSpace: 'nowrap',
+    transition: 'opacity 0.15s',
+  },
+
   weatherBanner: {
     background: 'var(--color-bg-magnolia)',
     padding: '18px 24px', borderRadius: 12, marginBottom: 20,
