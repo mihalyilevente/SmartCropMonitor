@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import UserLocation, FieldAnalysis, get_db
+from app.services.orchestrator import full_sync_process, short_sync_process
 from app.services.ndvi_processor import run_per_field_metrics
 
 
@@ -56,3 +57,19 @@ def get_location_analysis_stats(
 def test_function(db: Session = Depends(get_db)):
     run_per_field_metrics(db)
     return 0
+
+
+@router.post("/sync/full", tags=["Synchronisation"])
+async def manual_full_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    def run_sync():
+        full_sync_process(db)
+    background_tasks.add_task(run_sync)
+    return {"status": "Full synchronization started in background"}
+
+
+@router.post("/sync/short", tags=["Synchronisation"])
+async def manual_short_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    def run_sync():
+        short_sync_process(db)
+    background_tasks.add_task(run_sync)
+    return {"status": "Short sync (weather) started in background"}
