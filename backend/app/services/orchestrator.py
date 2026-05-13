@@ -25,11 +25,6 @@ def full_sync_process(db: Session):
         validate_pending_analyses(db)
         sateline_metrics(db)
         run_per_field_metrics(db)
-        run_full_data_cycle(db)
-
-        locations = db.query(UserLocation).all()
-        for loc in locations:
-            weather_metrics(db, loc)
 
     except Exception as e:
         alert_service.send(
@@ -42,13 +37,23 @@ def full_sync_process(db: Session):
         raise e
 
 
-def run_full_data_cycle(db: Session):
-    print("[INFO] Starting data download cycle...")
+def short_sync_process(db: Session):
+    try:
 
-    all_locations = db.query(UserLocation).all()
-    for loc in all_locations:
-        print(f"[PROCESS] Fetching weather for: {loc.label}")
-        fetch_and_save_weather(db, loc)
+        all_locations = db.query(UserLocation).all()
+        for loc in all_locations:
+            print(f"[PROCESS] Fetching weather for: {loc.label}")
+            fetch_and_save_weather(db, loc)
+            weather_metrics(db, loc)
+    except Exception as e:
+        alert_service.send(
+            key="orchestrator_failure",
+            message=format_alert(
+                "ORCHESTRATOR_CRITICAL",
+                f"Short sync process failed: {str(e)}"
+            )
+        )
+        raise e
 
 
 def download_sentinel_data(db: Session):
