@@ -7,7 +7,7 @@
  *
  * Collapsible panel, tab-based chart switching, pure SVG — no charting deps.
  */
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 
 const C = {
   green:    '#317f43',
@@ -21,7 +21,7 @@ const C = {
 };
 
 // ── SVG line chart ─────────────────────────────────────────────────────────────
-const LineChart = ({ points = [], color = C.green, unit = '', label = '' }) => {
+const LineChart = ({ points = [], color = C.green, label = '' }) => {
   const valid = points.filter(p => p.y != null && !isNaN(p.y));
   if (!valid.length) return (
     <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 12 }}>

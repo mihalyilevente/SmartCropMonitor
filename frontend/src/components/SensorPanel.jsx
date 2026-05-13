@@ -13,7 +13,7 @@
  * History response shape:
  *   { sensor_id, labels: string[], datasets: { temp: number[], humidity: number[], pressure: number[] } }
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
 
 const BASE = '/api/v1/sensors';
