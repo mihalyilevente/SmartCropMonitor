@@ -34,15 +34,48 @@ function bboxFromGeoJSON(geojson) {
   return [[minLng, minLat], [maxLng, maxLat]];
 }
 
+// Convert UTM (zone 34N / EPSG:32634) to WGS84 [lng, lat]
+// Hungary satellite data comes in UTM 34N (x≈397000-400000, y≈5280000-5300000)
+function utmToWgs84(easting, northing, zone = 34) {
+  const a = 6378137.0, e1sq = 0.00669437999014, k0 = 0.9996;
+  const e0 = easting - 500000.0;
+  const M = northing / k0;
+  const mu = M / (a * (1 - e1sq/4 - 3*e1sq*e1sq/64));
+  const e1 = (1 - Math.sqrt(1-e1sq)) / (1 + Math.sqrt(1-e1sq));
+  const fp = mu + (3*e1/2)*Math.sin(2*mu) + (21*e1*e1/16)*Math.sin(4*mu)
+           + (151*e1*e1*e1/96)*Math.sin(6*mu);
+  const e2 = e1sq/(1-e1sq);
+  const C1 = e2*Math.cos(fp)**2, T1 = Math.tan(fp)**2;
+  const R1 = a*(1-e1sq)/Math.pow(1-e1sq*Math.sin(fp)**2, 1.5);
+  const N  = a/Math.sqrt(1-e1sq*Math.sin(fp)**2);
+  const D  = e0/(N*k0);
+  const lat = fp - (N*Math.tan(fp)/R1) * (D*D/2
+    - (5+3*T1+10*C1-4*C1*C1-9*e2)*D*D*D*D/24
+    + (61+90*T1+298*C1+45*T1*T1-3*C1*C1-252*e2)*D*D*D*D*D*D/720);
+  const lon0 = ((zone-1)*6 - 180 + 3) * Math.PI/180;
+  const lon = lon0 + (D - (1+2*T1+C1)*D*D*D/6
+    + (5-2*C1+28*T1-3*C1*C1+8*e2+24*T1*T1)*D*D*D*D*D/120) / Math.cos(fp);
+  return [lon*180/Math.PI, lat*180/Math.PI]; // [lng, lat] for Mapbox
+}
+
+// Detect if coordinates are UTM (large metre values) or already WGS84
+function isUtm(coords) {
+  return Math.abs(coords[0]) > 180 || Math.abs(coords[1]) > 90;
+}
+
 function gridToGeoJSON(z, x, y) {
+  const needsConversion = isUtm([x[0], y[0]]);
   const features = [];
   for (let row = 0; row < y.length; row++) {
     for (let col = 0; col < x.length; col++) {
       const val = z[row]?.[col];
       if (val === null || val === undefined || isNaN(val)) continue;
+      const coords = needsConversion
+        ? utmToWgs84(x[col], y[row])
+        : [x[col], y[row]];
       features.push({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [x[col], y[row]] },
+        geometry: { type: 'Point', coordinates: coords },
         properties: { value: val },
       });
     }
@@ -224,12 +257,13 @@ const FieldMapPanel = ({ userId, locationId }) => {
     });
   }, [fields, open, applyToMap]);
 
-  // Draw heatmap
+  // Draw metric overlay as circle layer (precise per-pixel coloring, not blurred heatmap)
   useEffect(() => {
     if (!open) return;
     applyToMap(map => {
       const HM_SRC   = 'metric-src';
-      const HM_LAYER = 'metric-heatmap';
+      const HM_LAYER = 'metric-layer';
+
       if (map.getLayer(HM_LAYER)) map.removeLayer(HM_LAYER);
       if (map.getSource(HM_SRC))  map.removeSource(HM_SRC);
       if (!metricData) return;
@@ -238,20 +272,42 @@ const FieldMapPanel = ({ userId, locationId }) => {
       const gj   = gridToGeoJSON(z, x, y);
       const meta = METRIC_META[metric];
 
-      console.log('[FieldMapPanel] drawing heatmap, points:', gj.features.length);
+      console.log('[FieldMapPanel] drawing metric overlay, points:', gj.features.length,
+        'value range sample:', gj.features.slice(0,3).map(f => f.properties.value.toFixed(3)));
+
+      // Compute actual min/max from data for better contrast
+      const vals = gj.features.map(f => f.properties.value);
+      const dMin = Math.min(...vals);
+      const dMax = Math.max(...vals);
+      console.log('[FieldMapPanel] data range:', dMin.toFixed(3), '—', dMax.toFixed(3));
 
       map.addSource(HM_SRC, { type: 'geojson', data: gj });
+
+      // circle-radius scales with zoom so circles tile seamlessly at any zoom level.
+      // At step=3 the grid spacing is ~3x the native pixel size; radius compensates.
       map.addLayer({
-        id: HM_LAYER, type: 'heatmap', source: HM_SRC, maxzoom: 18,
+        id: HM_LAYER,
+        type: 'circle',
+        source: HM_SRC,
         paint: {
-          'heatmap-weight': ['interpolate', ['linear'], ['get', 'value'], meta.min, 0, meta.max, 1],
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 16, 2.5],
-          'heatmap-color': [
-            'interpolate', ['linear'], ['heatmap-density'],
-            0, 'rgba(0,0,0,0)', 0.2, meta.ramp[0], 0.5, meta.ramp[1], 1, meta.ramp[2],
+          // Colour mapped from actual data range → ramp
+          'circle-color': [
+            'interpolate', ['linear'], ['get', 'value'],
+            dMin, meta.ramp[0],
+            dMin + (dMax - dMin) * 0.5, meta.ramp[1],
+            dMax, meta.ramp[2],
           ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 16, 28],
-          'heatmap-opacity': 0.8,
+          // Radius grows with zoom to keep gaps filled
+          'circle-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            10, 4,
+            13, 8,
+            15, 14,
+            17, 22,
+          ],
+          'circle-opacity': 0.75,
+          'circle-blur': 0.3,   // tiny blur to soften jagged edges between circles
+          'circle-pitch-alignment': 'map',
         },
       }, map.getLayer('fields-fill') ? 'fields-fill' : undefined);
     });
