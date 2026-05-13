@@ -91,8 +91,19 @@ def sateline_metrics(db: Session):
                         }
                     )
 
-                    if ds.rio.crs:
-                        metrics_ds = metrics_ds.rio.write_crs(ds.rio.crs)
+                    src_crs = ds.rio.crs
+                    if src_crs is None:
+                        for var in ds.data_vars:
+                            gm = ds[var].attrs.get("grid_mapping")
+                            if gm and gm in ds:
+                                src_crs = ds[gm].attrs.get("crs_wkt") or ds[gm].attrs.get("proj4")
+                                break
+
+                    if src_crs:
+                        metrics_ds = metrics_ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs(src_crs)
+                    else:
+                        metrics_ds = metrics_ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs("EPSG:32634")
+
 
                     output_filename = f"metrics_{data.nc_filename}"
                     output_path = os.path.join(NDVI_DIR, output_filename)
@@ -177,10 +188,20 @@ def run_per_field_metrics(db: Session):
             with xr.open_dataset(file_path) as ds:
                 print(f"[DEBUG] Opened dataset: {file_path}")
                 print(f"[DEBUG] Variables: {list(ds.data_vars)}")
+                print(f"[DEBUG] Coords: {dict(ds.coords)}")
+                print(f"[DEBUG] x range: {float(ds.x.min())} — {float(ds.x.max())}")
+                print(f"[DEBUG] y range: {float(ds.y.min())} — {float(ds.y.max())}")
+
+                ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y")
 
                 if not ds.rio.crs:
-                    print(f"[WARNING] Dataset has no CRS, assuming EPSG:4326")
-                    ds = ds.rio.write_crs("EPSG:4326")
+                    x_val = float(ds.x.mean())
+                    if abs(x_val) <= 180:
+                        assumed_crs = "EPSG:4326"
+                    else:
+                        assumed_crs = "EPSG:32634"
+                    print(f"[WARNING] No CRS in file, using {assumed_crs}")
+                    ds = ds.rio.write_crs(assumed_crs)
 
                 raster_crs = ds.rio.crs
                 print(f"[DEBUG] CRS: {raster_crs}")

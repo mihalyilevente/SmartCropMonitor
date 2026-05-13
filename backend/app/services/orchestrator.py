@@ -107,7 +107,7 @@ def download_sentinel_data(db: Session):
                 items,
                 key=lambda x: x.datetime or datetime.datetime.min.replace(tzinfo=datetime.UTC),
                 reverse=True
-            )[:6]
+            )[:10]
 
             for item in items:
                 timestamp = item.datetime
@@ -165,6 +165,9 @@ def download_sentinel_data(db: Session):
 
                 ds = xr.concat(datasets, dim="band")
                 ds = ds.assign_coords(band=REQUIRED_BANDS)
+
+                if reference_da is not None and reference_da.rio.crs:
+                    ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs(reference_da.rio.crs)
 
                 ds.to_netcdf(nc_path)
 
