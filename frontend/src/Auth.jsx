@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import api from './api/client';
 import logo from './assets/logo1.png';
 import bgImage from './assets/auth-bg.jpg';
