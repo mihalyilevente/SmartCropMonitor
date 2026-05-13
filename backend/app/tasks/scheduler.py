@@ -1,9 +1,15 @@
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.executors.pool import ThreadPoolExecutor
 from app.core.database import SessionLocal
 from app.services.orchestrator import full_sync_process,short_sync_process
 import logging
 
-scheduler = BackgroundScheduler()
+
+executors = {
+    'default': ThreadPoolExecutor(2)
+}
+
+scheduler = BackgroundScheduler(executors=executors)
 logger = logging.getLogger(__name__)
 
 
