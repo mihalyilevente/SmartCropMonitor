@@ -38,7 +38,7 @@ QUALITY_THRESHOLD_NDVI = 0.75
 MIN_DIM = 128
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
-SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:root@127.0.0.1:5430/smartcropmonitordb"
 HASKELL_URL = os.getenv("HASKELL_SERVICE_URL", "http://localhost:8081/field-stats")
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
