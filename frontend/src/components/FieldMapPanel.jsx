@@ -2,9 +2,8 @@
  * FieldMapPanel.jsx
  * Mapbox GL JS — field boundaries + metric heatmap overlay.
  *
- * Architecture: all map operations go through applyToMap(), which either
- * runs immediately (map already loaded) or queues via map.once('load').
- * This eliminates every timing race between data fetches and map init.
+ * KEY: all map operations go through applyToMap() which queues on 'load' if needed.
+ * Callback ref guarantees the div is in the DOM before mapboxgl.Map() is called.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -12,7 +11,6 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import api from '../api/client';
 
-// ── colour ramps ──────────────────────────────────────────────────────────────
 const METRIC_META = {
   ndvi:  { label: 'NDVI',  desc: 'Vegetation index',         min: -1, max: 1, ramp: ['#d73027','#fee08b','#1a9850'] },
   gndvi: { label: 'GNDVI', desc: 'Green vegetation index',   min: -1, max: 1, ramp: ['#d73027','#fee08b','#1a9850'] },
@@ -22,7 +20,6 @@ const METRIC_META = {
 };
 const METRICS = Object.keys(METRIC_META);
 
-// ── helpers ───────────────────────────────────────────────────────────────────
 function bboxFromGeoJSON(geojson) {
   let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
   geojson.features.forEach(f => {
@@ -53,10 +50,9 @@ function gridToGeoJSON(z, x, y) {
   return { type: 'FeatureCollection', features };
 }
 
-// ── component ─────────────────────────────────────────────────────────────────
 const FieldMapPanel = ({ userId, locationId }) => {
-  const mapRef    = useRef(null);   // mapboxgl.Map instance
-  const loadedRef = useRef(false);  // true once map 'load' event has fired
+  const mapRef    = useRef(null);
+  const loadedRef = useRef(false);
   const popupRef  = useRef(null);
 
   const [open, setOpen]                   = useState(true);
@@ -66,10 +62,9 @@ const FieldMapPanel = ({ userId, locationId }) => {
   const [metricLoading, setMetricLoading] = useState(false);
   const [metricError, setMetricError]     = useState(null);
   const [selectedField, setSelectedField] = useState(null);
+  const [mapError, setMapError]           = useState(null);
 
-  // ── applyToMap ──────────────────────────────────────────────────────────────
-  // Run fn(map) immediately if map is loaded, otherwise queue on 'load'.
-  // This is the single place that bridges the async gap.
+  // Run fn(map) now if loaded, else queue on 'load'
   const applyToMap = useCallback((fn) => {
     const map = mapRef.current;
     if (!map) return;
@@ -80,28 +75,31 @@ const FieldMapPanel = ({ userId, locationId }) => {
     }
   }, []);
 
-  // ── 1. init map via callback ref ────────────────────────────────────────────
+  // Callback ref: called by React with the real DOM node (or null on unmount)
   const mapCallbackRef = useCallback((node) => {
     if (!node) {
-      // node === null: React is unmounting the div — clean up
       if (mapRef.current) {
         mapRef.current.remove();
-        mapRef.current   = null;
+        mapRef.current    = null;
         loadedRef.current = false;
       }
       return;
     }
-    if (mapRef.current) return; // already initialised
+    if (mapRef.current) return;
 
-    const token =
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAPBOX_TOKEN) ||
-      (typeof process !== 'undefined'      && process.env?.REACT_APP_MAPBOX_TOKEN) ||
-      '';
+    // Vite exposes env vars via import.meta.env with VITE_ prefix only.
+    // process.env does not exist in Vite — reading it throws or returns undefined.
+    const token = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
     if (!token) {
-      console.error('[FieldMapPanel] No Mapbox token found. Set VITE_MAPBOX_TOKEN or REACT_APP_MAPBOX_TOKEN.');
+      const msg = 'Mapbox token missing — set VITE_MAPBOX_TOKEN or REACT_APP_MAPBOX_TOKEN';
+      console.error('[FieldMapPanel]', msg);
+      setMapError(msg);
       return;
     }
+
+    console.log('[FieldMapPanel] init — size:', node.offsetWidth, 'x', node.offsetHeight,
+      '| token:', token.slice(0, 12) + '…');
 
     mapboxgl.accessToken = token;
 
@@ -115,29 +113,28 @@ const FieldMapPanel = ({ userId, locationId }) => {
         attributionControl: false,
       });
     } catch (err) {
-      console.error('[FieldMapPanel] mapboxgl.Map() failed:', err);
+      const msg = 'Map init failed: ' + err.message;
+      console.error('[FieldMapPanel]', msg);
+      setMapError(msg);
       return;
     }
 
+    map.on('error', e => {
+      const msg = e.error?.message || String(e);
+      console.error('[FieldMapPanel] runtime error:', msg);
+      // Don't setMapError here — tile 404s etc are non-fatal
+    });
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
-
-    // Mark as loaded — pending applyToMap callbacks will fire from their own once('load')
-    map.on('load', () => { loadedRef.current = true; });
+    map.on('load', () => {
+      console.log('[FieldMapPanel] ✅ map loaded');
+      loadedRef.current = true;
+    });
 
     mapRef.current = map;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line
 
-  // Collapse: destroy map so it re-creates cleanly when opened again
-  useEffect(() => {
-    if (!open && mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current    = null;
-      loadedRef.current = false;
-    }
-  }, [open]);
-
-  // ── 2. fetch fields ─────────────────────────────────────────────────────────
+  // Fetch fields
   useEffect(() => {
     if (!userId) return;
     api.get('/api/v1/user/fields', { params: { user_id: userId } })
@@ -145,7 +142,7 @@ const FieldMapPanel = ({ userId, locationId }) => {
       .catch(() => setFields({ type: 'FeatureCollection', features: [] }));
   }, [userId]);
 
-  // ── 3. fetch metric ─────────────────────────────────────────────────────────
+  // Fetch metric
   const loadMetric = useCallback(() => {
     if (!locationId || !userId) return;
     setMetricLoading(true);
@@ -154,12 +151,12 @@ const FieldMapPanel = ({ userId, locationId }) => {
       params: { user_id: userId, step: 3 },
     })
       .then(r  => { setMetricData(r.data); setMetricLoading(false); })
-      .catch(() => { setMetricData(null); setMetricError('No metric data available'); setMetricLoading(false); });
+      .catch(() => { setMetricData(null); setMetricError('No metric data'); setMetricLoading(false); });
   }, [locationId, userId, metric]);
 
   useEffect(() => { loadMetric(); }, [loadMetric]);
 
-  // ── 4. draw field boundaries ─────────────────────────────────────────────────
+  // Draw field boundaries
   useEffect(() => {
     if (!fields || !open) return;
     applyToMap(map => {
@@ -168,7 +165,6 @@ const FieldMapPanel = ({ userId, locationId }) => {
         map.getSource(SRC).setData(fields);
       } else {
         map.addSource(SRC, { type: 'geojson', data: fields });
-
         map.addLayer({
           id: 'fields-fill', type: 'fill', source: SRC,
           paint: {
@@ -176,12 +172,12 @@ const FieldMapPanel = ({ userId, locationId }) => {
               ['==', ['get', 'field_type'], 'crop'], 'rgba(134,197,75,0.25)',
               'rgba(100,160,255,0.25)',
             ],
-            'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.5, 0.25],
+            'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.55, 0.3],
           },
         });
         map.addLayer({
           id: 'fields-outline', type: 'line', source: SRC,
-          paint: { 'line-color': '#86c54b', 'line-width': 2, 'line-opacity': 0.9 },
+          paint: { 'line-color': '#86c54b', 'line-width': 2.5 },
         });
         map.addLayer({
           id: 'fields-label', type: 'symbol', source: SRC,
@@ -217,27 +213,23 @@ const FieldMapPanel = ({ userId, locationId }) => {
             .setHTML(`<div style="font-family:sans-serif;font-size:13px;line-height:1.6">
               <strong style="font-size:14px">${p.label}</strong><br/>
               Type: <em>${p.field_type}</em><br/>
-              Crop: <em>${p.crop_type || '—'}</em>
-            </div>`)
+              Crop: <em>${p.crop_type || '—'}</em></div>`)
             .addTo(map);
           setSelectedField(p);
         });
       }
-
       if (fields.features.length > 0) {
-        const bbox = bboxFromGeoJSON(fields);
-        map.fitBounds(bbox, { padding: 60, maxZoom: 16, duration: 800 });
+        map.fitBounds(bboxFromGeoJSON(fields), { padding: 60, maxZoom: 16, duration: 800 });
       }
     });
   }, [fields, open, applyToMap]);
 
-  // ── 5. draw metric heatmap ───────────────────────────────────────────────────
+  // Draw heatmap
   useEffect(() => {
     if (!open) return;
     applyToMap(map => {
       const HM_SRC   = 'metric-src';
       const HM_LAYER = 'metric-heatmap';
-
       if (map.getLayer(HM_LAYER)) map.removeLayer(HM_LAYER);
       if (map.getSource(HM_SRC))  map.removeSource(HM_SRC);
       if (!metricData) return;
@@ -246,27 +238,25 @@ const FieldMapPanel = ({ userId, locationId }) => {
       const gj   = gridToGeoJSON(z, x, y);
       const meta = METRIC_META[metric];
 
+      console.log('[FieldMapPanel] drawing heatmap, points:', gj.features.length);
+
       map.addSource(HM_SRC, { type: 'geojson', data: gj });
       map.addLayer({
         id: HM_LAYER, type: 'heatmap', source: HM_SRC, maxzoom: 18,
         paint: {
-          'heatmap-weight': [
-            'interpolate', ['linear'], ['get', 'value'],
-            meta.min, 0, meta.max, 1,
-          ],
+          'heatmap-weight': ['interpolate', ['linear'], ['get', 'value'], meta.min, 0, meta.max, 1],
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 16, 2.5],
           'heatmap-color': [
             'interpolate', ['linear'], ['heatmap-density'],
             0, 'rgba(0,0,0,0)', 0.2, meta.ramp[0], 0.5, meta.ramp[1], 1, meta.ramp[2],
           ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 24],
-          'heatmap-opacity': 0.75,
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 16, 28],
+          'heatmap-opacity': 0.8,
         },
       }, map.getLayer('fields-fill') ? 'fields-fill' : undefined);
     });
   }, [metricData, metric, open, applyToMap]);
 
-  // ── render ───────────────────────────────────────────────────────────────────
   const meta = METRIC_META[metric];
 
   return (
@@ -282,7 +272,7 @@ const FieldMapPanel = ({ userId, locationId }) => {
           )}
         </div>
         <div style={styles.panelRight}>
-          {metricLoading && <span style={styles.loadingDot} title="Loading metric…" />}
+          {metricLoading && <span style={styles.loadingDot} title="Loading…" />}
           <span style={styles.chevron}>{open ? '▲' : '▼'}</span>
         </div>
       </div>
@@ -303,15 +293,23 @@ const FieldMapPanel = ({ userId, locationId }) => {
             {metricError && <span style={styles.errorNote}>{metricError}</span>}
           </div>
 
+          {/* Map container — explicit px height, NO overflow:hidden on ancestors */}
           <div style={styles.mapWrap}>
-            <div ref={mapCallbackRef} style={styles.map} />
+            {mapError ? (
+              <div style={styles.mapErrorMsg}>{mapError}</div>
+            ) : (
+              <div
+                ref={mapCallbackRef}
+                style={{ position: 'absolute', inset: 0 }}
+              />
+            )}
 
             <div style={styles.legend}>
               <div style={styles.legendTitle}>
                 {meta.label} <span style={styles.legendDesc}>{meta.desc}</span>
               </div>
               <div style={{
-                ...styles.legendGradient,
+                height: 8, borderRadius: 4, marginBottom: 3,
                 background: `linear-gradient(to right, ${meta.ramp.join(',')})`,
               }} />
               <div style={styles.legendLabels}>
@@ -322,7 +320,7 @@ const FieldMapPanel = ({ userId, locationId }) => {
             {selectedField && (
               <div style={styles.fieldChip}>
                 <strong>{selectedField.label}</strong>
-                <span style={styles.chipSep}>·</span>
+                <span style={{ opacity: 0.4 }}>·</span>
                 {selectedField.crop_type}
                 <button style={styles.chipClose} onClick={() => setSelectedField(null)}>×</button>
               </div>
@@ -334,17 +332,20 @@ const FieldMapPanel = ({ userId, locationId }) => {
   );
 };
 
-// ── styles ────────────────────────────────────────────────────────────────────
 const styles = {
   panel: {
-    marginBottom: 20, borderRadius: 12,
+    marginBottom: 20,
+    borderRadius: 12,
     border: '1px solid var(--color-accent-soil)',
-    overflow: 'hidden', background: 'var(--color-bg-magnolia)',
+    // ⚠️ NO overflow:hidden here — it clips the Mapbox canvas
+    background: 'var(--color-bg-magnolia)',
   },
   panelHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '12px 18px', cursor: 'pointer',
-    background: 'var(--color-bg-magnolia)', userSelect: 'none',
+    background: 'var(--color-bg-magnolia)',
+    borderRadius: '12px 12px 0 0',
+    userSelect: 'none',
   },
   panelTitle: { display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 },
   panelIcon: { fontSize: 16 },
@@ -375,24 +376,27 @@ const styles = {
     borderColor: 'var(--color-accent-soil)',
   },
   errorNote: { fontSize: 12, color: '#c0392b', marginLeft: 8 },
-  mapWrap: { position: 'relative', height: 480 },
-  map: { width: '100%', height: '100%' },
+  // Explicit px height + position:relative so child position:absolute inset:0 works
+  mapWrap: { position: 'relative', height: '480px', width: '100%' },
+  mapErrorMsg: {
+    position: 'absolute', inset: 0, display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
+    fontSize: 13, color: '#c0392b', background: '#fff3f3',
+  },
   legend: {
-    position: 'absolute', bottom: 36, right: 12,
+    position: 'absolute', bottom: 36, right: 12, zIndex: 10,
     background: 'rgba(255,255,255,0.92)', borderRadius: 8,
     padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 140,
   },
-  legendTitle:    { fontSize: 12, fontWeight: 700, marginBottom: 4 },
-  legendDesc:     { fontWeight: 400, opacity: 0.65, fontSize: 11 },
-  legendGradient: { height: 8, borderRadius: 4, marginBottom: 3 },
-  legendLabels:   { display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.7 },
+  legendTitle: { fontSize: 12, fontWeight: 700, marginBottom: 4 },
+  legendDesc:  { fontWeight: 400, opacity: 0.65, fontSize: 11 },
+  legendLabels: { display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.7 },
   fieldChip: {
-    position: 'absolute', top: 12, left: 12,
+    position: 'absolute', top: 12, left: 12, zIndex: 10,
     background: 'rgba(255,255,255,0.93)', borderRadius: 8, padding: '6px 12px',
     fontSize: 13, fontWeight: 500, boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
     display: 'flex', alignItems: 'center', gap: 6,
   },
-  chipSep:   { opacity: 0.4 },
   chipClose: {
     background: 'none', border: 'none', cursor: 'pointer',
     fontSize: 16, lineHeight: 1, padding: '0 2px', opacity: 0.5,
