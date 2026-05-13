@@ -124,12 +124,6 @@ async def generate_location_grid(
         raise HTTPException(status_code=500, detail="Internal processing error")
 
 
-@router.post("/sync-manual", tags=["Data"])
-async def manual_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    background_tasks.add_task(full_sync_process, db)
-    return {"status": "sync started"}
-
-
 class ManualFieldCreate(BaseModel):
     location_id: int
 
