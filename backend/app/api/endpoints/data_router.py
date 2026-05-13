@@ -58,6 +58,7 @@ def get_latest_plotly_data(
     location_id: int,
     metric: str,
     user_id: int,
+    step: int = 3,
     db: Session = Depends(get_db)
 ):
     analysis = (
@@ -89,22 +90,30 @@ def get_latest_plotly_data(
                 raise HTTPException(status_code=400, detail=f"Metric {metric} not found in file")
 
             data = ds[metric].values
-            y_coords = ds.coords['y'].values.tolist()
-            x_coords = ds.coords['x'].values.tolist()
+            y_coords = ds.coords['y'].values
+            x_coords = ds.coords['x'].values
+
+            step = max(1, min(step, 10))
+
+            data    = data[::step, ::step]
+            y_coords = y_coords[::step]
+            x_coords = x_coords[::step]
 
             data_cleaned = np.where(np.isnan(data), None, data).tolist()
+            y_list = y_coords.tolist()
+            x_list = x_coords.tolist()
 
             return {
                 "analysis_id": analysis.id,
                 "z": data_cleaned,
-                "x": x_coords,
-                "y": y_coords,
+                "x": x_list,
+                "y": y_list,
                 "metric_name": metric.upper(),
                 "bounds": {
-                    "min_lat": min(y_coords),
-                    "max_lat": max(y_coords),
-                    "min_lon": min(x_coords),
-                    "max_lon": max(x_coords)
+                    "min_lat": float(min(y_list)),
+                    "max_lat": float(max(y_list)),
+                    "min_lon": float(min(x_list)),
+                    "max_lon": float(max(x_list))
                 }
             }
     except Exception as e:
