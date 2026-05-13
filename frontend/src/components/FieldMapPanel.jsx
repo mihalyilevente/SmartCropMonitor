@@ -94,15 +94,35 @@ const FieldMapPanel = ({ userId, locationId }) => {
 
   // ── 3. init map ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open || mapRef.current) return;
-    mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || '';
-    const map = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/satellite-streets-v12',
-      center: [19.648, 47.728],
-      zoom: 13,
-      attributionControl: false,
-    });
+    if (!open || mapRef.current || !mapContainer.current) return;
+
+    // Support both Vite (VITE_) and CRA (REACT_APP_) env variable conventions
+    const token =
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAPBOX_TOKEN) ||
+      (typeof process !== 'undefined' && process.env?.REACT_APP_MAPBOX_TOKEN) ||
+      '';
+
+    if (!token) {
+      console.error('[FieldMapPanel] Mapbox token missing. Set VITE_MAPBOX_TOKEN or REACT_APP_MAPBOX_TOKEN in your .env file.');
+      return;
+    }
+
+    mapboxgl.accessToken = token;
+
+    let map;
+    try {
+      map = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [19.648, 47.728],
+        zoom: 13,
+        attributionControl: false,
+      });
+    } catch (err) {
+      console.error('[FieldMapPanel] Failed to initialise Mapbox map:', err);
+      return;
+    }
+
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
     map.on('load', () => { mapRef.current = map; setMapReady(true); });
