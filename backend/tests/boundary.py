@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import shape
 
 ds = xr.open_dataset(
-    r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\ndvi\metrics_user_1_loc_2_20260505T093712.nc"
+    r"C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\ndvi\metrics_user_1_loc_2_20260510T094721.nc"
 )
 band = ds["ndvi"]
 
