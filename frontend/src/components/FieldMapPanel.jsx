@@ -66,16 +66,18 @@ function isUtm(coords) {
 function gridToGeoJSON(z, x, y) {
   const needsConversion = isUtm([x[0], y[0]]);
   const features = [];
+  // Pre-convert x coords once (they repeat per row)
+  const xWgs = needsConversion ? x.map((ex, ci) => utmToWgs84(ex, y[0])[0]) : x;
   for (let row = 0; row < y.length; row++) {
+    // Convert y once per row
+    const latVal = needsConversion ? utmToWgs84(x[0], y[row])[1] : y[row];
     for (let col = 0; col < x.length; col++) {
       const val = z[row]?.[col];
       if (val === null || val === undefined || isNaN(val)) continue;
-      const coords = needsConversion
-        ? utmToWgs84(x[col], y[row])
-        : [x[col], y[row]];
+      const lngVal = needsConversion ? xWgs[col] : x[col];
       features.push({
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: coords },
+        geometry: { type: 'Point', coordinates: [lngVal, latVal] },
         properties: { value: val },
       });
     }
@@ -138,12 +140,26 @@ const FieldMapPanel = ({ userId, locationId }) => {
 
     let map;
     try {
+      // Restore last saved view so reload doesn't fly to wrong location
+      const savedView = (() => {
+        try { return JSON.parse(sessionStorage.getItem('fmp_view')); } catch { return null; }
+      })();
+
       map = new mapboxgl.Map({
         container: node,
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [19.648, 47.728],
-        zoom: 13,
+        center: savedView ? [savedView.lng, savedView.lat] : [19.648, 47.728],
+        zoom:   savedView ? savedView.zoom : 13,
         attributionControl: false,
+        renderWorldCopies: false,
+      });
+
+      // Persist view on every move so reload restores it
+      map.on('moveend', () => {
+        const c = map.getCenter();
+        try {
+          sessionStorage.setItem('fmp_view', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
+        } catch {}
       });
     } catch (err) {
       const msg = 'Map init failed: ' + err.message;
@@ -252,7 +268,13 @@ const FieldMapPanel = ({ userId, locationId }) => {
         });
       }
       if (fields.features.length > 0) {
-        map.fitBounds(bboxFromGeoJSON(fields), { padding: 60, maxZoom: 16, duration: 800 });
+        // Only auto-fit on first load (no saved view). After that user controls zoom.
+        const hasSavedView = (() => {
+          try { return !!sessionStorage.getItem('fmp_view'); } catch { return false; }
+        })();
+        if (!hasSavedView) {
+          map.fitBounds(bboxFromGeoJSON(fields), { padding: 60, maxZoom: 16, duration: 800 });
+        }
       }
     });
   }, [fields, open, applyToMap]);
@@ -272,41 +294,46 @@ const FieldMapPanel = ({ userId, locationId }) => {
       const gj   = gridToGeoJSON(z, x, y);
       const meta = METRIC_META[metric];
 
-      console.log('[FieldMapPanel] drawing metric overlay, points:', gj.features.length,
-        'value range sample:', gj.features.slice(0,3).map(f => f.properties.value.toFixed(3)));
-
-      // Compute actual min/max from data for better contrast
-      const vals = gj.features.map(f => f.properties.value);
-      const dMin = Math.min(...vals);
-      const dMax = Math.max(...vals);
-      console.log('[FieldMapPanel] data range:', dMin.toFixed(3), '—', dMax.toFixed(3));
+      // Use reduce instead of spread to avoid stack overflow on large arrays
+      let dMin = Infinity, dMax = -Infinity;
+      gj.features.forEach(f => {
+        const v = f.properties.value;
+        if (v < dMin) dMin = v;
+        if (v > dMax) dMax = v;
+      });
+      const dMid = dMin + (dMax - dMin) * 0.5;
+      console.log('[FieldMapPanel] metric overlay:', gj.features.length, 'pts | range:', dMin.toFixed(3), '—', dMax.toFixed(3));
 
       map.addSource(HM_SRC, { type: 'geojson', data: gj });
 
-      // circle-radius scales with zoom so circles tile seamlessly at any zoom level.
-      // At step=3 the grid spacing is ~3x the native pixel size; radius compensates.
+      // Sharp circle pixels — no blur, tight radius so each point covers exactly
+      // its 30m grid cell at current zoom without overlap bleeding.
       map.addLayer({
         id: HM_LAYER,
         type: 'circle',
         source: HM_SRC,
         paint: {
-          // Colour mapped from actual data range → ramp
           'circle-color': [
             'interpolate', ['linear'], ['get', 'value'],
             dMin, meta.ramp[0],
-            dMin + (dMax - dMin) * 0.5, meta.ramp[1],
+            dMid, meta.ramp[1],
             dMax, meta.ramp[2],
           ],
-          // Radius grows with zoom to keep gaps filled
+          // Each UTM cell is 30m. At step=3 → 90m cells.
+          // circle-radius in px ≈ (cell_m * zoom_scale) / 2
+          // tuned so cells tile with no gap and no overlap:
           'circle-radius': [
-            'interpolate', ['linear'], ['zoom'],
-            10, 4,
-            13, 8,
-            15, 14,
-            17, 22,
-          ],
-          'circle-opacity': 0.75,
-          'circle-blur': 0.3,   // tiny blur to soften jagged edges between circles
+              'interpolate', ['exponential', 1.5], ['zoom'],
+              8,  0.5,
+              10, 1.2,
+              12, 3,
+              14, 6,
+              16, 12,
+              18, 22,
+            ],
+                      'circle-opacity': 0.7,
+          'circle-blur': 0,
+          'circle-stroke-width': 0,
           'circle-pitch-alignment': 'map',
         },
       }, map.getLayer('fields-fill') ? 'fields-fill' : undefined);
