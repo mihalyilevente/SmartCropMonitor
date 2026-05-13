@@ -59,8 +59,8 @@ validateSCL sclValues maxCloudThreshold =
             | snowRatio > 0.5                 = 0.0
             | cloudRatio > maxCloudThreshold  = 0.0
             | cloudRatio < 0.1                = 1.0  -- Ideal: <10% cloud
-            | cloudRatio < 0.2                = 0.75 -- Good: <20% cloud
-            | cloudRatio < 0.3                = 0.5  -- Acceptable: <30% cloud
+            | cloudRatio < 0.3                = 0.75 -- Good: <20% cloud
+            | cloudRatio < 0.4                = 0.5  -- Acceptable: <30% cloud
             | otherwise                       = 0.0  -- Too cloudy
 
         report
