@@ -6,6 +6,7 @@ import rioxarray
 from sqlalchemy.orm import Session
 from pystac_client import Client
 
+import logging
 from app.core.config import DATA_DIR, MASK_DIR, VIS_DIR, REQUIRED_BANDS, AUX_LAYERS, VISUAL_ASSET,  STAC_API_URL
 from app.services.field_analysis import validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis
@@ -17,6 +18,7 @@ from geoalchemy2.shape import to_shape
 
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
+logger = logging.getLogger(__name__)
 
 
 def full_sync_process(db: Session):
@@ -26,14 +28,19 @@ def full_sync_process(db: Session):
         sateline_metrics(db)
         run_per_field_metrics(db)
 
+
     except Exception as e:
-        alert_service.send(
-            key="orchestrator_failure",
-            message=format_alert(
-                "ORCHESTRATOR_CRITICAL",
-                f"Full sync process failed: {str(e)}"
+        logger.error(f"Critical orchestrator failure: {e}", exc_info=True)
+        try:
+            alert_service.send(
+                key="orchestrator_failure",
+                message=format_alert(
+                    "ORCHESTRATOR_CRITICAL",
+                    f"Full sync process failed: {str(e)}"
+                )
             )
-        )
+        except Exception as alert_error:
+            logger.critical(f"Failed to send alert: {alert_error}")
         raise e
 
 
@@ -46,13 +53,17 @@ def short_sync_process(db: Session):
             fetch_and_save_weather(db, loc)
             weather_metrics(db, loc)
     except Exception as e:
-        alert_service.send(
-            key="orchestrator_failure",
-            message=format_alert(
-                "ORCHESTRATOR_CRITICAL",
-                f"Short sync process failed: {str(e)}"
+        logger.error(f"Critical orchestrator failure: {e}", exc_info=True)
+        try:
+            alert_service.send(
+                key="orchestrator_failure",
+                message=format_alert(
+                    "ORCHESTRATOR_CRITICAL",
+                    f"Short sync process failed: {str(e)}"
+                )
             )
-        )
+        except Exception as alert_error:
+            logger.critical(f"Failed to send alert: {alert_error}")
         raise e
 
 
