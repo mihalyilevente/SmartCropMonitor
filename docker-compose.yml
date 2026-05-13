@@ -25,6 +25,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=http://46.225.7.134:8000
+        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
     container_name: smartcrop_frontend
     ports:
       - "3000:80"
