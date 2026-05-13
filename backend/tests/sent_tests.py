@@ -1,6 +1,7 @@
 from pystac_client import Client
 import xarray as xr
 import datetime
+import os
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
 
@@ -45,7 +46,21 @@ def test_stac_channels(lat: float, lon: float):
 
 
 if __name__ == "__main__":
-    test_stac_channels(lat=47.4979, lon=19.0402)
-    ds = xr.open_dataset(r'C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\data\user_1_loc_1_20260430T094748.nc')
-    print(ds)
-    print(ds.band.values)
+    # test_stac_channels(lat=47.4979, lon=19.0402)
+    # ds = xr.open_dataset(r'C:\Users\nikit\PycharmProjects\SmartCropMonitor\backend\data\storage\data\user_1_loc_1_20260430T094748.nc')
+    # print(ds)
+    # print(ds.band.values)
+    BASE_DIR = os.getcwd()
+
+    NDVI_DIR = os.path.join(BASE_DIR, "backend", "data", "storage", "ndvi")
+
+    NDVI_PATH = os.path.join(NDVI_DIR, "metrics_user_1_loc_2_20260510T094721.nc")
+    path = ""
+    with xr.open_dataset(NDVI_PATH) as ds:
+        print("data_vars:", list(ds.data_vars))
+        print("coords:", list(ds.coords))
+        print("dims:", dict(ds.dims))
+        if ds.data_vars:
+            first = list(ds.data_vars)[0]
+            print("first var shape:", ds[first].shape)
+            print("first var dims:", ds[first].dims)

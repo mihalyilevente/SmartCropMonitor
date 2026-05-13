@@ -85,7 +85,7 @@ def download_sentinel_data(db: Session):
 
             search = client.search(
                 collections=["sentinel-2-l2a"],
-                bbox=[lon - 0.05, lat - 0.05, lon + 0.05, lat + 0.05],
+                bbox=[lon - 0.1, lat - 0.1, lon + 0.1, lat + 0.1],
                 datetime=date_range,
                 max_items=20,
                 sortby=[{"field": "properties.datetime", "direction": "desc"}]
@@ -107,7 +107,7 @@ def download_sentinel_data(db: Session):
                 items,
                 key=lambda x: x.datetime or datetime.datetime.min.replace(tzinfo=datetime.UTC),
                 reverse=True
-            )[:6]
+            )[:10]
 
             for item in items:
                 timestamp = item.datetime
@@ -139,10 +139,10 @@ def download_sentinel_data(db: Session):
                     da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                     clipped = da.rio.clip_box(
-                        minx=lon - 0.02,
-                        miny=lat - 0.02,
-                        maxx=lon + 0.02,
-                        maxy=lat + 0.02,
+                        minx=lon - 0.05,
+                        miny=lat - 0.05,
+                        maxx=lon + 0.05,
+                        maxy=lat + 0.05,
                         crs="EPSG:4326",
                         allow_one_dimensional_raster=True
                     )
@@ -166,6 +166,9 @@ def download_sentinel_data(db: Session):
                 ds = xr.concat(datasets, dim="band")
                 ds = ds.assign_coords(band=REQUIRED_BANDS)
 
+                if reference_da is not None and reference_da.rio.crs:
+                    ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs(reference_da.rio.crs)
+
                 ds.to_netcdf(nc_path)
 
                 # ---------------------------
@@ -177,10 +180,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(scl_asset.href, chunks=True)
 
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.02,
-                            miny=lat - 0.02,
-                            maxx=lon + 0.02,
-                            maxy=lat + 0.02,
+                            minx=lon - 0.05,
+                            miny=lat - 0.05,
+                            maxx=lon + 0.05,
+                            maxy=lat + 0.05,
                             crs="EPSG:4326",
                             allow_one_dimensional_raster=True
                         )
@@ -208,10 +211,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.02,
-                            miny=lat - 0.02,
-                            maxx=lon + 0.02,
-                            maxy=lat + 0.02,
+                            minx=lon - 0.05,
+                            miny=lat - 0.05,
+                            maxx=lon + 0.05,
+                            maxy=lat + 0.05,
                             crs="EPSG:4326",
                             allow_one_dimensional_raster=True
                         )
@@ -237,10 +240,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(visual_asset.href)
 
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.02,
-                            miny=lat - 0.02,
-                            maxx=lon + 0.02,
-                            maxy=lat + 0.02,
+                            minx=lon - 0.05,
+                            miny=lat - 0.05,
+                            maxx=lon + 0.05,
+                            maxy=lat + 0.05,
                             crs="EPSG:4326",
                             allow_one_dimensional_raster=True
                         )
