@@ -14,6 +14,7 @@ from app.services.ndvi_processor import sateline_metrics, run_per_field_metrics
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
 from app.monitoring.alerting import format_alert, AlertService
 from app.services.anomaly_processor import find_all_anomaly
+from app.services.spot_anomaly_processor import find_all_satellite_anomaly
 from app.core.config import WEBHOOK_URL
 from geoalchemy2.shape import to_shape
 
@@ -29,6 +30,7 @@ def full_sync_process(db: Session):
         sateline_metrics(db)
         run_per_field_metrics(db)
         find_all_anomaly(db)
+        find_all_satellite_anomaly(db)
 
 
     except Exception as e:
