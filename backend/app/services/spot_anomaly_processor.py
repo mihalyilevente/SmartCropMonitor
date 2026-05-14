@@ -9,6 +9,10 @@ import requests
 import xarray as xr
 import os
 
+import geopandas as gpd
+from shapely import wkb
+from shapely.geometry import MultiPolygon, Polygon
+
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -20,11 +24,11 @@ from app.core.database import (
     Events,
 )
 from app.core.schemas import AnomalyType, StatusType, EventType
-from app.core.config import HASKELL_SERVICE_URL, NDVI_DIR, SAT_METRICS, CONFIDENCE_HIGH, CONFIDENCE_CRITICAL
+from app.core.config import HASKELL_SERVICE_URL, NDVI_DIR, SAT_METRICS, CONFIDENCE_HIGH, CONFIDENCE_CRITICAL, DEFAULT_AREA_THRESHOLD_RATIO,SMALL_FIELD_HA, SMALL_FIELD_RATIO
 from app.utils.general import _safe_float, _make_event_hash, _make_dedup_key
+from app.utils.fields import calculate_field_area
 
 logger = logging.getLogger(__name__)
-
 
 def _call_haskell_snapshot(payload: dict) -> Optional[dict]:
     for attempt in range(3):
@@ -42,22 +46,65 @@ def _call_haskell_snapshot(payload: dict) -> Optional[dict]:
     return None
 
 
-def _load_metric_map(metrics_filename: str, metric_name: str) -> Optional[list]:
+
+def _load_and_clip_metric(
+    metrics_filename: str,
+    metric_name: str,
+    field_geom_wkb,
+) -> Optional[list]:
+
     file_path = os.path.join(NDVI_DIR, metrics_filename)
     if not os.path.exists(file_path):
         logger.error(f"[MAP] File not found: {file_path}")
         return None
+
     try:
+        field_shape = wkb.loads(bytes(field_geom_wkb.data))
+        field_gdf   = gpd.GeoSeries([field_shape], crs="EPSG:4326")
+
         with xr.open_dataset(file_path) as ds:
             if metric_name not in ds.data_vars:
-                logger.warning(f"[MAP] Variable '{metric_name}' not found in {metrics_filename}")
+                logger.warning(f"[MAP] '{metric_name}' not found in {metrics_filename}")
                 return None
-            arr = ds[metric_name].values
+
+            da = ds[metric_name].rio.set_spatial_dims(x_dim="x", y_dim="y")
+
+            if not da.rio.crs:
+                if "spatial_ref" in ds:
+                    crs_wkt  = ds["spatial_ref"].attrs.get("crs_wkt")
+                    proj4    = ds["spatial_ref"].attrs.get("proj4")
+                    crs_str  = crs_wkt or proj4
+                    if crs_str:
+                        da = da.rio.write_crs(crs_str)
+                if not da.rio.crs:
+                    x_val  = float(ds.x.mean())
+                    assumed = "EPSG:4326" if abs(x_val) <= 180 else "EPSG:32634"
+                    da = da.rio.write_crs(assumed)
+                    logger.warning(f"[MAP] CRS assumed: {assumed}")
+
+            raster_crs = da.rio.crs
+            field_proj = field_gdf.to_crs(raster_crs)
+
+            clipped = da.rio.clip(
+                field_proj.geometry,
+                field_proj.crs,
+                drop=True,
+                all_touched=True,
+            )
+
+            arr = clipped.values
             arr = np.where(np.isfinite(arr), arr, 0.0)
+
+            if arr.size == 0:
+                logger.warning(f"[MAP] Empty clip for {metric_name} in {metrics_filename}")
+                return None
+
             return arr.tolist()
+
     except Exception as e:
-        logger.error(f"[MAP] Cannot open {metrics_filename}: {e}")
+        logger.error(f"[MAP] clip failed for {metric_name} / {metrics_filename}: {e}")
         return None
+
 
 
 def _get_two_snapshots_db(
@@ -86,9 +133,13 @@ def _get_two_snapshots_db(
     return {k: v for k, v in groups.items() if len(v) >= 2}
 
 
+
 def _build_haskell_payload(
     groups: dict[str, list[FieldData]],
+    field_geom_wkb,
+    area_threshold_ratio: float,
 ) -> Optional[dict]:
+
     raw_data: dict = {}
 
     for metric in SAT_METRICS:
@@ -100,16 +151,11 @@ def _build_haskell_payload(
         prev_row = groups[metric][-2]
         last_row = groups[metric][-1]
 
-        prev_map = None
-        last_map = None
-
         prev_src = prev_row.extra.get("source_file") if prev_row.extra else None
         last_src = last_row.extra.get("source_file") if last_row.extra else None
 
-        if prev_src:
-            prev_map = _load_metric_map(prev_src, metric)
-        if last_src:
-            last_map = _load_metric_map(last_src, metric)
+        prev_map = _load_and_clip_metric(prev_src, metric, field_geom_wkb) if prev_src else None
+        last_map = _load_and_clip_metric(last_src, metric, field_geom_wkb) if last_src else None
 
         if prev_map is None:
             v = _safe_float(prev_row.mean_metric)
@@ -122,29 +168,49 @@ def _build_haskell_payload(
         raw_data[f"prev_{metric}"] = prev_map
         raw_data[f"last_{metric}"] = last_map
 
-    return {"config": 5, "raw_data": raw_data}
+    return {
+        "config": 5,
+        "raw_data": {
+            **raw_data,
+            "area_threshold_ratio": area_threshold_ratio,
+        },
+    }
 
 
 def _analyze_field_satellite(
     db: Session,
-    field_id: int,
+    field: FieldUnit,
     now: datetime.datetime,
-    lookback_days: int = 120,
+    lookback_days: int = 30,
 ) -> list[tuple]:
-    since = now - datetime.timedelta(days=lookback_days)
-    groups = _get_two_snapshots_db(db, field_id, since)
+    since  = now - datetime.timedelta(days=lookback_days)
+    groups = _get_two_snapshots_db(db, field.id, since)
 
     if not groups:
-        logger.info(f"[SAT] field={field_id}: no sufficient data")
+        logger.info(f"[SAT] field={field.id}: no sufficient data")
         return []
 
-    payload = _build_haskell_payload(groups)
+    try:
+        area_ha = calculate_field_area(field.geometry)
+    except Exception as e:
+        logger.warning(f"[SAT] field={field.id}: area calculation failed ({e}), using default threshold")
+        area_ha = 999.0
+
+    area_threshold_ratio = (
+        SMALL_FIELD_RATIO if area_ha < SMALL_FIELD_HA else DEFAULT_AREA_THRESHOLD_RATIO
+    )
+    logger.debug(
+        f"[SAT] field={field.id} area={area_ha:.2f}ha "
+        f"area_threshold_ratio={area_threshold_ratio}"
+    )
+
+    payload = _build_haskell_payload(groups, field.geometry, area_threshold_ratio)
     if payload is None:
         return []
 
     result = _call_haskell_snapshot(payload)
     if result is None:
-        logger.error(f"[SAT] field={field_id}: Haskell call failed")
+        logger.error(f"[SAT] field={field.id}: Haskell call failed")
         return []
 
     created_records = []
@@ -163,19 +229,24 @@ def _analyze_field_satellite(
         field_data_id = last_row.id if last_row else None
 
         summary = {
-            "metric_type":    metric_name,
-            "prev_timestamp": str(prev_row.timestamp) if prev_row else None,
-            "last_timestamp": str(last_row.timestamp) if last_row else None,
-            "prev_mean":      metric_result.get("prev_mean"),
-            "last_mean":      metric_result.get("last_mean"),
-            "abs_delta":      metric_result.get("abs_delta"),
-            "rel_change":     metric_result.get("rel_change"),
-            "direction":      kind,
-            "detector":       "satellite_snapshot_diff_haskell",
+            "metric_type":         metric_name,
+            "prev_timestamp":      str(prev_row.timestamp) if prev_row else None,
+            "last_timestamp":      str(last_row.timestamp) if last_row else None,
+            "prev_mean":           metric_result.get("prev_mean"),
+            "last_mean":           metric_result.get("last_mean"),
+            "abs_delta":           metric_result.get("abs_delta"),
+            "rel_change":          metric_result.get("rel_change"),
+            "direction":           kind,
+            "anomaly_pixel_count": metric_result.get("anomaly_pixel_count"),
+            "total_pixel_count":   metric_result.get("total_pixel_count"),
+            "anomaly_ratio":       metric_result.get("anomaly_ratio"),
+            "area_ha":             round(area_ha, 2),
+            "area_threshold_ratio": area_threshold_ratio,
+            "detector":            "satellite_snapshot_diff_haskell",
         }
 
         rec = FieldStatAnomalyAnalysis(
-            field_id=field_id,
+            field_id=field.id,
             field_data_id=field_data_id,
             analysis_date=now,
             anomaly_type=atype,
@@ -188,13 +259,15 @@ def _analyze_field_satellite(
         created_records.append((rec, summary, atype))
 
         logger.info(
-            f"[SAT ANOMALY] field={field_id} metric={metric_name} "
+            f"[SAT ANOMALY] field={field.id} metric={metric_name} "
             f"delta={metric_result.get('abs_delta', 0):.4f} "
             f"rel={metric_result.get('rel_change', 0):.2%} "
+            f"anomaly_ratio={metric_result.get('anomaly_ratio', 0):.2%} "
             f"kind={kind} conf={confidence:.4f}"
         )
 
     return created_records
+
 
 def _event_type_for_metric(metric_name: str) -> EventType:
     if "ndvi" in metric_name:
@@ -269,7 +342,7 @@ def find_satellite_anomaly(
     stats_summary: dict[str, int] = defaultdict(int)
 
     try:
-        created = _analyze_field_satellite(db, field_id, now, lookback_days)
+        created = _analyze_field_satellite(db, field, now, lookback_days)
         db.flush()
 
         if generate_events and created:
@@ -320,7 +393,6 @@ def find_all_satellite_anomaly(
     lookback_days: int = 30,
     generate_events: bool = True,
 ) -> dict:
-
     q = db.query(FieldUnit).filter(FieldUnit.status == "active")
     if location_id:
         q = q.filter(FieldUnit.location_id == location_id)
