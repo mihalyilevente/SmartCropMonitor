@@ -5,7 +5,7 @@ import numpy as np
 import requests
 import xarray as xr
 import rioxarray
-from app.core.config import DATA_DIR, NDVI_DIR, HASKELL_SERVICE_URL, QUALITY_THRESHOLD
+from app.core.config import DATA_DIR, NDVI_DIR, HASKELL_SERVICE_URL, QUALITY_THRESHOLD_NDVI
 from app.core.database import FieldAnalysis, FieldUnit, FieldData
 from shapely import wkb
 import geopandas as gpd
@@ -39,7 +39,7 @@ def sateline_metrics(db: Session):
             and_(
                 FieldAnalysis.metrics_status == None,
                 FieldAnalysis.is_valid != None,
-                FieldAnalysis.is_valid >= QUALITY_THRESHOLD
+                FieldAnalysis.is_valid >= QUALITY_THRESHOLD_NDVI
             )
         )
         .all()
@@ -182,8 +182,7 @@ def run_per_field_metrics(db: Session):
         analysis, fields = data["analysis"], data["fields"]
 
         if not fields:
-            analysis.per_metrics_status = True
-            db.commit()
+            print(f"[WARNING] No fields found for analysis {analysis.id} (location_id={analysis.location_id}), skipping.")
             continue
 
         file_path = os.path.join(NDVI_DIR, analysis.metrics_filename)
