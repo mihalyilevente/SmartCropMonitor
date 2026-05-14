@@ -13,7 +13,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
-from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus, EventType, StatusType, Status_task, Priority_task
+from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus, EventType, StatusType, Status_task, Priority_task, AnomalyType
 import enum
 from geoalchemy2 import Geometry
 
@@ -193,6 +193,27 @@ class FieldData(Base):
     extra = Column(JSON, nullable=True)
 
     field = relationship("FieldUnit", back_populates="field_data")
+
+
+class FieldStatAnomalyAnalysis(Base):
+    __tablename__ = "field_stat_anomaly_analysis"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    field_id = Column(Integer, ForeignKey("field_units.id"), nullable=False, index=True)
+    field_data_id = Column(Integer, ForeignKey("field_data.id"), nullable=True, index=True)
+
+    analysis_date = Column(DateTime, nullable=False, index=True)
+
+    anomaly_type = Column(Enum(AnomalyType), default=AnomalyType.UNKNOWN, nullable=False, index=True)
+    metrics_summary = Column(JSON, nullable=False)
+    confidence_score = Column(Numeric(5, 4), nullable=False)
+
+    status = Column(Enum(StatusType), default=StatusType.ACTIVE, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, onupdate=func.now(), nullable=True)
+
+    extra = Column(JSON, nullable=True)
 
 
 class WeatherHistory(Base):

@@ -3,7 +3,7 @@
  * Creates a new UserLocation.
  * POST /api/v1/user/locations  { label, lat, lon }  (matches LocationCreate schema)
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import api from '../api/client';
 
 const AddLocationModal = ({ userId, onClose, onSaved }) => {

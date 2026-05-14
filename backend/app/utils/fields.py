@@ -89,3 +89,58 @@ def calculate_field_area(field_shape):
     area_ha = total_area_m2 / 10_000
 
     return area_ha
+
+
+def detect_intersections(fields):
+
+    geometries = {}
+
+    for field_id, multipolygon_coords in fields.items():
+        polys = []
+
+        for poly in multipolygon_coords:
+            if poly[0] != poly[-1]:
+                poly = poly + [poly[0]]
+            polys.append(Polygon(poly))
+
+        geometries[field_id] = MultiPolygon(polys)
+
+    intersections = []
+
+    field_ids = list(geometries.keys())
+
+    for i in range(len(field_ids)):
+        for j in range(i + 1, len(field_ids)):
+            f1 = field_ids[i]
+            f2 = field_ids[j]
+
+            g1 = geometries[f1]
+            g2 = geometries[f2]
+
+            if g1.intersects(g2):
+                inter = g1.intersection(g2)
+
+                if inter.area > 0:
+                    intersections.append({
+                        "field_1": f1,
+                        "field_2": f2,
+                        "overlap_area": inter.area
+                    })
+
+    return intersections
+
+
+def detect_intersections_single(new_geom, existing_geoms):
+    conflicts = []
+
+    for idx, g in enumerate(existing_geoms):
+        if new_geom.intersects(g):
+            inter = new_geom.intersection(g)
+
+            if inter.area > 0:
+                conflicts.append({
+                    "index": idx,
+                    "overlap_area": inter.area
+                })
+
+    return conflicts
