@@ -5,7 +5,7 @@
  *
  * Collapsible panel. Shows live conditions + full agronomic metrics grid.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 // ── Small stat card ────────────────────────────────────────────────────────────
 const Stat = ({ label, value, unit, icon, color = '#317f43', sub }) => (

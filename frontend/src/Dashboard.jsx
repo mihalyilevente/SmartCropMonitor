@@ -6,7 +6,7 @@
  *  3. FieldMapPanel        — Mapbox GL JS: field boundaries + metric heatmap  ← NEW
  *  4. SensorPanel          — sensor management, status, history plots
  */
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
 import SensorPanel from './components/SensorPanel';

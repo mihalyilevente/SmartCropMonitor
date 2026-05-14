@@ -1,4 +1,3 @@
-import React from 'react';
 
 const FileHistory = ({ files, onSelect }) => (
   <section style={styles.card}>

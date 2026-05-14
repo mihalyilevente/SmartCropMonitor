@@ -213,3 +213,10 @@ class Priority_task(str, enum.Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
+
+
+class AnomalyType(str, enum.Enum):
+    OUT_OF_BOUNDS = "out_of_bounds"
+    SUDDEN_CHANGE = "sudden_change"
+    DATA_DRIFT = "data_drift"
+    UNKNOWN = "unknown"
