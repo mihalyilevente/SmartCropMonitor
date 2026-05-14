@@ -128,3 +128,19 @@ def detect_intersections(fields):
                     })
 
     return intersections
+
+
+def detect_intersections_single(new_geom, existing_geoms):
+    conflicts = []
+
+    for idx, g in enumerate(existing_geoms):
+        if new_geom.intersects(g):
+            inter = new_geom.intersection(g)
+
+            if inter.area > 0:
+                conflicts.append({
+                    "index": idx,
+                    "overlap_area": inter.area
+                })
+
+    return conflicts
