@@ -20,7 +20,7 @@ def perform_haskell_calculation(payload):
                 response = requests.post(
                     HASKELL_SERVICE_URL,
                     json=payload,
-                    timeout=10
+                    timeout=20
                 )
                 if response.status_code == 200:
                     return response.json()
