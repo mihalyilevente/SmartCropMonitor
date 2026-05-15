@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.schemas import FieldType
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
 from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS, MAX_SEGM_INPUT, MIN_SEGM_INPUTS, QUALITY_THRESHOLD_SEGM
+from app.utils.fields import validate_field_shape
 
 
 PASTIS_MEAN = torch.tensor([
@@ -245,12 +246,23 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         db.query(FieldUnit).filter(FieldUnit.location_id == location_id).delete()
 
+        saved_count = 0
+        skipped_count = 0
+
         for geom, value in mask_shapes:
             s = shape(geom)
             s_wgs84 = shapely_transform(transformer.transform, s)
 
             if s_wgs84.geom_type == 'Polygon':
                 s_wgs84 = MultiPolygon([s_wgs84])
+
+            validation = validate_field_shape(s_wgs84)
+            if not validation["valid"]:
+                print(f"[DEBUG] Skipping Field {int(value)}: {validation['error']}")
+                skipped_count += 1
+                continue
+
+            print(f"[DEBUG] Field {int(value)} passed validation: {validation['area_ha']} ha")
 
             db_geom = f"SRID=4326;{s_wgs84.wkt}"
             db.add(FieldUnit(
@@ -261,12 +273,15 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
                 source="UTAE segm",
                 field_type=FieldType.crop
             ))
+            saved_count += 1
+
+        print(f"[DEBUG] Fields saved: {saved_count}, skipped (invalid): {skipped_count}")
 
         location.last_segm_mask_url = segm_mask_filename
         location.segmentation_status = True
         db.commit()
 
-        print(f"[INFO] Segmentation successful: {num_features} fields found for location {location_id}")
+        print(f"[INFO] Segmentation successful: {saved_count}/{num_features} fields saved for location {location_id}")
 
     except Exception as e:
         db.rollback()
