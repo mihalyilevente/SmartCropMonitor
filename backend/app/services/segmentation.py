@@ -63,7 +63,8 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
         mask_coords = None
         transform = None
 
-        MODEL_HEIGHT, MODEL_WIDTH = 128, 128
+        TILE_SIZE = 128
+        TILE_OVERLAP = 32
 
         first_nc = os.path.join(DATA_DIR, os.path.basename(analyses[0].nc_filename))
         print(f"[DEBUG] Loading reference file: {first_nc}")
@@ -151,17 +152,6 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
                 img_tensor = img_tensor.squeeze(0)    # (10, H, W)
 
                 print(f"[DEBUG] Normalized range: [{img_tensor.min():.4f}, {img_tensor.max():.4f}]")
-
-                current_h, current_w = img_tensor.shape[-2], img_tensor.shape[-1]
-                if (current_h, current_w) != (MODEL_HEIGHT, MODEL_WIDTH):
-                    print(f"[DEBUG] Resizing from ({current_h}, {current_w}) to ({MODEL_HEIGHT}, {MODEL_WIDTH})")
-                    img_tensor = F.interpolate(
-                        img_tensor.unsqueeze(0),
-                        size=(MODEL_HEIGHT, MODEL_WIDTH),
-                        mode='bilinear',
-                        align_corners=False
-                    ).squeeze(0)
-
                 print(f"[DEBUG] Final tensor shape: {img_tensor.shape}")
                 all_tensors.append(img_tensor)
 
@@ -184,8 +174,9 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         print(f"[DEBUG] Final input tensor shape: {input_tensor.shape}")
 
-        assert input_tensor.shape == (1, MAX_SEGM_INPUT, 10, MODEL_HEIGHT, MODEL_WIDTH), \
-            f"Unexpected input shape: {input_tensor.shape}"
+        assert input_tensor.shape[0] == 1, f"Batch size should be 1"
+        assert input_tensor.shape[1] == MAX_SEGM_INPUT, f"Expected {MAX_SEGM_INPUT} time steps"
+        assert input_tensor.shape[2] == 10, f"Expected 10 channels"
 
         ts = torch.tensor(all_timestamps, dtype=torch.float32)
         ts_min, ts_max = ts.min(), ts.max()
@@ -216,32 +207,45 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
 
         model.to(device).eval()
 
+        stride = TILE_SIZE - TILE_OVERLAP
+        prob_sum = np.zeros((original_h, original_w), dtype=np.float32)
+        weight_sum = np.zeros((original_h, original_w), dtype=np.float32)
+
+        hann_1d = np.hanning(TILE_SIZE).astype(np.float32)
+        hann_2d = np.outer(hann_1d, hann_1d)
+
+        y_starts = list(range(0, original_h - TILE_SIZE + 1, stride))
+        if not y_starts or y_starts[-1] + TILE_SIZE < original_h:
+            y_starts.append(max(0, original_h - TILE_SIZE))
+        x_starts = list(range(0, original_w - TILE_SIZE + 1, stride))
+        if not x_starts or x_starts[-1] + TILE_SIZE < original_w:
+            x_starts.append(max(0, original_w - TILE_SIZE))
+
+        total_tiles = len(y_starts) * len(x_starts)
+        print(f"[DEBUG] Tiling: {len(y_starts)}×{len(x_starts)} = {total_tiles} tiles "
+              f"(tile={TILE_SIZE}, overlap={TILE_OVERLAP}, stride={stride})")
+
         with torch.no_grad():
-            print(f"[DEBUG] Running model inference with input shape: {input_tensor.shape}")
-            output = model(input_tensor.to(device), batch_dates.to(device))
-            print(f"[DEBUG] Model output shape: {output.shape}")
+            for tile_idx, y0 in enumerate(y_starts):
+                for x0 in x_starts:
+                    y1 = y0 + TILE_SIZE
+                    x1 = x0 + TILE_SIZE
 
-            logits = output[0] if isinstance(output, tuple) else output
-            probs = torch.sigmoid(logits).cpu().numpy()
+                    tile = input_tensor[:, :, :, y0:y1, x0:x1].to(device)
 
-            if probs.ndim == 4:
-                probs = probs[0, 0]
-            elif probs.ndim == 3:
-                probs = probs[0]
+                    output = model(tile, batch_dates.to(device))
+                    logits = output[0] if isinstance(output, tuple) else output
+                    tile_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()  # (TILE, TILE)
 
-            print(f"[DEBUG] Spatial probabilities shape: {probs.shape}")
-            print(f"[DEBUG] Probability range: [{probs.min():.4f}, {probs.max():.4f}]")
+                    prob_sum[y0:y1, x0:x1]   += tile_prob * hann_2d
+                    weight_sum[y0:y1, x0:x1] += hann_2d
 
-            if probs.shape != (original_h, original_w):
-                print(f"[DEBUG] Upsampling from {probs.shape} to ({original_h}, {original_w})")
-                probs = F.interpolate(
-                    torch.from_numpy(probs).float().unsqueeze(0).unsqueeze(0),
-                    size=(original_h, original_w),
-                    mode='bilinear',
-                    align_corners=False
-                ).squeeze(0).squeeze(0).numpy()
+                if (tile_idx + 1) % 10 == 0 or tile_idx == len(y_starts) - 1:
+                    print(f"[DEBUG] Tiling progress: row {tile_idx+1}/{len(y_starts)}")
 
-            print(f"[DEBUG] Final probabilities shape: {probs.shape}")
+        probs = np.where(weight_sum > 0, prob_sum / weight_sum, 0.0)
+        print(f"[DEBUG] Final probabilities shape: {probs.shape}")
+        print(f"[DEBUG] Probability range: [{probs.min():.4f}, {probs.max():.4f}]")
 
         binary_mask = (probs > 0.5).astype(np.uint8)
         labeled_mask, num_features = label(binary_mask)
