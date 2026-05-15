@@ -11,7 +11,7 @@ from scipy.ndimage import label
 from shapely.geometry import shape, MultiPolygon
 from shapely.ops import transform as shapely_transform
 from rasterio import features
-from sqlalchemy import desc
+from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
 from app.core.schemas import FieldType
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
@@ -80,7 +80,21 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             if not source_crs:
                 raise ValueError("source_crs is None. Check NetCDF metadata.")
 
-            data_var = ds[list(ds.data_vars)[0]]
+            data_var = None
+            print(f"[DEBUG] Dataset variables: {list(ds.data_vars)}")
+            for var_name in ds.data_vars:
+                candidate = ds[var_name]
+                print(f"[DEBUG]   var '{var_name}': dims={candidate.dims}, shape={candidate.shape}")
+                if 'x' in candidate.dims and 'y' in candidate.dims:
+                    data_var = candidate
+                    print(f"[DEBUG] Selected spatial variable: '{var_name}'")
+                    break
+
+            if data_var is None:
+                raise ValueError(
+                    f"No spatial variable with x/y dims found in {first_nc}. "
+                    f"Available vars: {list(ds.data_vars)}"
+                )
 
             print(f"[DEBUG] Reference dataset shape: {data_var.shape}")
             print(f"[DEBUG] Reference dataset dims: {data_var.dims}")
@@ -90,9 +104,11 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             transform = affine.Affine.translation(float(ds.x[0]), float(ds.y[0])) * \
                         affine.Affine.scale(res_x, res_y)
 
-            mask_coords = {dim: data_var.coords[dim].values for dim in data_var.dims if dim != 'band'}
-            original_h = len(data_var.coords[data_var.dims[1]])
-            original_w = len(data_var.coords[data_var.dims[2]])
+            y_dim = [d for d in data_var.dims if d != 'band' and d != 'x'][0]
+            x_dim = [d for d in data_var.dims if d != 'band' and d != 'y'][0]
+            mask_coords = {d: data_var.coords[d].values for d in data_var.dims if d != 'band'}
+            original_h = len(data_var.coords[y_dim])
+            original_w = len(data_var.coords[x_dim])
 
             print(f"[DEBUG] Original spatial dimensions: H={original_h}, W={original_w}")
 
@@ -103,7 +119,14 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
             print(f"[DEBUG] Processing temporal observation {idx + 1}/{len(analyses)}: {nc_path}")
 
             with xr.open_dataset(nc_path) as ds:
-                data_var = ds[list(ds.data_vars)[0]]
+                data_var = None
+                for var_name in ds.data_vars:
+                    candidate = ds[var_name]
+                    if 'x' in candidate.dims and 'y' in candidate.dims:
+                        data_var = candidate
+                        break
+                if data_var is None:
+                    raise ValueError(f"No spatial variable found in {nc_path}. Vars: {list(ds.data_vars)}")
 
                 if 'band' in data_var.dims:
                     data = data_var.values
@@ -245,6 +268,11 @@ def perform_temp_segmentation_and_save(location_id: int, db: Session):
         )
 
         db.query(FieldUnit).filter(FieldUnit.location_id == location_id).delete()
+        db.flush()
+        db.execute(
+            text("SELECT setval(pg_get_serial_sequence('field_units', 'id'), "
+                 "COALESCE((SELECT MAX(id) FROM field_units), 0) + 1, false)")
+        )
 
         saved_count = 0
         skipped_count = 0
