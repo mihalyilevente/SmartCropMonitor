@@ -1,15 +1,17 @@
-# =========================
-# Imports
-# =========================
 import os
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from decimal import Decimal
+from typing import List, Optional
 from app.core.database import UserLocation, FieldAnalysis, get_db, FieldUnit
 from app.core.schemas import FieldType
-from app.services.segmentation import perform_temp_segmentation_and_save
+from app.services.segmentation import (
+    perform_temp_segmentation_and_save,
+    run_segmentation_preview,
+    confirm_segmentation_fields,
+)
 from app.services.orchestrator import full_sync_process
 from app.services.spatial_harmonizer import process_and_align_nc
 from app.utils.fields import (
@@ -24,22 +26,18 @@ from shapely.geometry import shape, MultiPolygon
 from shapely.validation import explain_validity
 
 
-# =========================
-# Init
-# =========================
 router = APIRouter()
 
-# =========================
-# Schemas
-# =========================
 class LocationCreate(BaseModel):
     label: str
     lat: float
     lon: float
 
-# =========================
-# Location Endpoints
-# =========================
+
+class SegmentationConfirmPayload(BaseModel):
+    selected_ids: List[int]
+    fields_data: List[dict]
+
 @router.post("/locations")
 async def add_location(
     loc: LocationCreate,
@@ -63,14 +61,56 @@ async def add_location(
         "id": new_loc.id
     }
 
+@router.post("/segment-preview/{location_id}", tags=["Segmentation"])
+async def segment_preview(location_id: int, db: Session = Depends(get_db)):
+    try:
+        result = run_segmentation_preview(location_id, db)
+        return {
+            "status": "ok",
+            "location_id": location_id,
+            "num_detected": result["num_detected"],
+            "fields": result["fields"],
+            "preview_b64": result["preview_b64"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Segmentation error: {str(e)}")
+
+
+@router.post("/segment-confirm/{location_id}", tags=["Segmentation"])
+async def segment_confirm(
+    location_id: int,
+    payload: SegmentationConfirmPayload,
+    db: Session = Depends(get_db)
+):
+    try:
+        result = confirm_segmentation_fields(
+            location_id=location_id,
+            selected_field_ids=payload.selected_ids,
+            fields_data=payload.fields_data,
+            db=db,
+        )
+        return {
+            "status": "ok",
+            "location_id": location_id,
+            "saved_count": result["saved_count"],
+            "field_ids": result["field_ids"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Confirm error: {str(e)}")
+
 
 @router.post("/segment-fields/{location_id}", tags=["Segmentation"])
 async def segment_fields(location_id: int, db: Session = Depends(get_db)):
     try:
         perform_temp_segmentation_and_save(location_id, db)
-        return {"status": "success", "message": f"Segmentation completed for analysis {location_id}"}
+        return {"status": "success", "message": f"Segmentation completed for location {location_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Segmentation error: {str(e)}")
+
 
 # =========================
 # History Endpoint
