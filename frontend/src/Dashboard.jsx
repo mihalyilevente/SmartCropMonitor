@@ -3,12 +3,12 @@
  * Main view. Collapsible panels below the header banner:
  *  1. WeatherMetricsPanel  — latest-weather endpoint (history + metrics objects)
  *  2. WeatherCharts        — weather-charts endpoint (hourly time series)
- *  3. SprayingWindowsPanel — spraying-windows endpoint (optimal application times)  ← NEW
+ *  3. SprayingWindowsPanel — spraying-windows endpoint (optimal application times)
  *  4. FieldMapPanel        — Mapbox GL JS: field boundaries + metric heatmap
  *  5. SensorPanel          — sensor management, status, history plots
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
 import SensorPanel from './components/SensorPanel';
@@ -17,16 +17,22 @@ import WeatherMetricsPanel from './components/WeatherMetricsPanel';
 import SprayingWindowsPanel from './components/SprayingWindowsPanel';
 import FieldMapPanel from './components/FieldMapPanel';
 import AddLocationModal from './components/AddLocationModal';
+import SegmentationModal from './components/SegmentationModal';
+import ManualFieldModal from './components/ManualFieldModal';
 import logo from './assets/logo1.png';
 
 const Dashboard = ({ userId, onLogout }) => {
-  const [locations, setLocations]       = useState([]);
-  const [locationId, setLocationId]     = useState(null);
+  const [locations, setLocations]           = useState([]);
+  const [locationId, setLocationId]         = useState(null);
   const [currentWeather, setCurrentWeather] = useState(null);
-  const [latestWeather, setLatestWeather]   = useState(null);   // { history, metrics }
-  const [chartData, setChartData]           = useState([]);      // hourly array
-  const [loading, setLoading]           = useState(true);
-  const [showAddLocation, setShowAddLocation] = useState(false); // ← NEW
+  const [latestWeather, setLatestWeather]   = useState(null);
+  const [chartData, setChartData]           = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [showAddLocation, setShowAddLocation]       = useState(false);
+  const [showSegmentation, setShowSegmentation]     = useState(false);
+  const [showManualField, setShowManualField]       = useState(false);
+  const [segmentationStatus, setSegmentationStatus] = useState(null); // null | 'running' | 'done' | 'error'
+  const fieldMapRef = useRef(null); // used to trigger a map refresh after segmentation
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const fetchLocations = () => {
@@ -41,33 +47,27 @@ const Dashboard = ({ userId, onLogout }) => {
       .catch(() => setLoading(false));
   };
 
-  // Fetch locations on mount
   useEffect(() => {
     fetchLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // Fetch weather data when location changes
   useEffect(() => {
     if (!userId || !locationId) return;
 
-    // Current conditions banner
     getCurrentWeather(locationId, userId)
       .then(setCurrentWeather)
       .catch(() => setCurrentWeather(null));
 
-    // Latest weather + metrics (WeatherMetricsPanel)
     getWeatherHistory(locationId, userId)
       .then(setLatestWeather)
       .catch(() => setLatestWeather(null));
 
-    // Hourly time series for charts (WeatherCharts)
     getWeatherMetrics(locationId, userId)
       .then(setChartData)
       .catch(() => setChartData([]));
   }, [locationId, userId]);
 
-  // Called from AddLocationModal after a successful save
   const handleLocationAdded = (newLocation) => {
     setShowAddLocation(false);
     fetchLocations().then(() => {
@@ -75,7 +75,19 @@ const Dashboard = ({ userId, onLogout }) => {
     });
   };
 
+  /** Called when the user confirms their field selection in SegmentationModal */
+  const handleSegmentationConfirmed = () => {
+    setShowSegmentation(false);
+    setSegmentationStatus('done');
+    // Signal FieldMapPanel to reload its field boundaries
+    fieldMapRef.current?.refreshFields?.();
+    // Reset badge after 4 s
+    setTimeout(() => setSegmentationStatus(null), 4000);
+  };
+
   if (loading) return <div style={styles.container}>Loading…</div>;
+
+  const currentLocation = locations.find(l => l.id === locationId);
 
   return (
     <div style={styles.container}>
@@ -86,7 +98,7 @@ const Dashboard = ({ userId, onLogout }) => {
           <h1 style={{ fontFamily: 'var(--font-heading)', margin: 0 }}>SmartCrop Monitor</h1>
         </div>
 
-        {/* Location selector + Add Location button */}
+        {/* Location selector + action buttons */}
         <div style={styles.locationRow}>
           {locations.length > 0 ? (
             <div style={styles.locationSelector}>
@@ -107,7 +119,7 @@ const Dashboard = ({ userId, onLogout }) => {
             <div style={{ color: 'red', fontSize: 13 }}>No locations configured</div>
           )}
 
-          {/* ── Add Location button ── */}
+          {/* ── Add Location ── */}
           <button
             onClick={() => setShowAddLocation(true)}
             style={styles.addLocationBtn}
@@ -115,6 +127,33 @@ const Dashboard = ({ userId, onLogout }) => {
           >
             + Add Location
           </button>
+
+          {/* ── Draw Field manually ── */}
+          {locationId && (
+            <button
+              onClick={() => setShowManualField(true)}
+              style={styles.manualFieldBtn}
+              title="Draw a field boundary manually on the map"
+            >
+              ✏️ Draw Field
+            </button>
+          )}
+
+          {/* ── Segment Fields (AI) ── */}
+          {locationId && (
+            <button
+              onClick={() => setShowSegmentation(true)}
+              style={{
+                ...styles.segmentBtn,
+                ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}),
+              }}
+              title="Run AI field segmentation for this location"
+            >
+              {segmentationStatus === 'done'
+                ? '✓ Fields Updated'
+                : '🛰 Segment Fields'}
+            </button>
+          )}
         </div>
 
         <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>
@@ -135,24 +174,40 @@ const Dashboard = ({ userId, onLogout }) => {
         <div style={{ ...styles.weatherBanner, color: '#aaa' }}>No weather data for this location</div>
       )}
 
-      {/* ── Collapsible panels ── */}
+      {/* ── Panels ── */}
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
-
-      {/* ── Spraying Windows Panel ── */}
       <SprayingWindowsPanel userId={userId} locationId={locationId} />
-
-      {/* ── Field Map (NEW) ── */}
-      <FieldMapPanel userId={userId} locationId={locationId} />
-
+      <FieldMapPanel ref={fieldMapRef} userId={userId} locationId={locationId} />
       <SensorPanel userId={userId} />
 
-      {/* ── Add Location Modal ── */}
+      {/* ── Modals ── */}
       {showAddLocation && (
         <AddLocationModal
           userId={userId}
           onClose={() => setShowAddLocation(false)}
           onSaved={handleLocationAdded}
+        />
+      )}
+
+      {showManualField && locationId && (
+        <ManualFieldModal
+          userId={userId}
+          locationId={locationId}
+          onClose={() => setShowManualField(false)}
+          onSaved={() => {
+            setShowManualField(false);
+            fieldMapRef.current?.refreshFields?.();
+          }}
+        />
+      )}
+
+      {showSegmentation && locationId && (
+        <SegmentationModal
+          userId={userId}
+          locationId={locationId}
+          onClose={() => setShowSegmentation(false)}
+          onConfirmed={handleSegmentationConfirmed}
         />
       )}
     </div>
@@ -176,7 +231,7 @@ const styles = {
   branding: { display: 'flex', alignItems: 'center', gap: 10 },
 
   locationRow: {
-    display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
   },
   locationSelector: {
     display: 'flex', alignItems: 'center',
@@ -190,6 +245,7 @@ const styles = {
     border: '1px solid var(--color-accent-soil)',
     cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
   },
+
   addLocationBtn: {
     background: 'var(--color-accent-soil)',
     color: '#fff',
@@ -201,6 +257,38 @@ const styles = {
     fontSize: 13,
     whiteSpace: 'nowrap',
     transition: 'opacity 0.15s',
+  },
+
+  manualFieldBtn: {
+    background: 'linear-gradient(135deg, #2471a3, #1a5276)',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 16px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: 13,
+    whiteSpace: 'nowrap',
+    boxShadow: '0 2px 8px rgba(36,113,163,0.35)',
+    transition: 'opacity 0.15s',
+    letterSpacing: '0.01em',
+  },
+  segmentBtn: {
+    background: 'linear-gradient(135deg, #2c7a4b, #1a5c38)',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 16px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: 13,
+    whiteSpace: 'nowrap',
+    boxShadow: '0 2px 8px rgba(44,122,75,0.35)',
+    transition: 'opacity 0.15s, transform 0.1s',
+    letterSpacing: '0.01em',
+  },
+  segmentBtnDone: {
+    background: 'linear-gradient(135deg, #27ae60, #1e8449)',
   },
 
   weatherBanner: {
