@@ -50,7 +50,7 @@ def validate_field_shape(field_shape):
 
     area_ha = calculate_field_area(geometry)
 
-    if area_ha < 0.01:
+    if area_ha < 0.5:
         return {
             "valid": False,
             "error": "Field area too small"
