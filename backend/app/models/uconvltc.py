@@ -101,8 +101,11 @@ class U_ConvLTC(nn.Module):
 
         self.final = nn.Conv2d(64, n_classes, kernel_size=1)
 
-    def forward(self, x, batch_dates):
+    def forward(self, x, batch_dates, n_real: int = None):
         B, T, C, H, W = x.shape
+
+        if n_real is None:
+            n_real = T
 
         x_reshaped = x.view(B * T, C, H, W)
         s1 = self.enc1(x_reshaped)
@@ -113,6 +116,8 @@ class U_ConvLTC(nn.Module):
         h = torch.zeros(B, 256, H // 4, W // 4).to(x.device)
 
         for t in range(T):
+            if t >= n_real:
+                continue
             if t == 0:
                 dt = torch.ones(B, 1, 1, 1).to(x.device) * 0.1
             else:
@@ -120,8 +125,8 @@ class U_ConvLTC(nn.Module):
                 dt = torch.clamp(dt, min=1e-3)
             h = self.ltc_cell(feat_seq[:, t], h, dt)
 
-        s1_mean = s1.view(B, T, 64, H, W).mean(dim=1)
-        s2_mean = s2.view(B, T, 128, H // 2, W // 2).mean(dim=1)
+        s1_mean = s1.view(B, T, 64, H, W)[:, :n_real].mean(dim=1)
+        s2_mean = s2.view(B, T, 128, H // 2, W // 2)[:, :n_real].mean(dim=1)
 
         d1 = self.up1(h)
         s2_attn = self.attn1(g=d1, x=s2_mean)
@@ -141,5 +146,5 @@ class AgriculturalSegmentationModel(nn.Module):
         super().__init__()
         self.model = U_ConvLTC(in_channels=n_channels, n_classes=n_classes)
 
-    def forward(self, x, batch_dates):
-        return self.model(x, batch_dates)
+    def forward(self, x, batch_dates, n_real: int = None):
+        return self.model(x, batch_dates, n_real=n_real)

@@ -42,9 +42,9 @@ SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
 HASKELL_URL = os.getenv("HASKELL_SERVICE_URL", "http://localhost:8081/field-stats")
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
-TEMP_MODEL_WEIGHTS = "app/models/uConvLSTM_pastis.pth"
+TEMP_MODEL_WEIGHTS = "app/models/uConvLTC_pastis.pth"
 MODEL_PATH = os.path.join("app", "models", "unet_mitb2_ai4boundaries.pth")
-TEMP_MODEL_PATH = os.path.join("app", "models", "uConvLSTM_pastis.pth")
+TEMP_MODEL_PATH = os.path.join("app", "models", "uConvLTC_pastis.pth")
 RANDOM_SEED = 28
 MAX_SEGM_INPUT = 4
 MIN_SEGM_INPUTS = 3
