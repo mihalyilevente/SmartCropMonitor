@@ -112,7 +112,7 @@ computeSprayingWindows fps =
 build :: [(ForecastPoint, Double)] -> [Window]
 build xs =
   map toWindow $
-  filter (\g -> all (\(_, s) -> s >= threshold) g) $
+  filter (\g -> length g >= 2 && all (\(_, s) -> s >= threshold) g) $
   groupBy (\(_, a) (_, b) -> (a >= threshold) == (b >= threshold)) xs
   where
     toWindow ys =
