@@ -1,15 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import api from '../api/client';
 import {
   getSprayingWindows,
   getCurrentSprayingWindow,
-  getNextSprayingWindow,
   calculateWindowMetrics,
   formatDuration
 } from '../api/spraying';
 
 const InteractiveTimeline = ({ windows, weatherForecast }) => {
-  const [selectedWindow, setSelectedWindow] = useState(null);
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -46,7 +43,7 @@ const InteractiveTimeline = ({ windows, weatherForecast }) => {
     }
 
     if (weatherForecast && weatherForecast.length > 0) {
-      weatherForecast.forEach((forecast, index) => {
+      weatherForecast.forEach((forecast) => {
         const time = new Date(forecast.timestamp);
         const x = ((time - now) / totalTime) * width;
 
@@ -126,9 +123,7 @@ const InteractiveTimeline = ({ windows, weatherForecast }) => {
           maxWidth: '100%',
           height: 'auto',
         }}
-        onClick={(e) => {
-          const rect = e.target.getBoundingClientRect();
-          const x = e.clientX - rect.left;
+        onClick={() => {
         }}
       />
 
@@ -273,13 +268,12 @@ const CurrentConditionsPanel = ({ currentWeather, currentWindow }) => {
   );
 };
 
-const SprayingWindowsPanelEnhanced = ({ locationId, userId, currentWeather, weatherForecast }) => {
+const SprayingWindowsPanelEnhanced = ({ locationId, currentWeather, weatherForecast }) => {
   const [open, setOpen] = useState(true);
   const [windows, setWindows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentWindow, setCurrentWindow] = useState(null);
-  const [nextWindow, setNextWindow] = useState(null);
   const [metrics, setMetrics] = useState({});
 
   useEffect(() => {
@@ -297,7 +291,6 @@ const SprayingWindowsPanelEnhanced = ({ locationId, userId, currentWeather, weat
       .then(windowsData => {
         setWindows(windowsData || []);
         setCurrentWindow(getCurrentSprayingWindow(windowsData || []));
-        setNextWindow(getNextSprayingWindow(windowsData || []));
         setMetrics(calculateWindowMetrics(windowsData || []));
         setLoading(false);
       })
