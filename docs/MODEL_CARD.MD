@@ -2,14 +2,14 @@
 
 Below are the key characteristics and performance indicators for the models used in segmentation.
 
-| Model Name         | Dataset | Loss                    | Metric (Dice)           | Metric (IoU)     | Notes          |
-|:-------------------|:--------|:------------------------|:------------------------|:-----------------|:---------------|
-| **U-NET**          |AI4Boundaries| BCEDiceLoss             | 0.4786                  | 0.3449           | Baseline model |
-| **U-NET + MiT-B2** |AI4Boundaries| LovaszLoss+BCEDiceLoss+DiceLoss | 0.5346                  | 0.4033           | v 15.0         |
-| **DeepLabV3 + MiT-B2** |AI4Boundaries| LovaszLoss+BCEDiceLoss+DiceLoss | 0.4443                 | 0.3230         | v 6.0          |
-| **U-TAE**          |PASTIS | BCEDiceLoss | 0.8597                  | 0.7763           | v 6.0          |
-| **U-ConvLSTM**     |PASTIS | BCEDiceLoss | 0.8505                  | 0.7658           | v 1.0          |
-| **U-ConvLTC**      |PASTIS | BCEDiceLoss | 0.8460                       | 0.7615                | v 2.0          |
+| Model Name         | Dataset | Loss                    | Metric (Dice)                | Metric (IoU)     | Notes          |
+|:-------------------|:--------|:------------------------|:-----------------------------|:-----------------|:---------------|
+| **U-NET**          |AI4Boundaries| BCEDiceLoss             | 0.4786                       | 0.3449           | Baseline model |
+| **U-NET + MiT-B2** |AI4Boundaries| LovaszLoss+BCEDiceLoss+DiceLoss | 0.5346                       | 0.4033           | v 15.0         |
+| **DeepLabV3 + MiT-B2** |AI4Boundaries| LovaszLoss+BCEDiceLoss+DiceLoss | 0.4443                       | 0.3230         | v 6.0          |
+| **U-TAE**          |PASTIS | BCEDiceLoss | 0.8597                       | 0.7763           | v 6.0          |
+| **U-ConvLSTM**     |PASTIS | BCEDiceLoss | 0.8505                       | 0.7658           | v 1.0          |
+| **U-ConvLTC**      |PASTIS | BCEDiceLoss | 0.8612                       | 0.7790                | v 5.0          |
 ---
 
 
