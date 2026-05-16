@@ -18,6 +18,7 @@ import Stats
 import Validation
 import WeatherMetrics (computeMetrics, LocationData)
 import SprayingWindow (computeSprayingWindows, ForecastPoint)
+import SatelliteAnomaly (computeSnapshotAnomaly, SnapshotInput)
 
 -- =========================
 -- WRAPPER PAYLOAD
@@ -112,6 +113,19 @@ main = scotty 8081 $ do
             Nothing -> do
                 status status400
                 text "Missing scl_values"
+
+      -- Satellite snapshot anomaly (ndvi / gndvi / ndre)
+      5 -> case raw_data req of
+            Just d -> do
+              let parsed = fromJSON d :: Result SnapshotInput
+              case parsed of
+                Success inp -> json (computeSnapshotAnomaly inp)
+                Error err -> do
+                  status status400
+                  text (mconcat ["Invalid snapshot payload: ", TL.pack err])
+            Nothing -> do
+              status status400
+              text "Missing raw_data for config=5"
 
       _ -> do
         status status400

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { addLocation, triggerSync } from '../api/fields';
 
 const FieldPanel = ({ userId }) => {
