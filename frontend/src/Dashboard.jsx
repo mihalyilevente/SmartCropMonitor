@@ -1,6 +1,7 @@
 /**
  * Dashboard.jsx
  * Main view. Collapsible panels below the header banner:
+ *  0. AlertsPanel          — events list + alert rules (templates & custom)   ← NEW
  *  1. WeatherMetricsPanel  — latest-weather endpoint (history + metrics objects)
  *  2. WeatherCharts        — weather-charts endpoint (hourly time series)
  *  3. SprayingWindowsPanel — spraying-windows endpoint (optimal application times)
@@ -11,6 +12,9 @@
 import { useState, useEffect, useRef } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
+import AlertsPanel from './components/AlertsPanel';
+import TasksPanel from './components/TasksPanel';
+import FieldWorkPanel from './components/FieldWorkPanel';
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
@@ -31,8 +35,8 @@ const Dashboard = ({ userId, onLogout }) => {
   const [showAddLocation, setShowAddLocation]       = useState(false);
   const [showSegmentation, setShowSegmentation]     = useState(false);
   const [showManualField, setShowManualField]       = useState(false);
-  const [segmentationStatus, setSegmentationStatus] = useState(null); // null | 'running' | 'done' | 'error'
-  const fieldMapRef = useRef(null); // used to trigger a map refresh after segmentation
+  const [segmentationStatus, setSegmentationStatus] = useState(null);
+  const fieldMapRef = useRef(null);
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const fetchLocations = () => {
@@ -75,13 +79,10 @@ const Dashboard = ({ userId, onLogout }) => {
     });
   };
 
-  /** Called when the user confirms their field selection in SegmentationModal */
   const handleSegmentationConfirmed = () => {
     setShowSegmentation(false);
     setSegmentationStatus('done');
-    // Signal FieldMapPanel to reload its field boundaries
     fieldMapRef.current?.refreshFields?.();
-    // Reset badge after 4 s
     setTimeout(() => setSegmentationStatus(null), 4000);
   };
 
@@ -119,39 +120,23 @@ const Dashboard = ({ userId, onLogout }) => {
             <div style={{ color: 'red', fontSize: 13 }}>No locations configured</div>
           )}
 
-          {/* ── Add Location ── */}
-          <button
-            onClick={() => setShowAddLocation(true)}
-            style={styles.addLocationBtn}
-            title="Add new location"
-          >
+          <button onClick={() => setShowAddLocation(true)} style={styles.addLocationBtn} title="Add new location">
             + Add Location
           </button>
 
-          {/* ── Draw Field manually ── */}
           {locationId && (
-            <button
-              onClick={() => setShowManualField(true)}
-              style={styles.manualFieldBtn}
-              title="Draw a field boundary manually on the map"
-            >
+            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title="Draw a field boundary manually on the map">
               ✏️ Draw Field
             </button>
           )}
 
-          {/* ── Segment Fields (AI) ── */}
           {locationId && (
             <button
               onClick={() => setShowSegmentation(true)}
-              style={{
-                ...styles.segmentBtn,
-                ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}),
-              }}
+              style={{ ...styles.segmentBtn, ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}) }}
               title="Run AI field segmentation for this location"
             >
-              {segmentationStatus === 'done'
-                ? '✓ Fields Updated'
-                : '🛰 Segment Fields'}
+              {segmentationStatus === 'done' ? '✓ Fields Updated' : '🛰 Segment Fields'}
             </button>
           )}
         </div>
@@ -175,6 +160,11 @@ const Dashboard = ({ userId, onLogout }) => {
       )}
 
       {/* ── Panels ── */}
+      {/* Alerts panel — above weather so critical events are immediately visible */}
+      <AlertsPanel userId={userId} locationId={locationId} />
+      <TasksPanel userId={userId} />
+      <FieldWorkPanel userId={userId} locationId={locationId} />
+
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
       <SprayingWindowsPanel userId={userId} locationId={locationId} />
@@ -248,44 +238,24 @@ const styles = {
 
   addLocationBtn: {
     background: 'var(--color-accent-soil)',
-    color: '#fff',
-    border: 'none',
-    padding: '8px 14px',
-    borderRadius: 8,
-    cursor: 'pointer',
-    fontWeight: 600,
-    fontSize: 13,
-    whiteSpace: 'nowrap',
-    transition: 'opacity 0.15s',
+    color: '#fff', border: 'none', padding: '8px 14px',
+    borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13,
+    whiteSpace: 'nowrap', transition: 'opacity 0.15s',
   },
 
   manualFieldBtn: {
     background: 'linear-gradient(135deg, #2471a3, #1a5276)',
-    color: '#fff',
-    border: 'none',
-    padding: '8px 16px',
-    borderRadius: 8,
-    cursor: 'pointer',
-    fontWeight: 700,
-    fontSize: 13,
-    whiteSpace: 'nowrap',
-    boxShadow: '0 2px 8px rgba(36,113,163,0.35)',
-    transition: 'opacity 0.15s',
-    letterSpacing: '0.01em',
+    color: '#fff', border: 'none', padding: '8px 16px',
+    borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+    whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(36,113,163,0.35)',
+    transition: 'opacity 0.15s', letterSpacing: '0.01em',
   },
   segmentBtn: {
     background: 'linear-gradient(135deg, #2c7a4b, #1a5c38)',
-    color: '#fff',
-    border: 'none',
-    padding: '8px 16px',
-    borderRadius: 8,
-    cursor: 'pointer',
-    fontWeight: 700,
-    fontSize: 13,
-    whiteSpace: 'nowrap',
-    boxShadow: '0 2px 8px rgba(44,122,75,0.35)',
-    transition: 'opacity 0.15s, transform 0.1s',
-    letterSpacing: '0.01em',
+    color: '#fff', border: 'none', padding: '8px 16px',
+    borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+    whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(44,122,75,0.35)',
+    transition: 'opacity 0.15s, transform 0.1s', letterSpacing: '0.01em',
   },
   segmentBtnDone: {
     background: 'linear-gradient(135deg, #27ae60, #1e8449)',

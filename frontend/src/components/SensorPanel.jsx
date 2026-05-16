@@ -12,11 +12,195 @@
  *
  * History response shape:
  *   { sensor_id, labels: string[], datasets: { temp: number[], humidity: number[], pressure: number[] } }
+ *
+ * NEW: per-sensor "🔔 Add Alert" button for sensor offline, temp spike, humidity, etc.
  */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
 
 const BASE = '/api/v1/sensors';
+const BASE_EVENTS = '/api/v1/events';
+
+// ── Sensor alert templates ────────────────────────────────────────────────────
+const SENSOR_ALERT_TEMPLATES = [
+  {
+    name: 'Sensor Offline',
+    event_type: 'SENSOR_OFFLINE',
+    icon: '📡',
+    description: 'Fires when sensor goes silent beyond expected interval',
+    condition_metric: 'sensor_silence_multiplier',
+    condition_operator: '>',
+    default_value: 3,
+    severity: 'WARNING',
+  },
+  {
+    name: 'High Temperature',
+    event_type: 'HEAT_STRESS',
+    icon: '🌡️',
+    description: 'Sensor reports temperature above threshold',
+    condition_metric: 'sensor_temp',
+    condition_operator: '>',
+    default_value: 35,
+    severity: 'WARNING',
+  },
+  {
+    name: 'Low Temperature',
+    event_type: 'FROST_HAZARD',
+    icon: '❄️',
+    description: 'Sensor reports temperature below threshold',
+    condition_metric: 'sensor_temp',
+    condition_operator: '<',
+    default_value: 2,
+    severity: 'WARNING',
+  },
+  {
+    name: 'High Humidity',
+    event_type: 'OTHER',
+    icon: '💧',
+    description: 'Sensor humidity reading above threshold',
+    condition_metric: 'sensor_humidity',
+    condition_operator: '>',
+    default_value: 90,
+    severity: 'INFO',
+  },
+  {
+    name: 'Low Humidity',
+    event_type: 'OTHER',
+    icon: '🏜️',
+    description: 'Sensor humidity reading below threshold',
+    condition_metric: 'sensor_humidity',
+    condition_operator: '<',
+    default_value: 20,
+    severity: 'INFO',
+  },
+  {
+    name: 'Low Battery',
+    event_type: 'LOW_BATTERY',
+    icon: '🔋',
+    description: 'Battery level below threshold',
+    condition_metric: 'battery_pct',
+    condition_operator: '<',
+    default_value: 20,
+    severity: 'INFO',
+  },
+];
+
+// ── Sensor Alert Modal ────────────────────────────────────────────────────────
+const SensorAlertModal = ({ sensor, userId, onClose }) => {
+  const [selected, setSelected] = useState(null);
+  const [threshold, setThreshold] = useState('');
+  const [ruleName, setRuleName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const selectTpl = (tpl) => {
+    setSelected(tpl);
+    setThreshold(String(tpl.default_value));
+    setRuleName(`${tpl.name} — ${sensor.label || `Sensor #${sensor.id}`}`);
+  };
+
+  const submit = async () => {
+    if (!selected || !threshold) return;
+    setBusy(true);
+    try {
+      await api.post(`${BASE_EVENTS}/rules/create`, {
+        user_id: userId,
+        name: ruleName,
+        event_type: selected.event_type,
+        condition: {
+          metric: selected.condition_metric,
+          operator: selected.condition_operator,
+          value: Number(threshold),
+          sensor_id: sensor.id,
+        },
+        action: { notify: true, severity: selected.severity },
+        is_active: true,
+      });
+      setDone(true);
+      setTimeout(onClose, 1500);
+    } catch { alert('Failed to create alert rule.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+    }} onClick={onClose}>
+      <div style={{
+        background: '#fff', borderRadius: 14, padding: '22px 26px', maxWidth: 480, width: '92%',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.18)', border: '1px solid #e0d8cf',
+        maxHeight: '85vh', overflowY: 'auto',
+      }} onClick={e => e.stopPropagation()}>
+        {done ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: '#1b5e20', fontSize: 16, fontWeight: 700 }}>
+            ✅ Sensor alert rule created!
+          </div>
+        ) : (
+          <>
+            <div style={{ fontWeight: 800, fontSize: 17, color: '#333', marginBottom: 2 }}>🔔 Add Sensor Alert</div>
+            <div style={{ fontSize: 12, color: '#aaa', marginBottom: 16 }}>
+              Sensor: <strong style={{ color: '#555' }}>{sensor.label || `Sensor #${sensor.id}`}</strong>
+            </div>
+
+            {/* Template grid */}
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+              Choose alert type
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+              {SENSOR_ALERT_TEMPLATES.map(tpl => {
+                const active = selected?.name === tpl.name;
+                return (
+                  <button key={tpl.name} onClick={() => selectTpl(tpl)} style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+                    padding: '8px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                    border: active ? '2px solid #054e05' : '1px solid #e0d8cf',
+                    background: active ? '#f0faf0' : '#fafaf8',
+                    transition: 'all 0.15s', minWidth: 120,
+                  }}>
+                    <span style={{ fontSize: 16 }}>{tpl.icon}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#444' }}>{tpl.name}</span>
+                    <span style={{ fontSize: 10, color: '#aaa', lineHeight: 1.3 }}>{tpl.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Configuration */}
+            {selected && (
+              <div style={{ background: '#f8f4f0', borderRadius: 10, padding: '14px 16px', border: '1px solid #e0d8cf', marginBottom: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <label style={lbl}>
+                    Rule name
+                    <input value={ruleName} onChange={e => setRuleName(e.target.value)} style={inp} />
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: '#666' }}>
+                      Trigger when <strong>{selected.condition_metric.replace(/_/g, ' ')}</strong> {selected.condition_operator}
+                    </span>
+                    <input type="number" value={threshold}
+                      onChange={e => setThreshold(e.target.value)}
+                      style={{ ...inp, width: 90 }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={submit} disabled={busy || !selected} style={{
+                ...btnPrimary,
+                opacity: (!selected) ? 0.5 : 1,
+              }}>
+                {busy ? 'Creating…' : '＋ Create Alert Rule'}
+              </button>
+              <button onClick={onClose} style={btnSecondary}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // ── SVG Sparkline — uses parallel labels[] + values[] arrays ──────────────────
 const Spark = ({ labels = [], values = [], color = '#317f43', title = '', unit = '' }) => {
@@ -69,7 +253,6 @@ const Spark = ({ labels = [], values = [], color = '#317f43', title = '', unit =
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
-        {/* zero / min / max guide lines */}
         {[min, (min + max) / 2, max].map((v, i) => (
           <line key={i} x1={px} y1={sy(v)} x2={W - px} y2={sy(v)}
             stroke="#ece6dc" strokeWidth="1" strokeDasharray="3 3" />
@@ -79,7 +262,6 @@ const Spark = ({ labels = [], values = [], color = '#317f43', title = '', unit =
           strokeLinejoin="round" strokeLinecap="round" />
         <circle cx={sx(valid.length - 1)} cy={sy(last.v)} r={4}
           fill={color} stroke="#fff" strokeWidth="2" />
-        {/* x-axis date labels */}
         <text x={px} y={H} fontSize="9" fill="#ccc" fontFamily="inherit">{firstDate}</text>
         <text x={W - px} y={H} textAnchor="end" fontSize="9" fill="#ccc" fontFamily="inherit">{lastDate}</text>
       </svg>
@@ -122,7 +304,7 @@ const Field = ({ label, ...props }) => (
 );
 
 // ── Per-sensor expandable row ──────────────────────────────────────────────────
-const SensorRow = ({ sensor, latestMap, onRefresh }) => {
+const SensorRow = ({ sensor, latestMap, userId, onRefresh }) => {
   const [open, setOpen]       = useState(false);
   const [status, setStatus]   = useState(null);
   const [history, setHistory] = useState(null);
@@ -130,6 +312,7 @@ const SensorRow = ({ sensor, latestMap, onRefresh }) => {
   const [histLoading, setHistLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving]   = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const [form, setForm]       = useState({
     label: sensor.label || '',
     latitude: '', longitude: '',
@@ -181,166 +364,153 @@ const SensorRow = ({ sensor, latestMap, onRefresh }) => {
     : 'Never';
 
   return (
-    <div style={rowWrap}>
-      {/* ── Row header ── */}
-      <div style={rowHead} onClick={() => setOpen(v => !v)}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 22 }}>📡</span>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-accent-chernozem)' }}>
-              {sensor.label || `Sensor #${sensor.id}`}
-            </div>
-            <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-              ID {sensor.id}
-              {sensor.meteorological && ' · Meteo'}
-              {sensor.added_at && ` · Added ${new Date(sensor.added_at).toLocaleDateString('en-GB')}`}
+    <>
+      <div style={rowWrap}>
+        {/* ── Row header ── */}
+        <div style={rowHead} onClick={() => setOpen(v => !v)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 22 }}>📡</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-accent-chernozem)' }}>
+                {sensor.label || `Sensor #${sensor.id}`}
+              </div>
+              <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                ID {sensor.id}
+                {sensor.meteorological && ' · Meteo'}
+                {sensor.added_at && ` · Added ${new Date(sensor.added_at).toLocaleDateString('en-GB')}`}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Live temp/humidity from latest */}
-          {live && (
-            <div style={{ display: 'flex', gap: 8, fontSize: 12, color: '#555' }}>
-              {live.current_values?.temp != null && (
-                <span style={{ fontWeight: 700, color: '#b53060' }}>
-                  {live.current_values.temp}°C
-                </span>
-              )}
-              {live.current_values?.humidity != null && (
-                <span style={{ fontWeight: 700, color: '#1a6fa3' }}>
-                  {live.current_values.humidity}%
-                </span>
-              )}
-            </div>
-          )}
-          <Badge on={sensor.activation_status} />
-          <span style={{ color: '#ccc', fontSize: 13, userSelect: 'none' }}>{open ? '▲' : '▼'}</span>
-        </div>
-      </div>
-
-      {/* ── Expanded body ── */}
-      {open && (
-        <div style={rowBody}>
-          {/* Status strip */}
-          <div style={strip}>
-            <div style={stripItem}>
-              <span style={stripLbl}>Last contact</span>
-              <span style={stripVal}>{lastSeen}</span>
-            </div>
-            <div style={stripItem}>
-              <span style={stripLbl}>Status</span>
-              <Badge on={status?.activation_status ?? sensor.activation_status} />
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {live && (
-              <>
-                <div style={stripItem}>
-                  <span style={stripLbl}>Temp</span>
-                  <span style={{ ...stripVal, color: '#b53060' }}>{live.current_values?.temp ?? '—'} °C</span>
-                </div>
-                <div style={stripItem}>
-                  <span style={stripLbl}>Humidity</span>
-                  <span style={{ ...stripVal, color: '#1a6fa3' }}>{live.current_values?.humidity ?? '—'} %</span>
-                </div>
-                {live.current_values?.pressure > 0 && (
-                  <div style={stripItem}>
-                    <span style={stripLbl}>Pressure</span>
-                    <span style={{ ...stripVal, color: '#7b1fa2' }}>{live.current_values.pressure} hPa</span>
-                  </div>
+              <div style={{ display: 'flex', gap: 8, fontSize: 12, color: '#555' }}>
+                {live.current_values?.temp != null && (
+                  <span style={{ fontWeight: 700, color: '#b53060' }}>
+                    {live.current_values.temp}°C
+                  </span>
                 )}
-              </>
+                {live.current_values?.humidity != null && (
+                  <span style={{ fontWeight: 700, color: '#1a6fa3' }}>
+                    {live.current_values.humidity}%
+                  </span>
+                )}
+              </div>
             )}
-            <div style={stripItem}>
-              <span style={stripLbl}>Type</span>
-              <span style={stripVal}>{sensor.meteorological ? 'Meteorological' : 'Field'}</span>
-            </div>
+            {/* Alert button — stops propagation so it doesn't toggle the row */}
+            <button
+              onClick={e => { e.stopPropagation(); setShowAlertModal(true); }}
+              title="Add alert rule for this sensor"
+              style={{
+                background: 'none', border: '1px solid #e0d8cf', borderRadius: 6,
+                fontSize: 12, cursor: 'pointer', color: '#888', padding: '3px 9px',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >🔔 Alert</button>
+            <Badge on={sensor.activation_status} />
+            <span style={{ color: '#ccc', fontSize: 13, userSelect: 'none' }}>{open ? '▲' : '▼'}</span>
           </div>
+        </div>
 
-          {/* History plots */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Sensor history</span>
-              {[7, 14, 30].map(d => (
-                <button key={d}
-                  onClick={() => { setDays(d); loadHistory(d); }}
-                  style={{
-                    padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    background: days === d ? 'var(--color-green-primary, #054e05)' : '#ede7df',
-                    color: days === d ? '#fff' : '#777',
-                    transition: 'all 0.12s',
-                  }}
-                >{d}d</button>
-              ))}
-              {histLoading && <span style={{ fontSize: 11, color: '#aaa' }}>Loading…</span>}
+        {/* ── Expanded body ── */}
+        {open && (
+          <div style={rowBody}>
+            {/* Status strip */}
+            <div style={strip}>
+              <div style={stripItem}>
+                <span style={stripLbl}>Last contact</span>
+                <span style={stripVal}>{lastSeen}</span>
+              </div>
+              <div style={stripItem}>
+                <span style={stripLbl}>Status</span>
+                <Badge on={status?.activation_status ?? sensor.activation_status} />
+              </div>
+              {live && (
+                <>
+                  <div style={stripItem}>
+                    <span style={stripLbl}>Temp</span>
+                    <span style={{ ...stripVal, color: '#b53060' }}>{live.current_values?.temp ?? '—'} °C</span>
+                  </div>
+                  <div style={stripItem}>
+                    <span style={stripLbl}>Humidity</span>
+                    <span style={{ ...stripVal, color: '#1a6fa3' }}>{live.current_values?.humidity ?? '—'} %</span>
+                  </div>
+                  {live.current_values?.pressure > 0 && (
+                    <div style={stripItem}>
+                      <span style={stripLbl}>Pressure</span>
+                      <span style={{ ...stripVal, color: '#7b1fa2' }}>{live.current_values.pressure} hPa</span>
+                    </div>
+                  )}
+                </>
+              )}
+              <div style={stripItem}>
+                <span style={stripLbl}>Type</span>
+                <span style={stripVal}>{sensor.meteorological ? 'Meteorological' : 'Field'}</span>
+              </div>
             </div>
 
-            {history ? (
-              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                <Spark
-                  labels={history.labels}
-                  values={history.datasets?.temp ?? []}
-                  color="#b53060"
-                  title="Temperature"
-                  unit="°C"
-                />
-                <Spark
-                  labels={history.labels}
-                  values={history.datasets?.humidity ?? []}
-                  color="#1a6fa3"
-                  title="Humidity"
-                  unit="%"
-                />
-                <Spark
-                  labels={history.labels}
-                  values={history.datasets?.pressure ?? []}
-                  color="#7b1fa2"
-                  title="Pressure"
-                  unit="hPa"
-                />
+            {/* History plots */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Sensor history</span>
+                {[7, 14, 30].map(d => (
+                  <button key={d}
+                    onClick={() => { setDays(d); loadHistory(d); }}
+                    style={{
+                      padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                      border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                      background: days === d ? 'var(--color-green-primary, #054e05)' : '#ede7df',
+                      color: days === d ? '#fff' : '#777',
+                      transition: 'all 0.12s',
+                    }}
+                  >{d}d</button>
+                ))}
+                {histLoading && <span style={{ fontSize: 11, color: '#aaa' }}>Loading…</span>}
+              </div>
+
+              {history ? (
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                  <Spark labels={history.labels} values={history.datasets?.temp ?? []} color="#b53060" title="Temperature" unit="°C" />
+                  <Spark labels={history.labels} values={history.datasets?.humidity ?? []} color="#1a6fa3" title="Humidity" unit="%" />
+                  <Spark labels={history.labels} values={history.datasets?.pressure ?? []} color="#7b1fa2" title="Pressure" unit="hPa" />
+                </div>
+              ) : (
+                !histLoading && <span style={{ fontSize: 12, color: '#ccc' }}>No history data</span>
+              )}
+            </div>
+
+            {/* Edit / save */}
+            {editing ? (
+              <div style={editBox}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  <Field label="Label" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+                  <Field label="Latitude" type="number" placeholder="keep current" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} />
+                  <Field label="Longitude" type="number" placeholder="keep current" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={form.activation_status} onChange={e => setForm(f => ({ ...f, activation_status: e.target.checked }))} />
+                    Active
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button onClick={save} disabled={saving} style={btnPrimary}>{saving ? 'Saving…' : 'Save changes'}</button>
+                  <button onClick={() => setEditing(false)} style={btnSecondary}>Cancel</button>
+                </div>
               </div>
             ) : (
-              !histLoading && <span style={{ fontSize: 12, color: '#ccc' }}>No history data</span>
+              <button onClick={() => setEditing(true)} style={btnEdit}>✏️ Edit sensor</button>
             )}
           </div>
+        )}
+      </div>
 
-          {/* Edit / save */}
-          {editing ? (
-            <div style={editBox}>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <Field label="Label"
-                  value={form.label}
-                  onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-                />
-                <Field label="Latitude" type="number" placeholder="keep current"
-                  value={form.latitude}
-                  onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))}
-                />
-                <Field label="Longitude" type="number" placeholder="keep current"
-                  value={form.longitude}
-                  onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-                  <input type="checkbox"
-                    checked={form.activation_status}
-                    onChange={e => setForm(f => ({ ...f, activation_status: e.target.checked }))}
-                  />
-                  Active
-                </label>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button onClick={save} disabled={saving} style={btnPrimary}>
-                  {saving ? 'Saving…' : 'Save changes'}
-                </button>
-                <button onClick={() => setEditing(false)} style={btnSecondary}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setEditing(true)} style={btnEdit}>✏️ Edit sensor</button>
-          )}
-        </div>
+      {showAlertModal && (
+        <SensorAlertModal
+          sensor={sensor}
+          userId={userId}
+          onClose={() => setShowAlertModal(false)}
+        />
       )}
-    </div>
+    </>
   );
 };
 
@@ -381,15 +551,11 @@ const AddForm = ({ userId, onAdded }) => {
       {open && (
         <div style={addBody}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <Field label="Label *" placeholder="North field sensor"
-              value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
-            <Field label="Latitude *" type="number" placeholder="48.8566"
-              value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} />
-            <Field label="Longitude *" type="number" placeholder="2.3522"
-              value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} />
+            <Field label="Label *" placeholder="North field sensor" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+            <Field label="Latitude *" type="number" placeholder="48.8566" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} />
+            <Field label="Longitude *" type="number" placeholder="2.3522" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', userSelect: 'none' }}>
-              <input type="checkbox" checked={form.meteorological}
-                onChange={e => setForm(f => ({ ...f, meteorological: e.target.checked }))} />
+              <input type="checkbox" checked={form.meteorological} onChange={e => setForm(f => ({ ...f, meteorological: e.target.checked }))} />
               Meteorological
             </label>
           </div>
@@ -413,7 +579,7 @@ const AddForm = ({ userId, onAdded }) => {
 const SensorPanel = ({ userId }) => {
   const [open, setOpen]         = useState(true);
   const [sensors, setSensors]   = useState([]);
-  const [latestMap, setLatestMap] = useState({});  // keyed by sensor_id
+  const [latestMap, setLatestMap] = useState({});
   const [loading, setLoading]   = useState(true);
 
   const loadSensors = useCallback(() => {
@@ -477,7 +643,7 @@ const SensorPanel = ({ userId }) => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {sensors.map(s => (
-                <SensorRow key={s.id} sensor={s} latestMap={latestMap} onRefresh={refresh} />
+                <SensorRow key={s.id} sensor={s} latestMap={latestMap} userId={userId} onRefresh={refresh} />
               ))}
             </div>
           )}
@@ -515,3 +681,6 @@ const btnAdd       = { background: 'var(--color-accent-mulberry, #470736)', colo
 
 const keyBox  = { marginTop: 12, background: '#e8f5e9', borderRadius: 8, padding: '10px 14px', border: '1px solid #a5d6a7', fontSize: 13, color: '#2e7d32' };
 const keyCode = { display: 'block', marginTop: 6, fontFamily: 'monospace', background: '#fff', padding: '6px 10px', borderRadius: 6, border: '1px solid #c8e6c9', color: '#1b5e20', wordBreak: 'break-all' };
+
+const inp = { padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' };
+const lbl = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.04em' };
