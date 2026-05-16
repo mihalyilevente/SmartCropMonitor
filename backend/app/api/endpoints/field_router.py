@@ -14,7 +14,8 @@ from app.services.orchestrator import full_sync_process
 from app.services.spatial_harmonizer import process_and_align_nc
 from app.utils.fields import (
     validate_field_shape,
-    calculate_field_area
+    calculate_field_area,
+    detect_intersections_single
 )
 
 from geoalchemy2.elements import WKTElement
@@ -124,12 +125,6 @@ async def generate_location_grid(
         raise HTTPException(status_code=500, detail="Internal processing error")
 
 
-@router.post("/sync-manual", tags=["Data"])
-async def manual_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    background_tasks.add_task(full_sync_process, db)
-    return {"status": "sync started"}
-
-
 class ManualFieldCreate(BaseModel):
     location_id: int
 
@@ -183,6 +178,30 @@ async def manual_add_field(
         raise HTTPException(
             status_code=400,
             detail=validation_result["error"]
+        )
+
+    existing_fields = (
+        db.query(FieldUnit)
+        .filter(FieldUnit.location_id == payload.location_id)
+        .all()
+    )
+
+    existing_geoms = [
+        shape(f.geometry) for f in existing_fields
+    ]
+
+    conflicts = detect_intersections_single(
+        shapely_geometry,
+        existing_geoms
+    )
+
+    if conflicts:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Field intersects with existing fields",
+                "conflicts": conflicts
+            }
         )
 
     area_ha = calculate_field_area(shapely_geometry)

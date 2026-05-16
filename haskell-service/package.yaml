@@ -17,6 +17,7 @@ library:
     - SprayingWindow
     - Validation
     - WeatherMetrics
+    - SatelliteAnomaly
 
 executables:
   haskell-service-exe:
@@ -24,3 +25,16 @@ executables:
     source-dirs:         src
     dependencies:
       - haskell-service
+
+tests:
+  haskell-service-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - haskell-service
+      - hspec >= 2.11
+      - time

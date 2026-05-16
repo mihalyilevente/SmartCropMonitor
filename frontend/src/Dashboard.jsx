@@ -3,15 +3,18 @@
  * Main view. Collapsible panels below the header banner:
  *  1. WeatherMetricsPanel  — latest-weather endpoint (history + metrics objects)
  *  2. WeatherCharts        — weather-charts endpoint (hourly time series)
- *  3. FieldMapPanel        — Mapbox GL JS: field boundaries + metric heatmap  ← NEW
- *  4. SensorPanel          — sensor management, status, history plots
+ *  3. SprayingWindowsPanel — spraying-windows endpoint (optimal application times)  ← NEW
+ *  4. FieldMapPanel        — Mapbox GL JS: field boundaries + metric heatmap
+ *  5. SensorPanel          — sensor management, status, history plots
  */
-import React, { useState, useEffect } from 'react';
+
+import { useState, useEffect } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
+import SprayingWindowsPanel from './components/SprayingWindowsPanel';
 import FieldMapPanel from './components/FieldMapPanel';
 import AddLocationModal from './components/AddLocationModal';
 import logo from './assets/logo1.png';
@@ -135,6 +138,9 @@ const Dashboard = ({ userId, onLogout }) => {
       {/* ── Collapsible panels ── */}
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
+
+      {/* ── Spraying Windows Panel ── */}
+      <SprayingWindowsPanel userId={userId} locationId={locationId} />
 
       {/* ── Field Map (NEW) ── */}
       <FieldMapPanel userId={userId} locationId={locationId} />

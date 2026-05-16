@@ -6,7 +6,7 @@
  * Callback ref guarantees the div is in the DOM before mapboxgl.Map() is called.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import api from '../api/client';
@@ -67,7 +67,7 @@ function gridToGeoJSON(z, x, y) {
   const needsConversion = isUtm([x[0], y[0]]);
   const features = [];
   // Pre-convert x coords once (they repeat per row)
-  const xWgs = needsConversion ? x.map((ex, ci) => utmToWgs84(ex, y[0])[0]) : x;
+  const xWgs = needsConversion ? x.map(ex => utmToWgs84(ex, y[0])[0]) : x;
   for (let row = 0; row < y.length; row++) {
     // Convert y once per row
     const latVal = needsConversion ? utmToWgs84(x[0], y[row])[1] : y[row];
@@ -159,7 +159,9 @@ const FieldMapPanel = ({ userId, locationId }) => {
         const c = map.getCenter();
         try {
           sessionStorage.setItem('fmp_view', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
-        } catch {}
+        } catch {
+          // Session storage can be unavailable in private browsing or strict modes.
+        }
       });
     } catch (err) {
       const msg = 'Map init failed: ' + err.message;
@@ -181,7 +183,7 @@ const FieldMapPanel = ({ userId, locationId }) => {
     });
 
     mapRef.current = map;
-  }, []); // eslint-disable-line
+  }, []);
 
   // Fetch fields
   useEffect(() => {

@@ -77,7 +77,8 @@ class UTAE(nn.Module):
         s1 = self.enc1(x)
         s2 = self.enc2(self.pool(s1))
 
-        feat_for_attn = s2.view(B, T, 128, 64, 64)
+        _, _, _, H2, W2 = s2.view(B, T, 128, H // 2, W // 2).shape
+        feat_for_attn = s2.view(B, T, 128, H2, W2)
         weights = self.ltae(feat_for_attn, batch_dates)
 
         weights = weights.view(B, T, 1, 1, 1)

@@ -1,36 +1,54 @@
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.executors.pool import ThreadPoolExecutor
 from app.core.database import SessionLocal
-from app.services.orchestrator import run_full_data_cycle, download_sentinel_data
-from app.services.weather_service import weather_metrics
-from app.core.database import UserLocation
+from app.services.orchestrator import full_sync_process,short_sync_process
+import logging
 
 
-scheduler = BackgroundScheduler()
+executors = {
+    'default': ThreadPoolExecutor(2)
+}
+
+scheduler = BackgroundScheduler(executors=executors)
+logger = logging.getLogger(__name__)
 
 
-def scheduled_update():
+def scheduled_update_full():
     db = SessionLocal()
     try:
-        download_sentinel_data(db)
-
-        run_full_data_cycle(db)
-
-        locations = db.query(UserLocation).all()
-        for loc in locations:
-            weather_metrics(db, loc)
-
-        print("[INFO] Scheduled update completed successfully.")
+        full_sync_process(db)
+        logger.info("Full sync completed successfully.")
     except Exception as e:
-        print(f"[ERROR] Scheduled update failed: {e}")
+        logger.error(f"Full sync failed: {e}")
+    finally:
+        db.close()
+
+def scheduled_update_short():
+    db = SessionLocal()
+    try:
+        short_sync_process(db)
+        logger.info("Short sync completed successfully.")
+    except Exception as e:
+        logger.error(f"Short sync failed: {e}")
     finally:
         db.close()
 
 
 scheduler.add_job(
-    scheduled_update,
+    scheduled_update_full,
     "cron",
     hour=23,
     minute=45,
     id="daily_sync_job",
+    replace_existing=True
+)
+
+
+scheduler.add_job(
+    scheduled_update_short,
+    "cron",
+    hour="*",
+    minute=15,
+    id="hourly_sync_job",
     replace_existing=True
 )

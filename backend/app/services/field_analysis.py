@@ -59,21 +59,24 @@ def perform_nc_validation(nc_path):
     report = []
     status_flag = 1
 
+    SKIP_VARS = {"spatial_ref", "crs", "grid_mapping"}
+
     if not nc_path or not os.path.exists(nc_path):
         report.append(f"NetCDF file not found: {nc_path}")
         return 0, "; ".join(report)
 
     try:
         with xr.open_dataset(nc_path) as nc:
-
             has_band_coord = 'band' in nc.coords
+
+            data_vars_clean = [v for v in nc.data_vars if v not in SKIP_VARS]
 
             if has_band_coord:
                 actual_bands = nc.coords['band'].values.tolist()
                 missing_bands = [b for b in REQUIRED_BANDS if b not in actual_bands]
-                data_var_name = list(nc.data_vars)[0] if nc.data_vars else None
+                data_var_name = data_vars_clean[0] if data_vars_clean else None
             else:
-                missing_bands = [b for b in REQUIRED_BANDS if b not in nc.data_vars]
+                missing_bands = [b for b in REQUIRED_BANDS if b not in data_vars_clean]
                 data_var_name = None
 
             if missing_bands:
@@ -89,10 +92,10 @@ def perform_nc_validation(nc_path):
 
             if has_band_coord and data_var_name:
                 data_array = nc[data_var_name].sel(band=actual_bands[0]).values
-            elif not missing_bands and REQUIRED_BANDS[0] in nc.data_vars:
+            elif not missing_bands and REQUIRED_BANDS[0] in data_vars_clean:
                 data_array = nc[REQUIRED_BANDS[0]].values
-            elif nc.data_vars:
-                data_array = nc[list(nc.data_vars)[0]].values
+            elif data_vars_clean:
+                data_array = nc[data_vars_clean[0]].values
             else:
                 report.append("No data variables or band coordinates found in file")
                 return 0, "; ".join(report)

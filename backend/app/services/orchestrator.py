@@ -6,17 +6,22 @@ import rioxarray
 from sqlalchemy.orm import Session
 from pystac_client import Client
 
+import logging
 from app.core.config import DATA_DIR, MASK_DIR, VIS_DIR, REQUIRED_BANDS, AUX_LAYERS, VISUAL_ASSET,  STAC_API_URL
 from app.services.field_analysis import validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis
 from app.services.ndvi_processor import sateline_metrics, run_per_field_metrics
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
 from app.monitoring.alerting import format_alert, AlertService
+from app.services.anomaly_processor import find_all_anomaly
+from app.services.spot_anomaly_processor import find_all_satellite_anomaly
+from app.events.alerts_orchestrator import run_all_alert_checks
 from app.core.config import WEBHOOK_URL
 from geoalchemy2.shape import to_shape
 
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
+logger = logging.getLogger(__name__)
 
 
 def full_sync_process(db: Session):
@@ -25,30 +30,47 @@ def full_sync_process(db: Session):
         validate_pending_analyses(db)
         sateline_metrics(db)
         run_per_field_metrics(db)
-        run_full_data_cycle(db)
+        find_all_anomaly(db)
+        find_all_satellite_anomaly(db)
 
-        locations = db.query(UserLocation).all()
-        for loc in locations:
-            weather_metrics(db, loc)
 
     except Exception as e:
-        alert_service.send(
-            key="orchestrator_failure",
-            message=format_alert(
-                "ORCHESTRATOR_CRITICAL",
-                f"Full sync process failed: {str(e)}"
+        logger.error(f"Critical orchestrator failure: {e}", exc_info=True)
+        try:
+            alert_service.send(
+                key="orchestrator_failure",
+                message=format_alert(
+                    "ORCHESTRATOR_CRITICAL",
+                    f"Full sync process failed: {str(e)}"
+                )
             )
-        )
+        except Exception as alert_error:
+            logger.critical(f"Failed to send alert: {alert_error}")
         raise e
 
 
-def run_full_data_cycle(db: Session):
-    print("[INFO] Starting data download cycle...")
+def short_sync_process(db: Session):
+    try:
 
-    all_locations = db.query(UserLocation).all()
-    for loc in all_locations:
-        print(f"[PROCESS] Fetching weather for: {loc.label}")
-        fetch_and_save_weather(db, loc)
+        all_locations = db.query(UserLocation).all()
+        for loc in all_locations:
+            print(f"[PROCESS] Fetching weather for: {loc.label}")
+            fetch_and_save_weather(db, loc)
+            weather_metrics(db, loc)
+        run_all_alert_checks()
+    except Exception as e:
+        logger.error(f"Critical orchestrator failure: {e}", exc_info=True)
+        try:
+            alert_service.send(
+                key="orchestrator_failure",
+                message=format_alert(
+                    "ORCHESTRATOR_CRITICAL",
+                    f"Short sync process failed: {str(e)}"
+                )
+            )
+        except Exception as alert_error:
+            logger.critical(f"Failed to send alert: {alert_error}")
+        raise e
 
 
 def download_sentinel_data(db: Session):
@@ -69,7 +91,7 @@ def download_sentinel_data(db: Session):
 
             search = client.search(
                 collections=["sentinel-2-l2a"],
-                bbox=[lon - 0.05, lat - 0.05, lon + 0.05, lat + 0.05],
+                bbox=[lon - 0.1, lat - 0.1, lon + 0.1, lat + 0.1],
                 datetime=date_range,
                 max_items=20,
                 sortby=[{"field": "properties.datetime", "direction": "desc"}]
@@ -91,7 +113,7 @@ def download_sentinel_data(db: Session):
                 items,
                 key=lambda x: x.datetime or datetime.datetime.min.replace(tzinfo=datetime.UTC),
                 reverse=True
-            )[:6]
+            )[:10]
 
             for item in items:
                 timestamp = item.datetime
@@ -123,10 +145,10 @@ def download_sentinel_data(db: Session):
                     da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                     clipped = da.rio.clip_box(
-                        minx=lon - 0.02,
-                        miny=lat - 0.02,
-                        maxx=lon + 0.02,
-                        maxy=lat + 0.02,
+                        minx=lon - 0.05,
+                        miny=lat - 0.05,
+                        maxx=lon + 0.05,
+                        maxy=lat + 0.05,
                         crs="EPSG:4326",
                         allow_one_dimensional_raster=True
                     )
@@ -150,6 +172,9 @@ def download_sentinel_data(db: Session):
                 ds = xr.concat(datasets, dim="band")
                 ds = ds.assign_coords(band=REQUIRED_BANDS)
 
+                if reference_da is not None and reference_da.rio.crs:
+                    ds = ds.rio.set_spatial_dims(x_dim="x", y_dim="y").rio.write_crs(reference_da.rio.crs)
+
                 ds.to_netcdf(nc_path)
 
                 # ---------------------------
@@ -161,10 +186,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(scl_asset.href, chunks=True)
 
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.02,
-                            miny=lat - 0.02,
-                            maxx=lon + 0.02,
-                            maxy=lat + 0.02,
+                            minx=lon - 0.05,
+                            miny=lat - 0.05,
+                            maxx=lon + 0.05,
+                            maxy=lat + 0.05,
                             crs="EPSG:4326",
                             allow_one_dimensional_raster=True
                         )
@@ -192,10 +217,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(asset.href, chunks=True)
 
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.02,
-                            miny=lat - 0.02,
-                            maxx=lon + 0.02,
-                            maxy=lat + 0.02,
+                            minx=lon - 0.05,
+                            miny=lat - 0.05,
+                            maxx=lon + 0.05,
+                            maxy=lat + 0.05,
                             crs="EPSG:4326",
                             allow_one_dimensional_raster=True
                         )
@@ -221,10 +246,10 @@ def download_sentinel_data(db: Session):
                         da = rioxarray.open_rasterio(visual_asset.href)
 
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.02,
-                            miny=lat - 0.02,
-                            maxx=lon + 0.02,
-                            maxy=lat + 0.02,
+                            minx=lon - 0.05,
+                            miny=lat - 0.05,
+                            maxx=lon + 0.05,
+                            maxy=lat + 0.05,
                             crs="EPSG:4326",
                             allow_one_dimensional_raster=True
                         )
