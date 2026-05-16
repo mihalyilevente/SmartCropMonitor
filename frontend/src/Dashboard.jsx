@@ -88,8 +88,6 @@ const Dashboard = ({ userId, onLogout }) => {
 
   if (loading) return <div style={styles.container}>Loading…</div>;
 
-  const currentLocation = locations.find(l => l.id === locationId);
-
   return (
     <div style={styles.container}>
       {/* ── Header ── */}
