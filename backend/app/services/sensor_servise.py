@@ -2,6 +2,7 @@ import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.core.database import SensorsDB, WeatherSensors
+from app.events.sensor_alerts import handle_sensor_came_online
 
 
 def process_and_add_sensor_data(db: Session, payload: dict):
@@ -37,6 +38,7 @@ def process_and_add_sensor_data(db: Session, payload: dict):
 
     if new_records:
         db.add_all(new_records)
+        handle_sensor_came_online(db, sensor.id)
         try:
             db.commit()
             return len(new_records)

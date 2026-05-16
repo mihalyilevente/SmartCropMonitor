@@ -9,6 +9,13 @@
 
   --font-main: 'Inter', sans-serif;
   --font-heading: 'Montserrat', sans-serif;
+
+  /* Spraying status colors */
+  --color-spraying-excellent: #317f43;
+  --color-spraying-good: #d8975a;
+  --color-spraying-fair: #fdcb6e;
+  --color-spraying-poor: #d63031;
+  --color-spraying-active: #2d8f47;
 }
 
 body {
@@ -29,4 +36,116 @@ h1, h2, h3 {
 
 #root {
   width: 100%;
+}
+
+/* Animations for spraying components */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+/* Spraying window timeline styles */
+.spraying-timeline {
+  position: relative;
+  overflow: hidden;
+}
+
+.spraying-window-active {
+  animation: pulse 2s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(49, 127, 67, 0.3);
+}
+
+.spraying-window-item {
+  animation: slideInUp 0.5s ease-out;
+  animation-fill-mode: backwards;
+}
+
+.spraying-window-item:nth-child(1) { animation-delay: 0.1s; }
+.spraying-window-item:nth-child(2) { animation-delay: 0.2s; }
+.spraying-window-item:nth-child(3) { animation-delay: 0.3s; }
+.spraying-window-item:nth-child(4) { animation-delay: 0.4s; }
+.spraying-window-item:nth-child(5) { animation-delay: 0.5s; }
+
+/* Loading shimmer effect */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Spraying status badge animations */
+.spraying-status-badge {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.spraying-status-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Score progress bar */
+.score-progress {
+  position: relative;
+  overflow: hidden;
+}
+
+.score-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* Weather condition indicators */
+.condition-good { color: var(--color-spraying-excellent); }
+.condition-fair { color: var(--color-spraying-fair); }
+.condition-poor { color: var(--color-spraying-poor); }
+
+/* Responsive breakpoints */
+@media (max-width: 768px) {
+  .spraying-timeline {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .spraying-window-card {
+    min-width: 280px;
+  }
+}
+
+/* Focus and accessibility */
+.spraying-window-item:focus,
+.spraying-status-badge:focus {
+  outline: 2px solid var(--color-green-primary);
+  outline-offset: 2px;
 }
