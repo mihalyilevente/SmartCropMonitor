@@ -22,8 +22,10 @@ if not ANOMALY_PROCESSOR_PATH.exists():
         allow_module_level=True,
     )
 
-from sqlalchemy import true as sa_true
 
+# ---------------------------------------------------------------------------
+# Inline enums — mirrors app.core.schemas without importing it
+# ---------------------------------------------------------------------------
 
 class AnomalyType(str, enum.Enum):
     OUT_OF_BOUNDS = "out_of_bounds"
@@ -44,39 +46,22 @@ class EventType(str, enum.Enum):
     METRIC_ANOMALY = "METRIC_ANOMALY"
 
 
+# ---------------------------------------------------------------------------
+# Minimal SQLAlchemy column stub (avoids importing the real SA)
+# ---------------------------------------------------------------------------
+
 class SACol:
-    def __ge__(self, other):
-        return sa_true()
-
-    def __le__(self, other):
-        return sa_true()
-
-    def __eq__(self, other):
-        return sa_true()
-
-    def __ne__(self, other):
-        return sa_true()
-
-    def __gt__(self, other):
-        return sa_true()
-
-    def __lt__(self, other):
-        return sa_true()
-
-    def isnot(self, other):
-        return sa_true()
-
-    def is_(self, other):
-        return sa_true()
-
-    def in_(self, other):
-        return sa_true()
-
-    def __bool__(self):
-        return True
-
-    def __hash__(self):
-        return id(self)
+    def __ge__(self, other): return True
+    def __le__(self, other): return True
+    def __eq__(self, other): return True
+    def __ne__(self, other): return True
+    def __gt__(self, other): return True
+    def __lt__(self, other): return True
+    def isnot(self, other): return True
+    def is_(self, other): return True
+    def in_(self, other): return True
+    def __bool__(self): return True
+    def __hash__(self): return id(self)
 
 
 class SAModel:
@@ -87,14 +72,41 @@ class SAModel:
 FieldStatAnomalyStub = MagicMock()
 
 
-def _make_package(name):
+# ---------------------------------------------------------------------------
+# Module loader — builds a fully-faked sys.modules environment so that
+# anomaly_processor.py can be imported without any real app/SQLAlchemy deps.
+# ---------------------------------------------------------------------------
+
+def _make_package(name: str) -> types.ModuleType:
     mod = types.ModuleType(name)
     mod.__path__ = []
     return mod
 
 
-def _make_module(name):
+def _make_module(name: str) -> types.ModuleType:
     return types.ModuleType(name)
+
+
+def _build_fake_sqlalchemy() -> dict:
+    """Return a minimal set of sqlalchemy stub modules."""
+    sa = _make_package("sqlalchemy")
+    sa.true = lambda: True
+    sa.select = MagicMock(return_value=MagicMock())
+    sa.and_ = MagicMock(return_value=True)
+    sa.or_ = MagicMock(return_value=True)
+
+    sa_orm = _make_package("sqlalchemy.orm")
+    sa_orm.Session = MagicMock
+
+    sa_ext = _make_package("sqlalchemy.ext")
+    sa_ext_dec = _make_package("sqlalchemy.ext.declarative")
+
+    return {
+        "sqlalchemy": sa,
+        "sqlalchemy.orm": sa_orm,
+        "sqlalchemy.ext": sa_ext,
+        "sqlalchemy.ext.declarative": sa_ext_dec,
+    }
 
 
 def _load_anomaly_processor():
@@ -132,6 +144,7 @@ def _load_anomaly_processor():
         "app.core.database": db_mod,
         "app.core.schemas": schemas_mod,
         "app.utils.general": utils_general,
+        **_build_fake_sqlalchemy(),
     }
 
     spec = importlib.util.spec_from_file_location(
@@ -146,17 +159,20 @@ def _load_anomaly_processor():
     return module
 
 
-ap = _load_anomaly_processor() if ANOMALY_PROCESSOR_PATH.exists() else None
+ap = _load_anomaly_processor()
 
-if ap:
-    _detect_out_of_bounds = ap._detect_out_of_bounds
-    _detect_sudden_change = ap._detect_sudden_change
-    _detect_drift = ap._detect_drift
-    _confidence_from_z = ap._confidence_from_z
-    _event_type_for_anomaly = ap._event_type_for_anomaly
-    find_stat_anomaly = ap.find_stat_anomaly
-    find_all_anomaly = ap.find_all_anomaly
+_detect_out_of_bounds = ap._detect_out_of_bounds
+_detect_sudden_change = ap._detect_sudden_change
+_detect_drift = ap._detect_drift
+_confidence_from_z = ap._confidence_from_z
+_event_type_for_anomaly = ap._event_type_for_anomaly
+find_stat_anomaly = ap.find_stat_anomaly
+find_all_anomaly = ap.find_all_anomaly
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _ts(offset: int = 0) -> datetime.datetime:
     return datetime.datetime(2024, 6, 1) + datetime.timedelta(days=offset)
@@ -192,6 +208,10 @@ def _make_db_for_find(field, rows, loc=None):
     return db
 
 
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
 class TestDetectOutOfBounds(unittest.TestCase):
     def test_uniform_no_anomaly(self):
         values = np.array([0.5] * 10, dtype=float)
@@ -221,7 +241,7 @@ class TestDetectOutOfBounds(unittest.TestCase):
     def test_custom_threshold_wider_catches_more(self):
         values = np.array([0.0] * 5 + [2.0], dtype=float)
         strict = _detect_out_of_bounds(values, _timestamps(6), threshold=3.0)
-        loose = _detect_out_of_bounds(values, _timestamps(6), threshold=1.0)
+        loose  = _detect_out_of_bounds(values, _timestamps(6), threshold=1.0)
         self.assertLessEqual(len(strict), len(loose))
 
     def test_result_has_required_keys(self):
@@ -299,15 +319,8 @@ class TestDetectDrift(unittest.TestCase):
         result = _detect_drift(values, _timestamps(20))
         self.assertIsNotNone(result)
         for key in (
-            "slope",
-            "intercept",
-            "r_squared",
-            "p_value",
-            "norm_slope",
-            "direction",
-            "period_start",
-            "period_end",
-            "n_points",
+            "slope", "intercept", "r_squared", "p_value",
+            "norm_slope", "direction", "period_start", "period_end", "n_points",
         ):
             self.assertIn(key, result)
 
@@ -398,10 +411,10 @@ class TestFindStatAnomaly(unittest.TestCase):
 
     def test_oob_detected_end_to_end(self):
         field_id = 1
-        loc_id = 10
-        user_id = 42
+        loc_id   = 10
+        user_id  = 42
 
-        raw = [0.5] * 9 + [10.0]
+        raw  = [0.5] * 9 + [10.0]
         rows = [_make_row(field_id, "ndvi", v, _ts(i), i + 1) for i, v in enumerate(raw)]
 
         field = MagicMock()
@@ -447,11 +460,8 @@ class TestFindAllAnomaly(unittest.TestCase):
         self.assertEqual(find_all_anomaly(self._db_with_fields([])), {})
 
     def test_skips_errored_field_continues(self):
-        f1 = MagicMock()
-        f1.id = 1
-        f2 = MagicMock()
-        f2.id = 2
-
+        f1 = MagicMock(); f1.id = 1
+        f2 = MagicMock(); f2.id = 2
         db = self._db_with_fields([f1, f2])
 
         with patch.object(ap, "find_stat_anomaly", side_effect=[RuntimeError("boom"), {}]):
@@ -460,20 +470,14 @@ class TestFindAllAnomaly(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_aggregates_results(self):
-        f1 = MagicMock()
-        f1.id = 1
-        f2 = MagicMock()
-        f2.id = 2
-
+        f1 = MagicMock(); f1.id = 1
+        f2 = MagicMock(); f2.id = 2
         db = self._db_with_fields([f1, f2])
 
         with patch.object(
             ap,
             "find_stat_anomaly",
-            side_effect=[
-                {"out_of_bounds": 2},
-                {"sudden_change": 1},
-            ],
+            side_effect=[{"out_of_bounds": 2}, {"sudden_change": 1}],
         ):
             result = find_all_anomaly(db)
 
