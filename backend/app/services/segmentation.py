@@ -4,11 +4,14 @@ import torch.nn.functional as F
 import numpy as np
 import xarray as xr
 import affine
+import base64
+import io
+from PIL import Image
 from pyproj import Transformer
 from datetime import datetime
 from app.models.utae import AgriculturalSegmentationModel
 from scipy.ndimage import label
-from shapely.geometry import shape, MultiPolygon
+from shapely.geometry import shape, MultiPolygon, mapping
 from shapely.ops import transform as shapely_transform
 from rasterio import features
 from sqlalchemy import desc, text
@@ -31,289 +34,320 @@ PASTIS_STD = torch.tensor([
     972.7, 810.1
 ], dtype=torch.float32).view(1, 10, 1, 1)
 
+RGB_INDICES = (2, 1, 0)
 
-def perform_temp_segmentation_and_save(location_id: int, db: Session):
+
+def _extract_rgb_preview(nc_path: str, target_size: int = 512) -> str | None:
     try:
-        location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
-        if not location:
-            print(f"[ERROR] Location {location_id} not found")
-            return
-
-        analyses = db.query(FieldAnalysis) \
-            .filter(FieldAnalysis.location_id == location_id) \
-            .filter(FieldAnalysis.is_valid >= QUALITY_THRESHOLD_SEGM) \
-            .order_by(desc(FieldAnalysis.last_data_request_date)) \
-            .limit(MAX_SEGM_INPUT).all()
-
-        if not analyses:
-            print(f"[ERROR] No valid data found for location {location_id}")
-            return
-
-        if len(analyses) < MIN_SEGM_INPUTS:
-            print(f"[WARNING] Not enough data: {len(analyses)}/{MIN_SEGM_INPUTS} required")
-            return
-
-        analyses = sorted(analyses, key=lambda a: a.last_data_request_date)
-
-        print(f"[DEBUG] Found {len(analyses)} valid analyses for location {location_id}")
-
-        all_tensors = []
-        all_timestamps = []
-        original_h, original_w = None, None
-        mask_coords = None
-        transform = None
-
-        TILE_SIZE = 128
-        TILE_OVERLAP = 32
-
-        first_nc = os.path.join(DATA_DIR, os.path.basename(analyses[0].nc_filename))
-        print(f"[DEBUG] Loading reference file: {first_nc}")
-
-        with xr.open_dataset(first_nc) as ds:
-            if hasattr(ds, 'rio') and ds.rio.crs:
-                source_crs = ds.rio.crs
-            elif 'spatial_ref' in ds.variables:
-                source_crs = ds.spatial_ref.attrs.get('crs_wkt')
-            else:
-                print("[WARNING] Could not detect CRS, falling back to EPSG:32634")
-                source_crs = "EPSG:32634"
-
-            if not source_crs:
-                raise ValueError("source_crs is None. Check NetCDF metadata.")
-
+        with xr.open_dataset(nc_path) as ds:
             data_var = None
-            print(f"[DEBUG] Dataset variables: {list(ds.data_vars)}")
             for var_name in ds.data_vars:
                 candidate = ds[var_name]
-                print(f"[DEBUG]   var '{var_name}': dims={candidate.dims}, shape={candidate.shape}")
                 if 'x' in candidate.dims and 'y' in candidate.dims:
                     data_var = candidate
-                    print(f"[DEBUG] Selected spatial variable: '{var_name}'")
                     break
 
             if data_var is None:
-                raise ValueError(
-                    f"No spatial variable with x/y dims found in {first_nc}. "
-                    f"Available vars: {list(ds.data_vars)}"
-                )
+                return None
 
-            print(f"[DEBUG] Reference dataset shape: {data_var.shape}")
-            print(f"[DEBUG] Reference dataset dims: {data_var.dims}")
+            data = data_var.values
+            if data.shape[0] != len(data_var.coords.get('band', [])):
+                data = np.moveaxis(data, -1, 0)
 
-            res_x = float(ds.x[1] - ds.x[0])
-            res_y = float(ds.y[1] - ds.y[0])
-            transform = affine.Affine.translation(float(ds.x[0]), float(ds.y[0])) * \
-                        affine.Affine.scale(res_x, res_y)
+            if data.shape[0] < 3:
+                return None
 
-            y_dim = [d for d in data_var.dims if d != 'band' and d != 'x'][0]
-            x_dim = [d for d in data_var.dims if d != 'band' and d != 'y'][0]
-            mask_coords = {d: data_var.coords[d].values for d in data_var.dims if d != 'band'}
-            original_h = len(data_var.coords[y_dim])
-            original_w = len(data_var.coords[x_dim])
+            r = data[RGB_INDICES[0]].astype(np.float32)
+            g = data[RGB_INDICES[1]].astype(np.float32)
+            b = data[RGB_INDICES[2]].astype(np.float32)
 
-            print(f"[DEBUG] Original spatial dimensions: H={original_h}, W={original_w}")
-
-        transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
-
-        for idx, an in enumerate(analyses):
-            nc_path = os.path.join(DATA_DIR, os.path.basename(an.nc_filename))
-            print(f"[DEBUG] Processing temporal observation {idx + 1}/{len(analyses)}: {nc_path}")
-
-            with xr.open_dataset(nc_path) as ds:
-                data_var = None
-                for var_name in ds.data_vars:
-                    candidate = ds[var_name]
-                    if 'x' in candidate.dims and 'y' in candidate.dims:
-                        data_var = candidate
-                        break
-                if data_var is None:
-                    raise ValueError(f"No spatial variable found in {nc_path}. Vars: {list(ds.data_vars)}")
-
-                if 'band' in data_var.dims:
-                    data = data_var.values
-                    if data.shape[0] != len(data_var.coords['band']):
-                        data = np.moveaxis(data, -1, 0)
+            def normalise(band: np.ndarray) -> np.ndarray:
+                p2, p98 = np.percentile(band[np.isfinite(band)], (2, 98))
+                band = np.clip(band, p2, p98)
+                if p98 > p2:
+                    band = (band - p2) / (p98 - p2)
                 else:
-                    raise ValueError(f"Expected 'band' dimension in {an.nc_filename}")
+                    band = np.zeros_like(band)
+                return (band * 255).astype(np.uint8)
 
-                print(f"[DEBUG] Raw data shape: {data.shape}")
+            rgb = np.stack([normalise(r), normalise(g), normalise(b)], axis=-1)
+            img = Image.fromarray(rgb, mode='RGB')
 
-                ten_channels = data[:10].astype(np.float32)  # (10, H, W)
+            w, h = img.size
+            scale = target_size / max(w, h)
+            img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
 
-                print(f"[DEBUG] 10-channel data shape: {ten_channels.shape}")
-                print(f"[DEBUG] Raw DN range: [{ten_channels.min():.1f}, {ten_channels.max():.1f}]")
+            buf = io.BytesIO()
+            img.save(buf, format='PNG', optimize=True)
+            return base64.b64encode(buf.getvalue()).decode('utf-8')
 
-                ten_channels = np.nan_to_num(ten_channels, nan=0.0, posinf=0.0, neginf=0.0)
+    except Exception as e:
+        print(f"[WARNING] RGB preview failed: {e}")
+        return None
 
-                img_tensor = torch.from_numpy(ten_channels).float()  # (10, H, W)
 
-                img_tensor = img_tensor.unsqueeze(0)  # (1, 10, H, W)
-                img_tensor = (img_tensor - PASTIS_MEAN) / PASTIS_STD
-                img_tensor = img_tensor.squeeze(0)    # (10, H, W)
+def _run_segmentation_inference(
+    location_id: int,
+    db: Session
+) -> dict:
+    location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
+    if not location:
+        raise ValueError(f"Location {location_id} not found")
 
-                print(f"[DEBUG] Normalized range: [{img_tensor.min():.4f}, {img_tensor.max():.4f}]")
-                print(f"[DEBUG] Final tensor shape: {img_tensor.shape}")
-                all_tensors.append(img_tensor)
+    analyses = db.query(FieldAnalysis) \
+        .filter(FieldAnalysis.location_id == location_id) \
+        .filter(FieldAnalysis.is_valid >= QUALITY_THRESHOLD_SEGM) \
+        .order_by(desc(FieldAnalysis.last_data_request_date)) \
+        .limit(MAX_SEGM_INPUT).all()
 
-                all_timestamps.append(an.last_data_request_date.timestamp())
+    if not analyses:
+        raise ValueError(f"No valid data found for location {location_id}")
 
-        num_found = len(all_tensors)
-        print(f"[DEBUG] Total tensors collected: {num_found}/{MAX_SEGM_INPUT}")
+    if len(analyses) < MIN_SEGM_INPUTS:
+        raise ValueError(f"Not enough data: {len(analyses)}/{MIN_SEGM_INPUTS} required")
 
-        if num_found < MAX_SEGM_INPUT:
-            pad_count = MAX_SEGM_INPUT - num_found
-            print(f"[DEBUG] Padding with {pad_count} zero tensors (neutral after norm)")
-            zero_tensor = torch.zeros_like(all_tensors[0])
-            all_tensors.extend([zero_tensor] * pad_count)
+    analyses = sorted(analyses, key=lambda a: a.last_data_request_date)
 
-            all_timestamps.extend([all_timestamps[-1]] * pad_count)
+    first_nc = os.path.join(DATA_DIR, os.path.basename(analyses[0].nc_filename))
+    latest_nc = os.path.join(DATA_DIR, os.path.basename(analyses[-1].nc_filename))
 
-        print(f"[DEBUG] Stacking {len(all_tensors)} tensors...")
-        input_tensor = torch.stack(all_tensors, dim=0)       # (T, 10, H, W)
-        input_tensor = input_tensor.unsqueeze(0)             # (1, T, 10, H, W)
+    all_tensors = []
+    all_timestamps = []
+    original_h, original_w = None, None
+    mask_coords = None
+    transform = None
+    source_crs = None
 
-        print(f"[DEBUG] Final input tensor shape: {input_tensor.shape}")
+    TILE_SIZE = 128
+    TILE_OVERLAP = 32
 
-        assert input_tensor.shape[0] == 1, f"Batch size should be 1"
-        assert input_tensor.shape[1] == MAX_SEGM_INPUT, f"Expected {MAX_SEGM_INPUT} time steps"
-        assert input_tensor.shape[2] == 10, f"Expected 10 channels"
-
-        ts = torch.tensor(all_timestamps, dtype=torch.float32)
-        ts_min, ts_max = ts.min(), ts.max()
-        if ts_max - ts_min > 1e-5:
-            ts_norm = (ts - ts_min) / (ts_max - ts_min)
+    with xr.open_dataset(first_nc) as ds:
+        if hasattr(ds, 'rio') and ds.rio.crs:
+            source_crs = ds.rio.crs
+        elif 'spatial_ref' in ds.variables:
+            source_crs = ds.spatial_ref.attrs.get('crs_wkt')
         else:
-            ts_norm = torch.zeros_like(ts)
-        batch_dates = ts_norm.unsqueeze(0)  # (1, T)
-        print(f"[DEBUG] Batch dates shape: {batch_dates.shape}, range: [{ts_norm.min():.3f}, {ts_norm.max():.3f}]")
+            source_crs = "EPSG:32634"
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(f"[DEBUG] Using device: {device}")
+        if not source_crs:
+            raise ValueError("source_crs is None. Check NetCDF metadata.")
 
-        model = AgriculturalSegmentationModel(n_channels=10, n_classes=1)
+        data_var = None
+        for var_name in ds.data_vars:
+            candidate = ds[var_name]
+            if 'x' in candidate.dims and 'y' in candidate.dims:
+                data_var = candidate
+                break
 
-        if os.path.exists(TEMP_MODEL_WEIGHTS):
-            print(f"[DEBUG] Loading model weights from {TEMP_MODEL_WEIGHTS}")
-            try:
-                state_dict = torch.load(TEMP_MODEL_WEIGHTS, map_location=device, weights_only=False)
-            except Exception as e:
-                print(f"[DEBUG] Pickle load failed: {e}, trying SafeTensor format...")
-                from safetensors.torch import load_file
-                state_dict = load_file(TEMP_MODEL_WEIGHTS)
-            model.load_state_dict(state_dict)
-        else:
-            print(f"[WARNING] Model weights not found at {TEMP_MODEL_WEIGHTS}")
-            return
+        if data_var is None:
+            raise ValueError(f"No spatial variable found in {first_nc}")
 
-        model.to(device).eval()
+        res_x = float(ds.x[1] - ds.x[0])
+        res_y = float(ds.y[1] - ds.y[0])
+        transform = affine.Affine.translation(float(ds.x[0]), float(ds.y[0])) * \
+                    affine.Affine.scale(res_x, res_y)
 
-        stride = TILE_SIZE - TILE_OVERLAP
-        prob_sum = np.zeros((original_h, original_w), dtype=np.float32)
-        weight_sum = np.zeros((original_h, original_w), dtype=np.float32)
+        y_dim = [d for d in data_var.dims if d != 'band' and d != 'x'][0]
+        x_dim = [d for d in data_var.dims if d != 'band' and d != 'y'][0]
+        mask_coords = {d: data_var.coords[d].values for d in data_var.dims if d != 'band'}
+        original_h = len(data_var.coords[y_dim])
+        original_w = len(data_var.coords[x_dim])
 
-        hann_1d = np.hanning(TILE_SIZE).astype(np.float32)
-        hann_2d = np.outer(hann_1d, hann_1d)
+    transformer = Transformer.from_crs(source_crs, "EPSG:4326", always_xy=True)
 
-        y_starts = list(range(0, original_h - TILE_SIZE + 1, stride))
-        if not y_starts or y_starts[-1] + TILE_SIZE < original_h:
-            y_starts.append(max(0, original_h - TILE_SIZE))
-        x_starts = list(range(0, original_w - TILE_SIZE + 1, stride))
-        if not x_starts or x_starts[-1] + TILE_SIZE < original_w:
-            x_starts.append(max(0, original_w - TILE_SIZE))
+    for an in analyses:
+        nc_path = os.path.join(DATA_DIR, os.path.basename(an.nc_filename))
+        with xr.open_dataset(nc_path) as ds:
+            data_var = None
+            for var_name in ds.data_vars:
+                candidate = ds[var_name]
+                if 'x' in candidate.dims and 'y' in candidate.dims:
+                    data_var = candidate
+                    break
+            if data_var is None:
+                raise ValueError(f"No spatial variable found in {nc_path}")
 
-        total_tiles = len(y_starts) * len(x_starts)
-        print(f"[DEBUG] Tiling: {len(y_starts)}×{len(x_starts)} = {total_tiles} tiles "
-              f"(tile={TILE_SIZE}, overlap={TILE_OVERLAP}, stride={stride})")
+            if 'band' in data_var.dims:
+                data = data_var.values
+                if data.shape[0] != len(data_var.coords['band']):
+                    data = np.moveaxis(data, -1, 0)
+            else:
+                raise ValueError(f"Expected 'band' dimension in {an.nc_filename}")
 
-        with torch.no_grad():
-            for tile_idx, y0 in enumerate(y_starts):
-                for x0 in x_starts:
-                    y1 = y0 + TILE_SIZE
-                    x1 = x0 + TILE_SIZE
+            ten_channels = data[:10].astype(np.float32)
+            ten_channels = np.nan_to_num(ten_channels, nan=0.0, posinf=0.0, neginf=0.0)
 
-                    tile = input_tensor[:, :, :, y0:y1, x0:x1].to(device)
+            img_tensor = torch.from_numpy(ten_channels).float().unsqueeze(0)
+            img_tensor = (img_tensor - PASTIS_MEAN) / PASTIS_STD
+            img_tensor = img_tensor.squeeze(0)
+            all_tensors.append(img_tensor)
+            all_timestamps.append(an.last_data_request_date.timestamp())
 
-                    output = model(tile, batch_dates.to(device))
-                    logits = output[0] if isinstance(output, tuple) else output
-                    tile_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()  # (TILE, TILE)
+    if len(all_tensors) < MAX_SEGM_INPUT:
+        pad_count = MAX_SEGM_INPUT - len(all_tensors)
+        zero_tensor = torch.zeros_like(all_tensors[0])
+        all_tensors.extend([zero_tensor] * pad_count)
+        all_timestamps.extend([all_timestamps[-1]] * pad_count)
 
-                    prob_sum[y0:y1, x0:x1]   += tile_prob * hann_2d
-                    weight_sum[y0:y1, x0:x1] += hann_2d
+    input_tensor = torch.stack(all_tensors, dim=0).unsqueeze(0)
 
-                if (tile_idx + 1) % 10 == 0 or tile_idx == len(y_starts) - 1:
-                    print(f"[DEBUG] Tiling progress: row {tile_idx+1}/{len(y_starts)}")
+    ts = torch.tensor(all_timestamps, dtype=torch.float32)
+    ts_min, ts_max = ts.min(), ts.max()
+    ts_norm = (ts - ts_min) / (ts_max - ts_min) if ts_max - ts_min > 1e-5 else torch.zeros_like(ts)
+    batch_dates = ts_norm.unsqueeze(0)
 
-        probs = np.where(weight_sum > 0, prob_sum / weight_sum, 0.0)
-        print(f"[DEBUG] Final probabilities shape: {probs.shape}")
-        print(f"[DEBUG] Probability range: [{probs.min():.4f}, {probs.max():.4f}]")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = AgriculturalSegmentationModel(n_channels=10, n_classes=1)
 
-        binary_mask = (probs > 0.5).astype(np.uint8)
-        labeled_mask, num_features = label(binary_mask)
-        print(f"[DEBUG] Segmentation complete: {num_features} features detected")
+    if not os.path.exists(TEMP_MODEL_WEIGHTS):
+        raise ValueError(f"Model weights not found at {TEMP_MODEL_WEIGHTS}")
 
-        segm_mask_filename = f"mask_loc_{location_id}_{int(datetime.now().timestamp())}.nc"
-        if not os.path.exists(SEGM_DIR):
-            os.makedirs(SEGM_DIR)
+    try:
+        state_dict = torch.load(TEMP_MODEL_WEIGHTS, map_location=device, weights_only=False)
+    except Exception:
+        from safetensors.torch import load_file
+        state_dict = load_file(TEMP_MODEL_WEIGHTS)
+    model.load_state_dict(state_dict)
+    model.to(device).eval()
 
-        mask_da = xr.DataArray(
-            labeled_mask.astype(np.int32),
-            coords=mask_coords,
-            dims=("y", "x"),
-            name="segmentation_mask"
+    stride = TILE_SIZE - TILE_OVERLAP
+    prob_sum = np.zeros((original_h, original_w), dtype=np.float32)
+    weight_sum = np.zeros((original_h, original_w), dtype=np.float32)
+
+    hann_1d = np.hanning(TILE_SIZE).astype(np.float32)
+    hann_2d = np.outer(hann_1d, hann_1d)
+
+    y_starts = list(range(0, original_h - TILE_SIZE + 1, stride))
+    if not y_starts or y_starts[-1] + TILE_SIZE < original_h:
+        y_starts.append(max(0, original_h - TILE_SIZE))
+    x_starts = list(range(0, original_w - TILE_SIZE + 1, stride))
+    if not x_starts or x_starts[-1] + TILE_SIZE < original_w:
+        x_starts.append(max(0, original_w - TILE_SIZE))
+
+    with torch.no_grad():
+        for y0 in y_starts:
+            for x0 in x_starts:
+                y1, x1 = y0 + TILE_SIZE, x0 + TILE_SIZE
+                tile = input_tensor[:, :, :, y0:y1, x0:x1].to(device)
+                output = model(tile, batch_dates.to(device))
+                logits = output[0] if isinstance(output, tuple) else output
+                tile_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()
+                prob_sum[y0:y1, x0:x1] += tile_prob * hann_2d
+                weight_sum[y0:y1, x0:x1] += hann_2d
+
+    probs = np.where(weight_sum > 0, prob_sum / weight_sum, 0.0)
+    binary_mask = (probs > 0.5).astype(np.uint8)
+    labeled_mask, num_features = label(binary_mask)
+
+    print(f"[INFO] Segmentation inference complete: {num_features} raw features")
+
+    mask_shapes = features.shapes(
+        labeled_mask.astype('int32'),
+        mask=(labeled_mask > 0),
+        transform=transform
+    )
+
+    detected_fields = []
+    for geom, value in mask_shapes:
+        s = shape(geom)
+        s_wgs84 = shapely_transform(transformer.transform, s)
+
+        if s_wgs84.geom_type == 'Polygon':
+            s_wgs84 = MultiPolygon([s_wgs84])
+
+        validation = validate_field_shape(s_wgs84)
+
+        detected_fields.append({
+            "id": int(value),
+            "label": f"Field {int(value)}",
+            "geometry": mapping(s_wgs84),
+            "area_ha": validation.get("area_ha"),
+            "valid": validation["valid"],
+            "error": validation.get("error"),
+        })
+
+    preview_b64 = _extract_rgb_preview(latest_nc)
+
+    return {
+        "fields": detected_fields,
+        "preview_b64": preview_b64,
+        "num_detected": num_features,
+    }
+
+
+def run_segmentation_preview(location_id: int, db: Session) -> dict:
+    return _run_segmentation_inference(location_id, db)
+
+
+def confirm_segmentation_fields(
+    location_id: int,
+    selected_field_ids: list[int],
+    fields_data: list[dict],
+    db: Session
+) -> dict:
+    from shapely.geometry import shape as shapely_shape
+    from decimal import Decimal
+
+    selected = {f["id"]: f for f in fields_data if f["id"] in selected_field_ids}
+
+    if not selected:
+        raise ValueError("No matching fields found for the provided IDs")
+
+    db.query(FieldUnit).filter(
+        FieldUnit.location_id == location_id,
+        FieldUnit.source == "UTAE segm"
+    ).delete()
+    db.flush()
+    db.execute(
+        text(
+            "SELECT setval(pg_get_serial_sequence('field_units', 'id'), "
+            "COALESCE((SELECT MAX(id) FROM field_units), 0) + 1, false)"
         )
-        segm_mask_path = os.path.join(SEGM_DIR, segm_mask_filename)
-        mask_da.to_netcdf(segm_mask_path)
-        print(f"[DEBUG] Physical mask file saved to {segm_mask_path}")
+    )
 
-        mask_shapes = features.shapes(
-            labeled_mask.astype('int32'),
-            mask=(labeled_mask > 0),
-            transform=transform
+    saved = []
+    from geoalchemy2.shape import from_shape
+
+    for fid, f in selected.items():
+        geom = shapely_shape(f["geometry"])
+        geometry_db = from_shape(geom, srid=4326)
+        area_ha = f.get("area_ha") or 0.0
+
+        field = FieldUnit(
+            location_id=location_id,
+            geometry=geometry_db,
+            label=f["label"],
+            status="active",
+            source="UTAE segm",
+            field_type=FieldType.crop,
+            area_ha=Decimal(str(round(float(area_ha), 2))),
         )
+        db.add(field)
+        saved.append(fid)
 
-        db.query(FieldUnit).filter(FieldUnit.location_id == location_id).delete()
-        db.flush()
-        db.execute(
-            text("SELECT setval(pg_get_serial_sequence('field_units', 'id'), "
-                 "COALESCE((SELECT MAX(id) FROM field_units), 0) + 1, false)")
-        )
-
-        saved_count = 0
-        skipped_count = 0
-
-        for geom, value in mask_shapes:
-            s = shape(geom)
-            s_wgs84 = shapely_transform(transformer.transform, s)
-
-            if s_wgs84.geom_type == 'Polygon':
-                s_wgs84 = MultiPolygon([s_wgs84])
-
-            validation = validate_field_shape(s_wgs84)
-            if not validation["valid"]:
-                print(f"[DEBUG] Skipping Field {int(value)}: {validation['error']}")
-                skipped_count += 1
-                continue
-
-            print(f"[DEBUG] Field {int(value)} passed validation: {validation['area_ha']} ha")
-
-            db_geom = f"SRID=4326;{s_wgs84.wkt}"
-            db.add(FieldUnit(
-                location_id=location_id,
-                geometry=db_geom,
-                label=f"Field {int(value)}",
-                status="active",
-                source="UTAE segm",
-                field_type=FieldType.crop
-            ))
-            saved_count += 1
-
-        print(f"[DEBUG] Fields saved: {saved_count}, skipped (invalid): {skipped_count}")
-
-        location.last_segm_mask_url = segm_mask_filename
+    location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
+    if location:
         location.segmentation_status = True
-        db.commit()
 
-        print(f"[INFO] Segmentation successful: {saved_count}/{num_features} fields saved for location {location_id}")
+    db.commit()
+    print(f"[INFO] Confirmed and saved {len(saved)} fields for location {location_id}")
+    return {"saved_count": len(saved), "field_ids": saved}
+
+
+def perform_temp_segmentation_and_save(location_id: int, db: Session):
+    try:
+        result = _run_segmentation_inference(location_id, db)
+        fields_data = result["fields"]
+        valid_ids = [f["id"] for f in fields_data if f["valid"]]
+
+        confirm_segmentation_fields(location_id, valid_ids, fields_data, db)
+
+        location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
+        if location:
+            location.segmentation_status = True
+            db.commit()
+
+        print(f"[INFO] Auto-save segmentation: {len(valid_ids)}/{result['num_detected']} fields saved")
 
     except Exception as e:
         db.rollback()
