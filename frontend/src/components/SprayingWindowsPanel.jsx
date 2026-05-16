@@ -225,8 +225,8 @@ const TimelineView = ({ windows }) => {
               style={{
                 position: 'absolute',
                 left: left,
-                top: 20 + (index % 3) * 25, // Stack overlapping windows
-                width: Math.max(width, 8), // Minimum width for visibility
+                top: 20 + (index % 3) * 25,
+                width: Math.max(width, 8),
                 height: 20,
                 background: `linear-gradient(135deg, ${colors.bg}, ${colors.border}20)`,
                 border: `2px solid ${colors.border}`,
@@ -252,8 +252,7 @@ const TimelineView = ({ windows }) => {
   );
 };
 
-// ── Main panel component ─────────────────────────────────────────────────────
-const SprayingWindowsPanel = ({ locationId, userId }) => {
+const SprayingWindowsPanel = ({ locationId }) => {
   const [open, setOpen] = useState(true);
   const [windows, setWindows] = useState([]);
   const [loading, setLoading] = useState(false);
