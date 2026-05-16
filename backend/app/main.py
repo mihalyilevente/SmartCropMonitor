@@ -13,6 +13,7 @@ from app.api.endpoints.weather_router import router as weather_router
 from app.api.endpoints.sensor_router import router as sensor_router
 from app.api.endpoints.utils_router import router as utils_router
 from app.api.endpoints.events_router import router as events_router
+from app.api.endpoints.fieldwork_router import router as fieldwork_router
 from app.tasks.scheduler import scheduler
 
 # =========================
@@ -71,7 +72,9 @@ app.include_router(sensor_router, prefix="/api/v1/sensors", tags=["Sensors"])
 
 app.include_router(utils_router, prefix="/api/v1/utils", tags=["Utils"])
 
-app.include_router(events_router, prefix="/api/v1/alerts-tasks", tags=["Alerts & Tasks"])
+app.include_router(events_router, prefix="/api/v1", tags=["Alerts & Tasks"])
+
+app.include_router(fieldwork_router, prefix="/api/v1", tags=["Field Work"])
 # =========================
 # Health Check
 # =========================
