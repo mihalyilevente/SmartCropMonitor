@@ -18,7 +18,7 @@ os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.1.10"
+API_VERSION = "0.1.11"
 
 REQUIRED_BANDS = [
     "blue", "green", "red", "nir",
@@ -42,9 +42,9 @@ SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
 HASKELL_URL = os.getenv("HASKELL_SERVICE_URL", "http://localhost:8081/field-stats")
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
-TEMP_MODEL_WEIGHTS = "app/models/utae_pastis.pth"
+TEMP_MODEL_WEIGHTS = "app/models/uConvLTC_pastis.pth"
 MODEL_PATH = os.path.join("app", "models", "unet_mitb2_ai4boundaries.pth")
-TEMP_MODEL_PATH = os.path.join("app", "models", "utae_pastis.pth")
+TEMP_MODEL_PATH = os.path.join("app", "models", "uConvLTC_pastis.pth")
 RANDOM_SEED = 28
 MAX_SEGM_INPUT = 4
 MIN_SEGM_INPUTS = 3

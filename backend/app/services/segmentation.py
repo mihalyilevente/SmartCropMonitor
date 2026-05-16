@@ -9,7 +9,7 @@ import io
 from PIL import Image
 from pyproj import Transformer
 from datetime import datetime
-from app.models.utae import AgriculturalSegmentationModel
+from app.models.uconvltc import AgriculturalSegmentationModel
 from scipy.ndimage import label
 from shapely.geometry import shape, MultiPolygon, mapping
 from shapely.ops import transform as shapely_transform
@@ -18,7 +18,7 @@ from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
 from app.core.schemas import FieldType
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS, MAX_SEGM_INPUT, MIN_SEGM_INPUTS, QUALITY_THRESHOLD_SEGM
+from app.core.config import SEGM_DIR, DATA_DIR, MAX_SEGM_INPUT, MIN_SEGM_INPUTS, QUALITY_THRESHOLD_SEGM, TEMP_MODEL_WEIGHTS
 from app.utils.fields import validate_field_shape
 
 
@@ -35,6 +35,8 @@ PASTIS_STD = torch.tensor([
 ], dtype=torch.float32).view(1, 10, 1, 1)
 
 RGB_INDICES = (2, 1, 0)
+
+SOURCE_LABEL = "U-ConvLTC segm"
 
 
 def _extract_rgb_preview(nc_path: str, target_size: int = 512) -> str | None:
@@ -87,8 +89,8 @@ def _extract_rgb_preview(nc_path: str, target_size: int = 512) -> str | None:
 
 
 def _run_segmentation_inference(
-    location_id: int,
-    db: Session
+        location_id: int,
+        db: Session
 ) -> dict:
     location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
     if not location:
@@ -183,11 +185,14 @@ def _run_segmentation_inference(
             all_tensors.append(img_tensor)
             all_timestamps.append(an.last_data_request_date.timestamp())
 
-    if len(all_tensors) < MAX_SEGM_INPUT:
-        pad_count = MAX_SEGM_INPUT - len(all_tensors)
-        zero_tensor = torch.zeros_like(all_tensors[0])
-        all_tensors.extend([zero_tensor] * pad_count)
-        all_timestamps.extend([all_timestamps[-1]] * pad_count)
+    n_real = len(all_tensors)
+
+    if n_real < MAX_SEGM_INPUT:
+        pad_count = MAX_SEGM_INPUT - n_real
+        last_tensor = all_tensors[-1]
+        last_ts = all_timestamps[-1]
+        all_tensors.extend([last_tensor] * pad_count)
+        all_timestamps.extend([last_ts] * pad_count)
 
     input_tensor = torch.stack(all_tensors, dim=0).unsqueeze(0)
 
@@ -229,7 +234,7 @@ def _run_segmentation_inference(
             for x0 in x_starts:
                 y1, x1 = y0 + TILE_SIZE, x0 + TILE_SIZE
                 tile = input_tensor[:, :, :, y0:y1, x0:x1].to(device)
-                output = model(tile, batch_dates.to(device))
+                output = model(tile, batch_dates.to(device), n_real=n_real)
                 logits = output[0] if isinstance(output, tuple) else output
                 tile_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()
                 prob_sum[y0:y1, x0:x1] += tile_prob * hann_2d
@@ -280,10 +285,10 @@ def run_segmentation_preview(location_id: int, db: Session) -> dict:
 
 
 def confirm_segmentation_fields(
-    location_id: int,
-    selected_field_ids: list[int],
-    fields_data: list[dict],
-    db: Session
+        location_id: int,
+        selected_field_ids: list[int],
+        fields_data: list[dict],
+        db: Session
 ) -> dict:
     from shapely.geometry import shape as shapely_shape
     from decimal import Decimal
@@ -295,7 +300,7 @@ def confirm_segmentation_fields(
 
     db.query(FieldUnit).filter(
         FieldUnit.location_id == location_id,
-        FieldUnit.source == "UTAE segm"
+        FieldUnit.source == SOURCE_LABEL
     ).delete()
     db.flush()
     db.execute(
@@ -318,7 +323,7 @@ def confirm_segmentation_fields(
             geometry=geometry_db,
             label=f["label"],
             status="active",
-            source="UTAE segm",
+            source=SOURCE_LABEL,
             field_type=FieldType.crop,
             area_ha=Decimal(str(round(float(area_ha), 2))),
         )
