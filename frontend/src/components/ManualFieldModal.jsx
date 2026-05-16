@@ -89,7 +89,7 @@ const DRAW_STYLES = [
 ];
 
 /* ─── Main modal ─── */
-export default function ManualFieldModal({ userId: _userId, locationId, onClose, onSaved }) {
+export default function ManualFieldModal({ locationId, onClose, onSaved }) {
   const mapRef    = useRef(null);
   const drawRef   = useRef(null);
   const loadedRef = useRef(false);

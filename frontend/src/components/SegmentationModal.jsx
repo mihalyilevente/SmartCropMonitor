@@ -238,7 +238,7 @@ function SegmentMap({ validFields, selected, hoveredId, onToggle, onHover }) {
 }
 
 /* ─── Main modal ─── */
-export default function SegmentationModal({ userId: _userId, locationId, onClose, onConfirmed }) {
+export default function SegmentationModal({ locationId, onClose, onConfirmed }) {
   const [phase, setPhase]           = useState('loading');
   const [allFields, setAllFields]   = useState([]);
   const [selected, setSelected]     = useState(new Set());
