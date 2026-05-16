@@ -13,7 +13,7 @@
  *  4. "Save Field" → POST /api/v1/manual-add-field
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
@@ -89,7 +89,7 @@ const DRAW_STYLES = [
 ];
 
 /* ─── Main modal ─── */
-export default function ManualFieldModal({ userId, locationId, onClose, onSaved }) {
+export default function ManualFieldModal({ userId: _userId, locationId, onClose, onSaved }) {
   const mapRef    = useRef(null);
   const drawRef   = useRef(null);
   const loadedRef = useRef(false);
@@ -105,12 +105,6 @@ export default function ManualFieldModal({ userId, locationId, onClose, onSaved 
   const [cropType,   setCropType]   = useState('');
   const [seasonYear, setSeasonYear] = useState(new Date().getFullYear());
   const [errorMsg,   setErrorMsg]   = useState('');
-
-  const applyToMap = useCallback((fn) => {
-    const map = mapRef.current;
-    if (!map) return;
-    loadedRef.current ? fn(map) : map.once('load', () => fn(map));
-  }, []);
 
   /* ── Init map + draw ── */
   const mapCallbackRef = useCallback((node) => {
@@ -260,7 +254,7 @@ export default function ManualFieldModal({ userId, locationId, onClose, onSaved 
           <div>
             <h2 style={s.title}>Add Field Manually</h2>
             <p style={s.subtitle}>
-              {drawMode === 'idle'    && 'Click "Draw Field" to start placing vertices on the map'}
+              {drawMode === 'idle'    && 'Click &quot;Draw Field&quot; to start placing vertices on the map'}
               {drawMode === 'drawing' && '📍 Click on the map to place vertices — click the first point to close the polygon'}
               {drawMode === 'done'    && `✓ Polygon drawn${areaHa != null ? ` · ${areaHa.toFixed(2)} ha` : ''} — drag vertices to adjust`}
             </p>
@@ -315,7 +309,7 @@ export default function ManualFieldModal({ userId, locationId, onClose, onSaved 
                 <div style={s.idleHint}>
                   <span style={{ fontSize: 32 }}>🖊️</span>
                   <p style={{ margin: '8px 0 0', color: '#ddd', fontSize: 13 }}>
-                    Click "Draw Field" to start
+                    Click &quot;Draw Field&quot; to start
                   </p>
                 </div>
               )}

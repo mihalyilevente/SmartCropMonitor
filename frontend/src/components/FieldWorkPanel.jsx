@@ -78,7 +78,7 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
   // refresh default field_id when fields load
   useEffect(() => {
     if (fields.length > 0 && !form.field_id) set('field_id', fields[0].id);
-  }, [fields]);
+  }, [fields]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async () => {
     if (!form.field_id) { alert('Select a field.'); return; }
@@ -170,7 +170,7 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
 };
 
 // ── Work record row ───────────────────────────────────────────────────────────
-const WorkRow = ({ record, onUpdate, onDelete }) => {
+const WorkRow = ({ record, onUpdate }) => {
   const [open, setOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -360,7 +360,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
               {records.length === 0 ? 'No field work logged yet.' : 'No records match filters.'}
             </div>
           ) : (
-            filtered.map(r => <WorkRow key={r.id} record={r} onUpdate={refresh} onDelete={refresh} />)
+            filtered.map(r => <WorkRow key={r.id} record={r} onUpdate={refresh} />)
           )}
         </div>
       )}
