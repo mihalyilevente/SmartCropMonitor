@@ -13,6 +13,8 @@ import { useState, useEffect, useRef } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
 import AlertsPanel from './components/AlertsPanel';
+import TasksPanel from './components/TasksPanel';
+import FieldWorkPanel from './components/FieldWorkPanel';
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
@@ -160,6 +162,8 @@ const Dashboard = ({ userId, onLogout }) => {
       {/* ── Panels ── */}
       {/* Alerts panel — above weather so critical events are immediately visible */}
       <AlertsPanel userId={userId} locationId={locationId} />
+      <TasksPanel userId={userId} />
+      <FieldWorkPanel userId={userId} locationId={locationId} />
 
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
