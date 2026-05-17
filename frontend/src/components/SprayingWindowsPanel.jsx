@@ -6,11 +6,75 @@ const getScoreColor = (score) => {
   if (score >= 0.8) return { bg: '#e8f5e8', border: '#317f43', text: '#1a5c1a' }; // Excellent
   if (score >= 0.6) return { bg: '#fff8e1', border: '#d8975a', text: '#8b5a00' }; // Good
   if (score >= 0.4) return { bg: '#ffeaa7', border: '#fdcb6e', text: '#b8860b' }; // Fair
-  return { bg: '#ffe0e0', border: '#d63031', text: '#8b0000' }; // Poor
+  return { bg: '#ffe0e0', border: '#d63031', text: '#8b0000' };                    // Poor
+};
+
+// ── Add-to-tasks button ───────────────────────────────────────────────────────
+const AddToTasksButton = ({ window, userId, index }) => {
+  const [state, setState] = useState('idle'); // idle | loading | done | error
+
+  const handleAdd = async (e) => {
+    e.stopPropagation();
+    if (state !== 'idle') return;
+
+    setState('loading');
+    try {
+      await api.post('/api/v1/events/tasks', {
+        user_id: userId,
+        task_type: 'SPRAYING',
+        priority: window.score >= 0.8 ? 'HIGH' : window.score >= 0.6 ? 'MEDIUM' : 'LOW',
+        status: 'TODO',
+        task_timestamp: window.start,
+        extra_metadata: {
+          note: `Spraying window #${index + 1} — score ${(window.score * 100).toFixed(0)}%, ends ${new Date(window.end).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}`,
+          spraying_window_start: window.start,
+          spraying_window_end: window.end,
+          spraying_score: window.score,
+        },
+      });
+      setState('done');
+      setTimeout(() => setState('idle'), 3000);
+    } catch {
+      setState('error');
+      setTimeout(() => setState('idle'), 2500);
+    }
+  };
+
+  const cfg = {
+    idle:    { label: '＋ Add to Tasks',  bg: '#054e05', color: '#fff', cursor: 'pointer' },
+    loading: { label: 'Adding…',          bg: '#3a7d3a', color: '#fff', cursor: 'wait'    },
+    done:    { label: '✓ Task Added',     bg: '#27ae60', color: '#fff', cursor: 'default' },
+    error:   { label: '✕ Failed — retry', bg: '#d63031', color: '#fff', cursor: 'pointer' },
+  }[state];
+
+  return (
+    <button
+      onClick={handleAdd}
+      title="Create a spraying task scheduled for this window"
+      style={{
+        marginTop: 10,
+        width: '100%',
+        padding: '7px 0',
+        background: cfg.bg,
+        color: cfg.color,
+        border: 'none',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        fontFamily: 'inherit',
+        cursor: cfg.cursor,
+        letterSpacing: '0.03em',
+        transition: 'background 0.2s, transform 0.1s',
+        transform: state === 'loading' ? 'scale(0.98)' : 'scale(1)',
+      }}
+    >
+      {cfg.label}
+    </button>
+  );
 };
 
 // ── Individual window card ───────────────────────────────────────────────────
-const WindowCard = ({ window, index }) => {
+const WindowCard = ({ window, index, userId }) => {
   const start = new Date(window.start);
   const end = new Date(window.end);
   const duration = (end - start) / (1000 * 60 * 60); // hours
@@ -37,7 +101,7 @@ const WindowCard = ({ window, index }) => {
         position: 'relative',
         overflow: 'hidden',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        cursor: 'pointer',
+        cursor: 'default',
         transform: 'translateY(0)',
         boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
       }}
@@ -74,10 +138,7 @@ const WindowCard = ({ window, index }) => {
           gap: 8,
           marginBottom: 6
         }}>
-          <span style={{
-            fontSize: 24,
-            filter: 'grayscale(0.2)',
-          }}>🌾</span>
+          <span style={{ fontSize: 24, filter: 'grayscale(0.2)' }}>🌾</span>
           <h4 style={{
             margin: 0,
             color: colors.text,
@@ -122,6 +183,11 @@ const WindowCard = ({ window, index }) => {
             transition: 'width 0.6s ease-out',
           }} />
         </div>
+
+        {/* Add to tasks button — only shown when userId is available */}
+        {userId && (
+          <AddToTasksButton window={window} userId={userId} index={index} />
+        )}
       </div>
     </div>
   );
@@ -131,9 +197,8 @@ const WindowCard = ({ window, index }) => {
 const TimelineView = ({ windows }) => {
   if (!windows.length) return null;
 
-  // Calculate timeline bounds
   const now = new Date();
-  const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days ahead
+  const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const timelineWidth = 800;
   const timelineHeight = 120;
@@ -159,89 +224,75 @@ const TimelineView = ({ windows }) => {
         overflow: 'hidden',
         margin: '0 auto',
       }}>
-        {/* Timeline grid (days) */}
         {[...Array(8)].map((_, i) => {
           const dayX = (i / 7) * timelineWidth;
           return (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: dayX,
-                top: 0,
-                bottom: 0,
-                width: 1,
-                background: i === 0 ? 'var(--color-green-primary)' : '#e1e8ed',
-                opacity: i === 0 ? 1 : 0.5,
-              }}
-            />
+            <div key={i} style={{
+              position: 'absolute',
+              left: dayX,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              background: i === 0 ? 'var(--color-green-primary)' : '#e1e8ed',
+              opacity: i === 0 ? 1 : 0.5,
+            }} />
           );
         })}
 
-        {/* Day labels */}
         {[...Array(7)].map((_, i) => {
           const day = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
           const dayX = (i / 7) * timelineWidth + (timelineWidth / 7) / 2;
-
           return (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: dayX - 30,
-                bottom: 8,
-                width: 60,
-                textAlign: 'center',
-                fontSize: 10,
-                fontWeight: 600,
-                color: '#6c757d',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            >
+            <div key={i} style={{
+              position: 'absolute',
+              left: dayX - 30,
+              bottom: 8,
+              width: 60,
+              textAlign: 'center',
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#6c757d',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
               {day.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}
             </div>
           );
         })}
 
-        {/* Spraying windows */}
         {windows.map((window, index) => {
           const start = new Date(window.start);
           const end = new Date(window.end);
 
-          // Calculate position and width
           const startRatio = Math.max(0, (start - now) / (endTime - now));
           const endRatio = Math.min(1, (end - now) / (endTime - now));
-
-          if (startRatio >= 1 || endRatio <= 0) return null; // Outside timeline
+          if (startRatio >= 1 || endRatio <= 0) return null;
 
           const left = startRatio * timelineWidth;
           const width = (endRatio - startRatio) * timelineWidth;
           const colors = getScoreColor(window.score);
 
           return (
-            <div
-              key={index}
-              style={{
-                position: 'absolute',
-                left: left,
-                top: 20 + (index % 3) * 25,
-                width: Math.max(width, 8),
-                height: 20,
-                background: `linear-gradient(135deg, ${colors.bg}, ${colors.border}20)`,
-                border: `2px solid ${colors.border}`,
-                borderRadius: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 9,
-                fontWeight: 700,
-                color: colors.text,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                zIndex: 10,
-              }}
-              title={`Window #${index + 1} (${(window.score * 100).toFixed(0)}%) - ${start.toLocaleString()} to ${end.toLocaleString()}`}
+            <div key={index} style={{
+              position: 'absolute',
+              left: left,
+              top: 20 + (index % 3) * 25,
+              width: Math.max(width, 8),
+              height: 20,
+              background: `linear-gradient(135deg, ${colors.bg}, ${colors.border}20)`,
+              border: `2px solid ${colors.border}`,
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 9,
+              fontWeight: 700,
+              color: colors.text,
+              cursor: 'default',
+              transition: 'all 0.2s ease',
+              zIndex: 10,
+            }}
+              title={`Window #${index + 1} (${(window.score * 100).toFixed(0)}%) — ${start.toLocaleString()} to ${end.toLocaleString()}`}
             >
               #{index + 1}
             </div>
@@ -252,13 +303,12 @@ const TimelineView = ({ windows }) => {
   );
 };
 
-const SprayingWindowsPanel = ({ locationId }) => {
+const SprayingWindowsPanel = ({ locationId, userId }) => {
   const [open, setOpen] = useState(true);
   const [windows, setWindows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch spraying windows when location changes
   useEffect(() => {
     if (!locationId) return;
 
@@ -277,14 +327,14 @@ const SprayingWindowsPanel = ({ locationId }) => {
       });
   }, [locationId]);
 
-  // Stats calculation
   const totalWindows = windows.length;
   const excellentWindows = windows.filter(w => w.score >= 0.8).length;
-  const avgScore = windows.length > 0 ? (windows.reduce((sum, w) => sum + w.score, 0) / windows.length) : 0;
+  const avgScore = windows.length > 0
+    ? (windows.reduce((sum, w) => sum + w.score, 0) / windows.length)
+    : 0;
 
   return (
     <div style={styles.wrap}>
-      {/* Header */}
       <div style={styles.header} onClick={() => setOpen(v => !v)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🌾</span>
@@ -337,12 +387,13 @@ const SprayingWindowsPanel = ({ locationId }) => {
 
                 <div style={{ display: 'grid', gap: 0 }}>
                   {windows
-                    .sort((a, b) => b.score - a.score) // Sort by best score first
+                    .sort((a, b) => b.score - a.score)
                     .map((window, index) => (
                       <WindowCard
                         key={index}
                         window={window}
                         index={windows.indexOf(window)}
+                        userId={userId}
                       />
                     ))}
                 </div>
@@ -356,17 +407,12 @@ const SprayingWindowsPanel = ({ locationId }) => {
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   {[
                     { range: '80-100%', label: 'Excellent', color: '#317f43' },
-                    { range: '60-79%', label: 'Good', color: '#d8975a' },
-                    { range: '40-59%', label: 'Fair', color: '#fdcb6e' },
-                    { range: '0-39%', label: 'Poor', color: '#d63031' },
+                    { range: '60-79%', label: 'Good',      color: '#d8975a' },
+                    { range: '40-59%', label: 'Fair',      color: '#fdcb6e' },
+                    { range: '0-39%',  label: 'Poor',      color: '#d63031' },
                   ].map(({ range, label, color }) => (
                     <div key={range} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{
-                        width: 12,
-                        height: 12,
-                        background: color,
-                        borderRadius: 3,
-                      }} />
+                      <div style={{ width: 12, height: 12, background: color, borderRadius: 3 }} />
                       <span style={{ fontSize: 11, color: '#6c757d' }}>
                         <strong>{label}</strong> ({range})
                       </span>
