@@ -12,7 +12,7 @@
  *   - Range slider to scrub through time + tooltip with exact value
  *   - Click on chart to set cursor position
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 
 const C = {
   green:    '#317f43',
