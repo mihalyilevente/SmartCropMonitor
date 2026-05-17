@@ -216,6 +216,42 @@ class FieldStatAnomalyAnalysis(Base):
     extra = Column(JSON, nullable=True)
 
 
+class Biomass(Base):
+    __tablename__ = "biomass"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    field_id = Column(Integer, ForeignKey("field_units.id"), nullable=False, index=True)
+    analysis_id = Column(
+        Integer,
+        ForeignKey("field_analysis_history.id"),
+        nullable=False,
+        index=True,
+    )
+    reference_weather_id = Column(Integer, ForeignKey("weather_history.id"), nullable=True)
+    reference_metrics_id = Column(Integer, ForeignKey("weather_metrics.id"), nullable=True)
+
+    analysis_date = Column(DateTime, nullable=False, index=True)
+
+    evi = Column(Numeric(6, 4), nullable=False)  # Enhanced Vegetation Index
+    msi = Column(Numeric(6, 4), nullable=False)  # Moisture Stress Index proxy
+    ci = Column(Numeric(6, 4), nullable=False)  # Chlorophyll Index
+
+    biomass_tha = Column(Numeric(8, 4), nullable=False)
+    confidence = Column(Numeric(5, 4), nullable=False)
+
+    ground_truth = Column(Numeric(8, 4), nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    extra = Column(JSON, nullable=True)
+
+    __table_args__ = (
+        Index("ix_biomass_field_date", "field_id", "analysis_date"),
+        Index("ix_biomass_analysis", "analysis_id"),
+    )
+
+
 class WeatherHistory(Base):
     __tablename__ = "weather_history"
 
