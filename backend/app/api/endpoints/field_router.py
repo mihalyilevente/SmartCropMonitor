@@ -22,7 +22,7 @@ from app.utils.fields import (
 )
 
 from geoalchemy2.elements import WKTElement
-from geoalchemy2.shape import from_shape
+from geoalchemy2.shape import from_shape, to_shape
 from shapely.geometry import shape, MultiPolygon
 from shapely.validation import explain_validity
 
@@ -228,7 +228,7 @@ async def manual_add_field(
     )
 
     existing_geoms = [
-        shape(f.geometry) for f in existing_fields
+        to_shape(f.geometry) for f in existing_fields
     ]
 
     conflicts = detect_intersections_single(
