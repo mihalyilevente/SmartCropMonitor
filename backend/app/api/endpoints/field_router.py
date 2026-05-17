@@ -2,10 +2,11 @@ import os
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from typing import List, Optional
-from app.core.database import UserLocation, FieldAnalysis, get_db, FieldUnit
+from app.core.database import UserLocation, FieldAnalysis, get_db, FieldUnit, Biomass
 from app.core.schemas import FieldType
 from app.services.segmentation import (
     perform_temp_segmentation_and_save,
@@ -290,4 +291,116 @@ async def manual_add_field(
             "manual_added": field.manual_added,
             "status": field.status
         }
+    }
+
+
+# =========================
+# Biomass Endpoints
+# =========================
+
+@router.get("/locations/{location_id}/biomass", tags=["Biomass"])
+async def get_biomass_for_location(
+    location_id: int,
+    db: Session = Depends(get_db)
+):
+
+    location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    fields = (
+        db.query(FieldUnit)
+        .filter(
+            FieldUnit.location_id == location_id,
+            FieldUnit.status == "active",
+        )
+        .all()
+    )
+
+    if not fields:
+        raise HTTPException(status_code=404, detail="No active fields for this location")
+
+    field_ids = [f.id for f in fields]
+    field_map  = {f.id: f for f in fields}
+
+    latest_subq = (
+        db.query(
+            Biomass.field_id,
+            func.max(Biomass.analysis_date).label("max_date")
+        )
+        .filter(Biomass.field_id.in_(field_ids))
+        .group_by(Biomass.field_id)
+        .subquery()
+    )
+
+    records = (
+        db.query(Biomass)
+        .join(
+            latest_subq,
+            (Biomass.field_id    == latest_subq.c.field_id) &
+            (Biomass.analysis_date == latest_subq.c.max_date)
+        )
+        .all()
+    )
+
+    return {
+        "location_id": location_id,
+        "location_label": location.label,
+        "fields": [
+            {
+                "field_id":    r.field_id,
+                "field_label": field_map[r.field_id].label,
+                "field_type":  field_map[r.field_id].field_type,
+                "area_ha":     float(field_map[r.field_id].area_ha or 0),
+                "analysis_date": r.analysis_date,
+                "biomass_tha": float(r.biomass_tha),
+                "confidence":  float(r.confidence),
+                "evi":  float(r.evi),
+                "msi":  float(r.msi),
+                "ci":   float(r.ci),
+                "ground_truth": float(r.ground_truth) if r.ground_truth is not None else None,
+                "extra": r.extra,
+            }
+            for r in records
+        ]
+    }
+
+
+@router.get("/fields/{field_id}/biomass", tags=["Biomass"])
+async def get_biomass_history_for_field(
+    field_id: int,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    field = db.query(FieldUnit).filter(FieldUnit.id == field_id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    records = (
+        db.query(Biomass)
+        .filter(Biomass.field_id == field_id)
+        .order_by(Biomass.analysis_date.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "field_id":    field.id,
+        "field_label": field.label,
+        "field_type":  field.field_type,
+        "area_ha":     float(field.area_ha or 0),
+        "history": [
+            {
+                "id":            r.id,
+                "analysis_date": r.analysis_date,
+                "biomass_tha":   float(r.biomass_tha),
+                "confidence":    float(r.confidence),
+                "evi":  float(r.evi),
+                "msi":  float(r.msi),
+                "ci":   float(r.ci),
+                "ground_truth": float(r.ground_truth) if r.ground_truth is not None else None,
+                "extra": r.extra,
+            }
+            for r in records
+        ]
     }
