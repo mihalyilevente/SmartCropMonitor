@@ -10,6 +10,7 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Biomass
       Stats
       SprayingWindow
       Validation
@@ -20,7 +21,6 @@ library
       Paths_haskell_service
   hs-source-dirs:
       src
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -34,6 +34,7 @@ library
 executable haskell-service-exe
   main-is: Main.hs
   other-modules:
+      Biomass
       SatelliteAnomaly
       SprayingWindow
       Stats
@@ -58,6 +59,7 @@ test-suite haskell-service-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      BiomassSpec
       SatelliteAnomalySpec
       SprayingWindowSpec
       StatsSpec

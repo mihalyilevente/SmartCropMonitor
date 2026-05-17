@@ -4,8 +4,7 @@ from pydantic import BaseModel
 
 from app.core.database import UserLocation, FieldAnalysis, get_db
 from app.services.orchestrator import full_sync_process, short_sync_process
-from app.services.ndvi_processor import run_per_field_metrics
-from app.services.spot_anomaly_processor import find_all_satellite_anomaly
+from app.services.biomass_service import run_biomass_estimation
 
 
 router = APIRouter()
@@ -55,8 +54,7 @@ def get_location_analysis_stats(
 
 @router.get("/test_func")
 def test_function(db: Session = Depends(get_db)):
-    run_per_field_metrics(db)
-    find_all_satellite_anomaly(db)
+    run_biomass_estimation(db)
     return 0
 
 
