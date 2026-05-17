@@ -335,7 +335,7 @@ const SprayingWindowsPanel = ({ locationId, userId }) => {
 
   useEffect(() => {
     if (!userId) return;
-    api.get('/api/v1/fields/user_fields', { params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) } })
+    api.get('/api/v1/user_fields', { params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) } })
       .then(r => {
         const data = r.data;
         setFields(Array.isArray(data) ? data : (data?.fields ?? data?.items ?? []));
