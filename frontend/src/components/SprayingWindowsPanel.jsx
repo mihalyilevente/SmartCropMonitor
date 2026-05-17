@@ -9,25 +9,31 @@ const getScoreColor = (score) => {
   return { bg: '#ffe0e0', border: '#d63031', text: '#8b0000' };                    // Poor
 };
 
-// ── Add-to-tasks button ───────────────────────────────────────────────────────
-const AddToTasksButton = ({ window, userId, index }) => {
-  const [state, setState] = useState('idle'); // idle | loading | done | error
+// ── Add-to-fieldwork button ──────────────────────────────────────────────────
+const AddToFieldWorkButton = ({ window, userId, index, fields }) => {
+  const [state, setState] = useState('idle'); // idle | picking | loading | done | error
+  const [fieldId, setFieldId] = useState('');
 
-  const handleAdd = async (e) => {
+  useEffect(() => {
+    if (fields.length > 0 && !fieldId) setFieldId(String(fields[0].id));
+  }, [fields]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openPicker = (e) => { e.stopPropagation(); if (state !== 'idle') return; setState('picking'); };
+  const cancel = (e) => { e.stopPropagation(); setState('idle'); };
+
+  const confirm = async (e) => {
     e.stopPropagation();
-    if (state !== 'idle') return;
-
+    if (!fieldId) return;
     setState('loading');
     try {
-      await api.post('/api/v1/events/tasks', {
+      await api.post('/api/v1/fieldwork/create', {
         user_id: userId,
-        task_type: 'SPRAYING',
-        priority: window.score >= 0.8 ? 'HIGH' : window.score >= 0.6 ? 'MEDIUM' : 'LOW',
-        status: 'TODO',
-        task_timestamp: window.start,
+        field_id: Number(fieldId),
+        work_type: 'SPRAYING',
+        work_status: 'PLANNED',
+        work_date: window.start,
         extra_metadata: {
           note: `Spraying window #${index + 1} — score ${(window.score * 100).toFixed(0)}%, ends ${new Date(window.end).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}`,
-          spraying_window_start: window.start,
           spraying_window_end: window.end,
           spraying_score: window.score,
         },
@@ -40,41 +46,59 @@ const AddToTasksButton = ({ window, userId, index }) => {
     }
   };
 
+  if (state === 'picking') {
+    return (
+      <div onClick={e => e.stopPropagation()} style={{
+        marginTop: 10, background: '#fff', border: '1px solid #c8e6c9',
+        borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          💧 Log Spraying — select field
+        </div>
+        {fields.length > 0 ? (
+          <select value={fieldId} onChange={e => setFieldId(e.target.value)}
+            style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #ddd', fontSize: 12, fontFamily: 'inherit' }}>
+            {fields.map(f => <option key={f.id} value={f.id}>{f.label || `Field #${f.id}`}</option>)}
+          </select>
+        ) : (
+          <div style={{ fontSize: 11, color: '#aaa' }}>No fields available</div>
+        )}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={confirm} disabled={!fieldId || fields.length === 0} style={{
+            flex: 1, padding: '5px 0', background: '#054e05', color: '#fff',
+            border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700,
+            cursor: fieldId ? 'pointer' : 'not-allowed', fontFamily: 'inherit', opacity: fieldId ? 1 : 0.5,
+          }}>✓ Add to Field Work</button>
+          <button onClick={cancel} style={{
+            padding: '5px 10px', background: 'none', color: '#999',
+            border: '1px solid #ddd', borderRadius: 6, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+          }}>Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
   const cfg = {
-    idle:    { label: '＋ Add to Tasks',  bg: '#054e05', color: '#fff', cursor: 'pointer' },
-    loading: { label: 'Adding…',          bg: '#3a7d3a', color: '#fff', cursor: 'wait'    },
-    done:    { label: '✓ Task Added',     bg: '#27ae60', color: '#fff', cursor: 'default' },
-    error:   { label: '✕ Failed — retry', bg: '#d63031', color: '#fff', cursor: 'pointer' },
+    idle:    { label: '🚜 Add to Field Work',  bg: '#054e05', cursor: 'pointer' },
+    loading: { label: 'Saving…',               bg: '#3a7d3a', cursor: 'wait'    },
+    done:    { label: '✓ Added to Field Work', bg: '#27ae60', cursor: 'default' },
+    error:   { label: '✕ Failed — retry',      bg: '#d63031', cursor: 'pointer' },
   }[state];
 
   return (
-    <button
-      onClick={handleAdd}
-      title="Create a spraying task scheduled for this window"
-      style={{
-        marginTop: 10,
-        width: '100%',
-        padding: '7px 0',
-        background: cfg.bg,
-        color: cfg.color,
-        border: 'none',
-        borderRadius: 8,
-        fontSize: 12,
-        fontWeight: 700,
-        fontFamily: 'inherit',
-        cursor: cfg.cursor,
-        letterSpacing: '0.03em',
-        transition: 'background 0.2s, transform 0.1s',
-        transform: state === 'loading' ? 'scale(0.98)' : 'scale(1)',
-      }}
-    >
+    <button onClick={state === 'idle' || state === 'error' ? openPicker : undefined} style={{
+      marginTop: 10, width: '100%', padding: '7px 0',
+      background: cfg.bg, color: '#fff', border: 'none', borderRadius: 8,
+      fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+      cursor: cfg.cursor, letterSpacing: '0.03em', transition: 'background 0.2s',
+    }}>
       {cfg.label}
     </button>
   );
 };
 
 // ── Individual window card ───────────────────────────────────────────────────
-const WindowCard = ({ window, index, userId }) => {
+const WindowCard = ({ window, index, userId, fields }) => {
   const start = new Date(window.start);
   const end = new Date(window.end);
   const duration = (end - start) / (1000 * 60 * 60); // hours
@@ -184,9 +208,8 @@ const WindowCard = ({ window, index, userId }) => {
           }} />
         </div>
 
-        {/* Add to tasks button — only shown when userId is available */}
         {userId && (
-          <AddToTasksButton window={window} userId={userId} index={index} />
+          <AddToFieldWorkButton window={window} userId={userId} index={index} fields={fields || []} />
         )}
       </div>
     </div>
@@ -306,8 +329,19 @@ const TimelineView = ({ windows }) => {
 const SprayingWindowsPanel = ({ locationId, userId }) => {
   const [open, setOpen] = useState(true);
   const [windows, setWindows] = useState([]);
+  const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    api.get('/api/v1/fields/user_fields', { params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) } })
+      .then(r => {
+        const data = r.data;
+        setFields(Array.isArray(data) ? data : (data?.fields ?? data?.items ?? []));
+      })
+      .catch(() => setFields([]));
+  }, [userId, locationId]);
 
   useEffect(() => {
     if (!locationId) return;
@@ -394,6 +428,7 @@ const SprayingWindowsPanel = ({ locationId, userId }) => {
                         window={window}
                         index={windows.indexOf(window)}
                         userId={userId}
+                        fields={fields}
                       />
                     ))}
                 </div>
