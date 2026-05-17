@@ -15,6 +15,7 @@ import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/w
 import AlertsPanel from './components/AlertsPanel';
 import TasksPanel from './components/TasksPanel';
 import FieldWorkPanel from './components/FieldWorkPanel';
+import FieldsPanel from './components/FieldsPanel';
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
@@ -162,6 +163,7 @@ const Dashboard = ({ userId, onLogout }) => {
       <AlertsPanel userId={userId} locationId={locationId} />
       <TasksPanel userId={userId} />
       <FieldWorkPanel userId={userId} locationId={locationId} />
+      <FieldsPanel userId={userId} locationId={locationId} />
 
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
