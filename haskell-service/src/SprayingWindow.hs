@@ -115,12 +115,18 @@ build xs =
   filter (\g -> length g >= 2 && all (\(_, s) -> s >= threshold) g) $
   groupBy (\(_, a) (_, b) -> (a >= threshold) == (b >= threshold)) xs
   where
-    toWindow ys =
-      Window
-        { wStart = fpTime (fst (head ys))
-        , wEnd   = fpTime (fst (last ys))
-        , wScore = sum (map snd ys) / fromIntegral (length ys)
-        }
+    toWindow [] = Window
+      { wStart = error "toWindow: empty group (unreachable after filter)"
+      , wEnd   = error "toWindow: empty group (unreachable after filter)"
+      , wScore = 0.0
+      }
+    toWindow ys@((firstFp, _) : _) =
+      let (lastFp, _) = last ys
+      in Window
+           { wStart = fpTime firstFp
+           , wEnd   = fpTime lastFp
+           , wScore = sum (map snd ys) / fromIntegral (length ys)
+           }
 
 ema :: Double -> [Double] -> [Double]
 ema alpha = scanl1 (\acc x -> alpha * x + (1 - alpha) * acc)

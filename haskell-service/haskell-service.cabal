@@ -16,6 +16,7 @@ library
       WeatherMetrics
       SatelliteAnomaly
   other-modules:
+      Biomass
       Main
       Paths_haskell_service
   hs-source-dirs:
@@ -34,6 +35,7 @@ library
 executable haskell-service-exe
   main-is: Main.hs
   other-modules:
+      Biomass
       SatelliteAnomaly
       SprayingWindow
       Stats
@@ -58,6 +60,7 @@ test-suite haskell-service-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      BiomassSpec
       SatelliteAnomalySpec
       SprayingWindowSpec
       StatsSpec
