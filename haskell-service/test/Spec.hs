@@ -9,6 +9,7 @@ import StatsSpec             (spec)
 import ValidationSpec        (spec)
 import WeatherMetricsSpec    (spec)
 import SprayingWindowSpec    (spec)
+import BiomassSpec           (spec)
 
 main :: IO ()
 main = hspec $ do
@@ -17,3 +18,4 @@ main = hspec $ do
   describe "Validation"       ValidationSpec.spec
   describe "WeatherMetrics"   WeatherMetricsSpec.spec
   describe "SprayingWindow"   SprayingWindowSpec.spec
+  describe "Biomass"          BiomassSpec.spec
