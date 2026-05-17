@@ -15,6 +15,7 @@ import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/w
 import AlertsPanel from './components/AlertsPanel';
 import TasksPanel from './components/TasksPanel';
 import FieldWorkPanel from './components/FieldWorkPanel';
+import FieldsPanel from './components/FieldsPanel';
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
@@ -28,6 +29,7 @@ import logo from './assets/logo1.png';
 const Dashboard = ({ userId, onLogout }) => {
   const [locations, setLocations]           = useState([]);
   const [locationId, setLocationId]         = useState(null);
+  const [locationCenter, setLocationCenter] = useState(null); // { lat, lon }
   const [currentWeather, setCurrentWeather] = useState(null);
   const [latestWeather, setLatestWeather]   = useState(null);
   const [chartData, setChartData]           = useState([]);
@@ -55,6 +57,15 @@ const Dashboard = ({ userId, onLogout }) => {
     fetchLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // Update map center when location changes
+  useEffect(() => {
+    if (!locationId || locations.length === 0) return;
+    const loc = locations.find(l => l.id === locationId);
+    if (loc?.lat != null && loc?.lon != null) {
+      setLocationCenter({ lat: loc.lat, lon: loc.lon });
+    }
+  }, [locationId, locations]);
 
   useEffect(() => {
     if (!userId || !locationId) return;
@@ -162,11 +173,12 @@ const Dashboard = ({ userId, onLogout }) => {
       <AlertsPanel userId={userId} locationId={locationId} />
       <TasksPanel userId={userId} />
       <FieldWorkPanel userId={userId} locationId={locationId} />
+      <FieldsPanel userId={userId} locationId={locationId} />
 
       <WeatherMetricsPanel latestWeather={latestWeather} />
       <WeatherCharts data={chartData} />
       <SprayingWindowsPanel userId={userId} locationId={locationId} />
-      <FieldMapPanel ref={fieldMapRef} userId={userId} locationId={locationId} />
+      <FieldMapPanel ref={fieldMapRef} userId={userId} locationId={locationId} locationCenter={locationCenter} />
       <SensorPanel userId={userId} />
 
       {/* ── Modals ── */}

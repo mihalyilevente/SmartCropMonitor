@@ -158,8 +158,11 @@ export default function ManualFieldModal({ locationId, onClose, onSaved }) {
       setDrawnGeom(geom);
       setAreaHa(ha);
       setDrawMode('done');
-      // Switch to simple_select so user can adjust vertices
-      draw.changeMode('simple_select', { featureIds: [feature.id] });
+      // Switch to simple_select — use rAF to let MapboxDraw flush its internal
+      // mouse-move handler, otherwise the "rubber-band" line keeps following cursor
+      requestAnimationFrame(() => {
+        try { draw.changeMode('simple_select', { featureIds: [feature.id] }); } catch { /* noop */ }
+      });
     });
 
     /* polygon updated (vertex drag) */
@@ -206,6 +209,7 @@ export default function ManualFieldModal({ locationId, onClose, onSaved }) {
   const resetDraw = () => {
     const draw = drawRef.current;
     if (!draw) return;
+    try { draw.changeMode('simple_select'); } catch { /* noop */ }
     draw.deleteAll();
     setDrawnGeom(null);
     setAreaHa(null);
@@ -242,7 +246,7 @@ export default function ManualFieldModal({ locationId, onClose, onSaved }) {
     }
   };
 
-  const canSave = drawnGeom && label.trim() && phase === 'ready';
+  const canSave = drawnGeom && label.trim() && (phase === 'ready' || phase === 'error');
 
   /* ─── Render ─── */
   return (
