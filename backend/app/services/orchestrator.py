@@ -12,6 +12,7 @@ from app.services.field_analysis import validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis
 from app.services.ndvi_processor import sateline_metrics, run_per_field_metrics
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
+from app.services.biomass_service import run_biomass_estimation
 from app.monitoring.alerting import format_alert, AlertService
 from app.services.anomaly_processor import find_all_anomaly
 from app.services.spot_anomaly_processor import find_all_satellite_anomaly
@@ -30,6 +31,7 @@ def full_sync_process(db: Session):
         validate_pending_analyses(db)
         sateline_metrics(db)
         run_per_field_metrics(db)
+        run_biomass_estimation(db)
         find_all_anomaly(db)
         find_all_satellite_anomaly(db)
 
