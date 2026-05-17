@@ -100,7 +100,7 @@ spec = do
           high = computeBiomass (uniformInput 100 0.80 0.75 0.60 0.20)
       biomass_tha high `shouldSatisfy` (> biomass_tha low)
 
-    it "decreases with higher moisture stress (higher NDWI → lower biomass)" $ do
+    it "decreases with higher moisture stress (higher NDWI -> lower biomass)" $ do
       let wetField = computeBiomass (uniformInput 100 0.60 0.55 0.45 0.80)
           dryField = computeBiomass (uniformInput 100 0.60 0.55 0.45 0.10)
       biomass_tha dryField `shouldSatisfy` (< biomass_tha wetField)
