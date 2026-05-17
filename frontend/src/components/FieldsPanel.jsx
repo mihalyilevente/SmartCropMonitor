@@ -4,8 +4,8 @@
  * Panel for managing field units — list, full info, inline editing.
  *
  * Endpoints used:
- *   GET   /api/v1/fields/user_fields?user_id=1&location_id=2   → list fields
- *   PATCH /api/v1/fields/{field_id}?user_id=1                  → update field
+ *   GET   /api/v1/user_fields?user_id=1&location_id=2   → list fields
+ *   PATCH /api/v1/{field_id}?user_id=1                    → update field
  */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
@@ -71,7 +71,7 @@ const EditForm = ({ field, userId, onSaved, onCancel }) => {
     if (!form.label.trim()) { alert('Label is required.'); return; }
     setBusy(true);
     try {
-      await api.patch(`/api/v1/fields/${field.id}`, {
+      await api.patch(`/api/v1/${field.id}`, {
         label:       form.label.trim(),
         field_type:  form.field_type,
         crop_type:   form.crop_type  || null,
@@ -231,7 +231,7 @@ const FieldsPanel = ({ userId, locationId }) => {
   const load = useCallback(() => {
     if (!userId) return;
     setLoading(true);
-    api.get('/api/v1/fields/user_fields', {
+    api.get('/api/v1/user_fields', {
       params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) },
     })
       .then(r => {

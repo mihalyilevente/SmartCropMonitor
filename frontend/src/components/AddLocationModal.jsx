@@ -29,7 +29,7 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
     setError(null);
     try {
       const res = await api.post(
-        '/api/v1/user/locations',
+        '/api/v1/locations',
         { label: label.trim(), lat: parseFloat(lat), lon: parseFloat(lon) },
         { params: { user_id: userId } }
       );
