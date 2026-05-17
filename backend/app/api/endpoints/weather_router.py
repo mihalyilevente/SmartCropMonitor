@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from datetime import datetime, timezone
 
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory, WeatherMetrics
 from app.services.weather_service import current_weather_request
@@ -63,9 +64,14 @@ async def get_latest_location_weather(
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
     latest_history = (
         db.query(WeatherHistory)
-        .filter(WeatherHistory.location_id == location_id)
+        .filter(
+            WeatherHistory.location_id == location_id,
+            WeatherHistory.timestamp <= now,
+        )
         .order_by(WeatherHistory.timestamp.desc())
         .first()
     )

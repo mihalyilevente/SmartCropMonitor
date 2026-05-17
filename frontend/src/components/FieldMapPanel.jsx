@@ -6,7 +6,7 @@
  * Callback ref guarantees the div is in the DOM before mapboxgl.Map() is called.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import api from '../api/client';
@@ -85,7 +85,7 @@ function gridToGeoJSON(z, x, y) {
   return { type: 'FeatureCollection', features };
 }
 
-const FieldMapPanel = ({ userId, locationId }) => {
+const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) => {
   const mapRef    = useRef(null);
   const loadedRef = useRef(false);
   const popupRef  = useRef(null);
@@ -98,6 +98,16 @@ const FieldMapPanel = ({ userId, locationId }) => {
   const [metricError, setMetricError]     = useState(null);
   const [selectedField, setSelectedField] = useState(null);
   const [mapError, setMapError]           = useState(null);
+
+  // Expose refreshFields to parent via ref
+  useImperativeHandle(ref, () => ({
+    refreshFields: () => {
+      if (!userId) return;
+      api.get('/api/v1/user/fields', { params: { user_id: userId } })
+        .then(r => setFields(r.data))
+        .catch(() => {});
+    },
+  }));
 
   // Run fn(map) now if loaded, else queue on 'load'
   const applyToMap = useCallback((fn) => {
@@ -206,6 +216,30 @@ const FieldMapPanel = ({ userId, locationId }) => {
   }, [locationId, userId, metric]);
 
   useEffect(() => { loadMetric(); }, [loadMetric]);
+
+  // Fly to location center when locationId or locationCenter changes
+  useEffect(() => {
+    if (!locationCenter?.lat || !locationCenter?.lon) return;
+    const fly = (map) => {
+      map.flyTo({
+        center: [locationCenter.lon, locationCenter.lat],
+        zoom: 14,
+        duration: 1200,
+        essential: true,
+      });
+      // Update sessionStorage so the new center is remembered
+      try {
+        sessionStorage.setItem('fmp_view', JSON.stringify({
+          lat: locationCenter.lat,
+          lng: locationCenter.lon,
+          zoom: 14,
+        }));
+      } catch { /* noop */ }
+    };
+    const map = mapRef.current;
+    if (!map) return;
+    if (loadedRef.current) { fly(map); } else { map.once('load', () => fly(map)); }
+  }, [locationCenter]);
 
   // Draw field boundaries
   useEffect(() => {
@@ -415,7 +449,7 @@ const FieldMapPanel = ({ userId, locationId }) => {
       )}
     </div>
   );
-};
+});
 
 const styles = {
   panel: {
@@ -487,5 +521,7 @@ const styles = {
     fontSize: 16, lineHeight: 1, padding: '0 2px', opacity: 0.5,
   },
 };
+
+FieldMapPanel.displayName = 'FieldMapPanel';
 
 export default FieldMapPanel;

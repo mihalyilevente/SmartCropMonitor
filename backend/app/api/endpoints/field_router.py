@@ -2,10 +2,11 @@ import os
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel, Field
 from decimal import Decimal
 from typing import List, Optional
-from app.core.database import UserLocation, FieldAnalysis, get_db, FieldUnit
+from app.core.database import UserLocation, FieldAnalysis, get_db, FieldUnit, Biomass
 from app.core.schemas import FieldType
 from app.services.segmentation import (
     perform_temp_segmentation_and_save,
@@ -21,7 +22,7 @@ from app.utils.fields import (
 )
 
 from geoalchemy2.elements import WKTElement
-from geoalchemy2.shape import from_shape
+from geoalchemy2.shape import from_shape, to_shape
 from shapely.geometry import shape, MultiPolygon
 from shapely.validation import explain_validity
 
@@ -227,7 +228,7 @@ async def manual_add_field(
     )
 
     existing_geoms = [
-        shape(f.geometry) for f in existing_fields
+        to_shape(f.geometry) for f in existing_fields
     ]
 
     conflicts = detect_intersections_single(
@@ -290,4 +291,206 @@ async def manual_add_field(
             "manual_added": field.manual_added,
             "status": field.status
         }
+    }
+
+
+# =========================
+# Biomass Endpoints
+# =========================
+
+@router.get("/locations/{location_id}/biomass", tags=["Biomass"])
+async def get_biomass_for_location(
+    location_id: int,
+    db: Session = Depends(get_db)
+):
+
+    location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    fields = (
+        db.query(FieldUnit)
+        .filter(
+            FieldUnit.location_id == location_id,
+            FieldUnit.status == "active",
+        )
+        .all()
+    )
+
+    if not fields:
+        raise HTTPException(status_code=404, detail="No active fields for this location")
+
+    field_ids = [f.id for f in fields]
+    field_map  = {f.id: f for f in fields}
+
+    latest_subq = (
+        db.query(
+            Biomass.field_id,
+            func.max(Biomass.analysis_date).label("max_date")
+        )
+        .filter(Biomass.field_id.in_(field_ids))
+        .group_by(Biomass.field_id)
+        .subquery()
+    )
+
+    records = (
+        db.query(Biomass)
+        .join(
+            latest_subq,
+            (Biomass.field_id    == latest_subq.c.field_id) &
+            (Biomass.analysis_date == latest_subq.c.max_date)
+        )
+        .all()
+    )
+
+    return {
+        "location_id": location_id,
+        "location_label": location.label,
+        "fields": [
+            {
+                "field_id":    r.field_id,
+                "field_label": field_map[r.field_id].label,
+                "field_type":  field_map[r.field_id].field_type,
+                "area_ha":     float(field_map[r.field_id].area_ha or 0),
+                "analysis_date": r.analysis_date,
+                "biomass_tha": float(r.biomass_tha),
+                "confidence":  float(r.confidence),
+                "evi":  float(r.evi),
+                "msi":  float(r.msi),
+                "ci":   float(r.ci),
+                "ground_truth": float(r.ground_truth) if r.ground_truth is not None else None,
+                "extra": r.extra,
+            }
+            for r in records
+        ]
+    }
+
+
+@router.get("/fields/{field_id}/biomass", tags=["Biomass"])
+async def get_biomass_history_for_field(
+    field_id: int,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    field = db.query(FieldUnit).filter(FieldUnit.id == field_id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    records = (
+        db.query(Biomass)
+        .filter(Biomass.field_id == field_id)
+        .order_by(Biomass.analysis_date.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "field_id":    field.id,
+        "field_label": field.label,
+        "field_type":  field.field_type,
+        "area_ha":     float(field.area_ha or 0),
+        "history": [
+            {
+                "id":            r.id,
+                "analysis_date": r.analysis_date,
+                "biomass_tha":   float(r.biomass_tha),
+                "confidence":    float(r.confidence),
+                "evi":  float(r.evi),
+                "msi":  float(r.msi),
+                "ci":   float(r.ci),
+                "ground_truth": float(r.ground_truth) if r.ground_truth is not None else None,
+                "extra": r.extra,
+            }
+            for r in records
+        ]
+    }
+
+# =========================
+# Field Management Endpoints
+# =========================
+
+class FieldUpdate(BaseModel):
+    label: Optional[str] = None
+    field_type: Optional[FieldType] = None
+    crop_type: Optional[str] = None
+    season_year: Optional[int] = None
+    status: Optional[str] = None
+
+
+@router.get("/user_fields", tags=["Fields"])
+def get_user_fields_list(
+    user_id: int,
+    location_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """GET /api/v1/fields/user_fields?user_id=1&location_id=2
+    Returns full field info list (not GeoJSON) for the management panel."""
+    query = (
+        db.query(FieldUnit)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(UserLocation.user_id == user_id, FieldUnit.deleted_at.is_(None))
+    )
+    if location_id:
+        query = query.filter(FieldUnit.location_id == location_id)
+
+    fields = query.order_by(FieldUnit.created_at.desc()).all()
+
+    return [
+        {
+            "id":           f.id,
+            "location_id":  f.location_id,
+            "label":        f.label,
+            "field_type":   f.field_type.value if hasattr(f.field_type, "value") else f.field_type,
+            "crop_type":    f.crop_type,
+            "season_year":  f.season_year,
+            "area_ha":      float(f.area_ha) if f.area_ha is not None else None,
+            "status":       f.status,
+            "source":       f.source,
+            "manual_added": f.manual_added,
+            "created_at":   f.created_at.isoformat() if f.created_at else None,
+            "updated_at":   f.updated_at.isoformat() if f.updated_at else None,
+        }
+        for f in fields
+    ]
+
+
+@router.patch("/{field_id}", tags=["Fields"])
+def update_field(
+    field_id: int,
+    payload: FieldUpdate,
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    """PATCH /api/v1/fields/{field_id}?user_id=1"""
+    field = (
+        db.query(FieldUnit)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(FieldUnit.id == field_id, UserLocation.user_id == user_id)
+        .first()
+    )
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found or access denied")
+
+    if payload.label       is not None: field.label       = payload.label.strip()
+    if payload.field_type  is not None: field.field_type  = payload.field_type
+    if payload.crop_type   is not None: field.crop_type   = payload.crop_type or None
+    if payload.season_year is not None: field.season_year = payload.season_year
+    if payload.status      is not None:
+        if payload.status not in ("active", "inactive", "archived"):
+            raise HTTPException(status_code=400, detail="Invalid status value")
+        field.status = payload.status
+
+    import datetime
+    field.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(field)
+
+    return {
+        "message":     "Field updated successfully",
+        "id":          field.id,
+        "label":       field.label,
+        "field_type":  field.field_type.value if hasattr(field.field_type, "value") else field.field_type,
+        "crop_type":   field.crop_type,
+        "season_year": field.season_year,
+        "status":      field.status,
     }

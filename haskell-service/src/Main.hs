@@ -19,6 +19,7 @@ import Validation
 import WeatherMetrics (computeMetrics, LocationData)
 import SprayingWindow (computeSprayingWindows, ForecastPoint)
 import SatelliteAnomaly (computeSnapshotAnomaly, SnapshotInput)
+import Biomass (computeBiomass, BiomassInput)
 
 -- =========================
 -- WRAPPER PAYLOAD
@@ -126,6 +127,12 @@ main = scotty 8081 $ do
             Nothing -> do
               status status400
               text "Missing raw_data for config=5"
+      -- Biomass
+      6 -> case raw_data req of
+       Just d -> case fromJSON d :: Result BiomassInput of
+         Success inp -> json (computeBiomass inp)
+         Error err   -> status status400 >> text (TL.pack err)
+       Nothing -> status status400 >> text "Missing raw_data for config=6"
 
       _ -> do
         status status400

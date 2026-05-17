@@ -35,22 +35,24 @@ async def get_user_files(user_id: int, db: Session = Depends(get_db)):
 
 @router.get("/user/locations")
 async def get_user_locations(user_id: int, db: Session = Depends(get_db)):
+    from geoalchemy2.shape import to_shape
     locations = (
-        db.query(
-            UserLocation.id,
-            UserLocation.label
-        )
+        db.query(UserLocation)
         .filter(UserLocation.user_id == user_id)
         .all()
     )
 
-    return [
-        {
-            "id": loc.id,
-            "label": loc.label
-        }
-        for loc in locations
-    ]
+    result = []
+    for loc in locations:
+        lat, lon = None, None
+        if loc.location is not None:
+            try:
+                pt = to_shape(loc.location)
+                lon, lat = pt.x, pt.y
+            except Exception:
+                pass
+        result.append({"id": loc.id, "label": loc.label, "lat": lat, "lon": lon})
+    return result
 
 
 @router.get("/location/{location_id}/latest-metrics/{metric}")
@@ -156,4 +158,94 @@ def get_user_fields(user_id: int, db: Session = Depends(get_db)):
     return {
         "type": "FeatureCollection",
         "features": features
+    }
+
+@router.get("/user/fields-list")
+def get_user_fields_list(
+    user_id: int,
+    location_id: int = None,
+    db: Session = Depends(get_db)
+):
+    """GET /api/v1/user/fields-list?user_id=1&location_id=2
+    Full field info for the management panel (not GeoJSON)."""
+    query = (
+        db.query(FieldUnit)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(UserLocation.user_id == user_id)
+    )
+    if location_id:
+        query = query.filter(FieldUnit.location_id == location_id)
+
+    # exclude soft-deleted
+    try:
+        query = query.filter(FieldUnit.deleted_at.is_(None))
+    except Exception:
+        pass
+
+    fields = query.order_by(FieldUnit.created_at.desc()).all()
+
+    return [
+        {
+            "id":           f.id,
+            "location_id":  f.location_id,
+            "label":        f.label,
+            "field_type":   f.field_type.value if hasattr(f.field_type, "value") else f.field_type,
+            "crop_type":    f.crop_type,
+            "season_year":  f.season_year,
+            "area_ha":      float(f.area_ha) if f.area_ha is not None else None,
+            "status":       f.status,
+            "source":       f.source,
+            "manual_added": f.manual_added,
+            "created_at":   f.created_at.isoformat() if f.created_at else None,
+            "updated_at":   f.updated_at.isoformat() if f.updated_at else None,
+        }
+        for f in fields
+    ]
+
+
+from pydantic import BaseModel as _BaseModel
+
+class _FieldUpdate(_BaseModel):
+    label: str = None
+    field_type: str = None
+    crop_type: str = None
+    season_year: int = None
+    status: str = None
+
+@router.patch("/fields/{field_id}")
+def patch_field(
+    field_id: int,
+    payload: _FieldUpdate,
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    """PATCH /api/v1/fields/{field_id}?user_id=1"""
+    from sqlalchemy import and_
+    field = (
+        db.query(FieldUnit)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(FieldUnit.id == field_id, UserLocation.user_id == user_id)
+        .first()
+    )
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found or access denied")
+
+    import datetime
+    if payload.label       is not None: field.label       = payload.label.strip()
+    if payload.crop_type   is not None: field.crop_type   = payload.crop_type or None
+    if payload.season_year is not None: field.season_year = payload.season_year
+    if payload.status      is not None: field.status      = payload.status
+    if payload.field_type  is not None:
+        field.field_type = payload.field_type
+    field.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(field)
+    return {
+        "message":     "Field updated",
+        "id":          field.id,
+        "label":       field.label,
+        "field_type":  field.field_type.value if hasattr(field.field_type, "value") else field.field_type,
+        "crop_type":   field.crop_type,
+        "season_year": field.season_year,
+        "status":      field.status,
     }
