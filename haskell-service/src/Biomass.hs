@@ -1,7 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Biomass (computeBiomass, BiomassInput, BiomassResult) where
+module Biomass
+  ( computeBiomass
+  , BiomassInput(..)
+  , BiomassResult(..)
+  , EviRaw(..)
+  ) where
 
 import Data.Aeson
 import GHC.Generics
