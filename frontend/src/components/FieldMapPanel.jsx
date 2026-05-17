@@ -522,4 +522,6 @@ const styles = {
   },
 };
 
+FieldMapPanel.displayName = 'FieldMapPanel';
+
 export default FieldMapPanel;
