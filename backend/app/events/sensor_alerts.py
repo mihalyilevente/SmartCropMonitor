@@ -45,11 +45,14 @@ def _get_active_sensor_offline_event(db: Session, sensor_id: int) -> Optional[Ev
 
 def _create_sensor_offline_event(db: Session, sensor: SensorsDB, threshold: datetime.timedelta) -> None:
     dedup_key = f"sensor_offline:{sensor.id}"
-    event_hash = _build_sensor_event_hash(sensor.id, EventType.SENSOR_OFFLINE, dedup_key)
 
     existing_active = _get_active_sensor_offline_event(db, sensor.id)
     if existing_active:
         return
+
+    now_str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    versioned_dedup = f"{dedup_key}:{now_str}"
+    event_hash = _build_sensor_event_hash(sensor.id, EventType.SENSOR_OFFLINE, versioned_dedup)
 
     event = Events(
         user_id=sensor.user_id,
