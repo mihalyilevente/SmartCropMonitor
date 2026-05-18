@@ -1,17 +1,22 @@
 /**
  * Dashboard.jsx
  * Main view. Collapsible panels below the header banner:
- *  0. AlertsPanel          — events list + alert rules (templates & custom)   ← NEW
- *  1. WeatherMetricsPanel  — latest-weather endpoint (history + metrics objects)
- *  2. WeatherCharts        — weather-charts endpoint (hourly time series)
- *  3. SprayingWindowsPanel — spraying-windows endpoint (optimal application times)
- *  4. FieldMapPanel        — Mapbox GL JS: field boundaries + metric heatmap
- *  5. SensorPanel          — sensor management, status, history plots
+ *  0. MorningBriefingPanel — daily risk summary
+ *  1. AlertsPanel          — events list + alert rules
+ *  2. TasksPanel
+ *  3. FieldWorkPanel
+ *  4. FieldsPanel
+ *  5. WeatherMetricsPanel  — latest-weather (history + metrics objects)
+ *  6. WeatherCharts        — hourly time series
+ *  7. SprayingWindowsPanel — optimal application times
+ *  8. FieldMapPanel        — Mapbox GL JS field boundaries + heatmap
+ *  9. SensorPanel          — sensor management
  */
 
 import { useState, useEffect, useRef } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
+import { useFontSize } from './context/FontSizeContext';
 import AlertsPanel from './components/AlertsPanel';
 import TasksPanel from './components/TasksPanel';
 import FieldWorkPanel from './components/FieldWorkPanel';
@@ -28,9 +33,11 @@ import MorningBriefingPanel from './components/MorningBriefingPanel';
 import logo from './assets/logo1.png';
 
 const Dashboard = ({ userId, onLogout }) => {
+  const { largeFonts, toggleFonts } = useFontSize();
+
   const [locations, setLocations]           = useState([]);
   const [locationId, setLocationId]         = useState(null);
-  const [locationCenter, setLocationCenter] = useState(null); // { lat, lon }
+  const [locationCenter, setLocationCenter] = useState(null);
   const [currentWeather, setCurrentWeather] = useState(null);
   const [latestWeather, setLatestWeather]   = useState(null);
   const [chartData, setChartData]           = useState([]);
@@ -41,7 +48,7 @@ const Dashboard = ({ userId, onLogout }) => {
   const [segmentationStatus, setSegmentationStatus] = useState(null);
   const fieldMapRef = useRef(null);
 
-  // ── helpers ────────────────────────────────────────────────────────────────
+  // ── data fetching ──────────────────────────────────────────────────────────
   const fetchLocations = () => {
     if (!userId) return;
     setLoading(true);
@@ -59,7 +66,6 @@ const Dashboard = ({ userId, onLogout }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  // Update map center when location changes
   useEffect(() => {
     if (!locationId || locations.length === 0) return;
     const loc = locations.find(l => l.id === locationId);
@@ -70,18 +76,9 @@ const Dashboard = ({ userId, onLogout }) => {
 
   useEffect(() => {
     if (!userId || !locationId) return;
-
-    getCurrentWeather(locationId, userId)
-      .then(setCurrentWeather)
-      .catch(() => setCurrentWeather(null));
-
-    getWeatherHistory(locationId, userId)
-      .then(setLatestWeather)
-      .catch(() => setLatestWeather(null));
-
-    getWeatherMetrics(locationId, userId)
-      .then(setChartData)
-      .catch(() => setChartData([]));
+    getCurrentWeather(locationId, userId).then(setCurrentWeather).catch(() => setCurrentWeather(null));
+    getWeatherHistory(locationId, userId).then(setLatestWeather).catch(() => setLatestWeather(null));
+    getWeatherMetrics(locationId, userId).then(setChartData).catch(() => setChartData([]));
   }, [locationId, userId]);
 
   const handleLocationAdded = (newLocation) => {
@@ -135,7 +132,7 @@ const Dashboard = ({ userId, onLogout }) => {
           </button>
 
           {locationId && (
-            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title="Draw a field boundary manually on the map">
+            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title="Draw a field boundary manually">
               ✏️ Draw Field
             </button>
           )}
@@ -144,14 +141,39 @@ const Dashboard = ({ userId, onLogout }) => {
             <button
               onClick={() => setShowSegmentation(true)}
               style={{ ...styles.segmentBtn, ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}) }}
-              title="Run AI field segmentation for this location"
+              title="Run AI field segmentation"
             >
               {segmentationStatus === 'done' ? '✓ Fields Updated' : '🛰 Segment Fields'}
             </button>
           )}
         </div>
 
-        <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>
+        {/* ── Right side: accessibility toggle + logout ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Large font toggle */}
+          <button
+            onClick={toggleFonts}
+            title={largeFonts ? 'Switch to normal font size' : 'Switch to large font size'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: largeFonts ? 'var(--color-accent-chernozem)' : '#f0ebe3',
+              color: largeFonts ? '#fff' : 'var(--color-accent-chernozem)',
+              border: `1px solid ${largeFonts ? 'var(--color-accent-chernozem)' : 'var(--color-accent-soil)'}`,
+              borderRadius: 8, padding: '7px 13px',
+              cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              fontFamily: 'inherit', transition: 'all 0.2s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontSize: largeFonts ? 17 : 14, lineHeight: 1 }}>A</span>
+            <span style={{ fontSize: 11, lineHeight: 1 }}>A</span>
+            <span style={{ fontSize: 10, marginLeft: 2, opacity: 0.7 }}>
+              {largeFonts ? 'Large' : 'Normal'}
+            </span>
+          </button>
+
+          <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>
+        </div>
       </header>
 
       {/* ── Current weather banner ── */}
@@ -170,7 +192,6 @@ const Dashboard = ({ userId, onLogout }) => {
       )}
 
       {/* ── Panels ── */}
-      {/* Alerts panel — above weather so critical events are immediately visible */}
       <MorningBriefingPanel userId={userId} locationId={locationId} chartData={chartData} />
       <AlertsPanel userId={userId} locationId={locationId} />
       <TasksPanel userId={userId} />
@@ -229,12 +250,11 @@ const styles = {
     marginBottom: 20,
     paddingBottom: 12,
     borderBottom: '1px solid var(--color-accent-soil)',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   branding: { display: 'flex', alignItems: 'center', gap: 10 },
-
-  locationRow: {
-    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-  },
+  locationRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   locationSelector: {
     display: 'flex', alignItems: 'center',
     backgroundColor: 'var(--color-bg-magnolia)',
@@ -247,14 +267,12 @@ const styles = {
     border: '1px solid var(--color-accent-soil)',
     cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
   },
-
   addLocationBtn: {
     background: 'var(--color-accent-soil)',
     color: '#fff', border: 'none', padding: '8px 14px',
     borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13,
     whiteSpace: 'nowrap', transition: 'opacity 0.15s',
   },
-
   manualFieldBtn: {
     background: 'linear-gradient(135deg, #2471a3, #1a5276)',
     color: '#fff', border: 'none', padding: '8px 16px',
@@ -272,7 +290,6 @@ const styles = {
   segmentBtnDone: {
     background: 'linear-gradient(135deg, #27ae60, #1e8449)',
   },
-
   weatherBanner: {
     background: 'var(--color-bg-magnolia)',
     padding: '18px 24px', borderRadius: 12, marginBottom: 20,

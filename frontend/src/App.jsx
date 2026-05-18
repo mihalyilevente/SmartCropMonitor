@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Auth from './Auth';
 import Dashboard from './Dashboard';
+import { FontSizeProvider } from './context/FontSizeContext';
 
 function App() {
   const [userId, setUserId] = useState(localStorage.getItem('userId'));
@@ -17,21 +18,23 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
-      <div style={{ minHeight: '100vh', backgroundColor: '#f4f7f6' }}>
-        <Routes>
-          <Route
-            path="/login"
-            element={userId ? <Navigate to="/" replace /> : <Auth onLogin={handleLogin} />}
-          />
-          <Route
-            path="/"
-            element={userId ? <Dashboard userId={userId} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
+    <FontSizeProvider>
+      <BrowserRouter>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f4f7f6' }}>
+          <Routes>
+            <Route
+              path="/login"
+              element={userId ? <Navigate to="/" replace /> : <Auth onLogin={handleLogin} />}
+            />
+            <Route
+              path="/"
+              element={userId ? <Dashboard userId={userId} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </FontSizeProvider>
   );
 }
 
