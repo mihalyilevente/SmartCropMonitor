@@ -47,10 +47,8 @@ def _create_sensor_offline_event(db: Session, sensor: SensorsDB, threshold: date
     dedup_key = f"sensor_offline:{sensor.id}"
     event_hash = _build_sensor_event_hash(sensor.id, EventType.SENSOR_OFFLINE, dedup_key)
 
-    existing = db.execute(
-        select(Events).where(Events.event_hash == event_hash)
-    ).scalar_one_or_none()
-    if existing:
+    existing_active = _get_active_sensor_offline_event(db, sensor.id)
+    if existing_active:
         return
 
     event = Events(
@@ -78,6 +76,9 @@ def _resolve_sensor_offline_event(db: Session, sensor_id: int) -> None:
     if event:
         event.status = StatusType.RESOLVED
         event.updated_at = datetime.datetime.utcnow()
+        meta = dict(event.extra_metadata or {})
+        meta["resolved_at"] = datetime.datetime.utcnow().isoformat()
+        event.extra_metadata = meta
         logger.info("Sensor %d came back ONLINE. SENSOR_OFFLINE event resolved.", sensor_id)
 
 
