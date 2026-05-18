@@ -42,10 +42,10 @@ instance FromJSON WeatherPoint where
       <*> v .:? "is_night"
 
 data Metadata = Metadata
-  { elevation   :: Double
-  , lat         :: Double
+  { elevation   :: Double   -- metres above sea level
+  , lat         :: Double   -- decimal degrees
   , lon         :: Double
-  , day_of_year :: Int
+  , day_of_year :: Int      -- 1..365
   } deriving (Show, Generic)
 
 instance FromJSON Metadata
@@ -68,12 +68,12 @@ data MetricsResult = MetricsResult
   , rain_sum_7d       :: Double
   , hum_mean_7d       :: Double
   , hum_mean_30d      :: Double
-  , et0               :: Double
+  , et0               :: Double   -- ET0 для текущего дня, мм/день
   , spi1m             :: Double
   , water_deficit_7d  :: Double
   , water_deficit_30d :: Double
-  , ra                :: Double
-  , rs                :: Double
+  , ra                :: Double   -- MJ/m²/day для текущего дня
+  , rs                :: Double   -- MJ/m²/day для текущего дня
   } deriving (Show, Generic)
 
 instance ToJSON MetricsResult
@@ -208,10 +208,12 @@ rns :: Double -> Double
 rns rsVal = (1.0 - 0.23) * rsVal   -- albedo α = 0.23
 
 -- Clear-sky solar radiation Rso  (FAO-56 Eq. 37)
+-- elevation in metres
 rso :: Double -> Double -> Double
 rso elev ra = (0.75 + 2e-5 * elev) * ra
 
 -- Net longwave radiation Rnl  (FAO-56 Eq. 39)
+-- tMin, tMax in °C; ea in kPa; rs, rso in MJ m⁻² day⁻¹
 rnl :: Double -> Double -> Double -> Double -> Double -> Double
 rnl tMin tMax ea rsVal rsoVal =
   let tMinK   = tMin + 273.16
@@ -271,6 +273,11 @@ et0FAO56 tMean tMin tMax rhMean u2 ra rsVal pressHPa elev =
   in
     max 0.0 (numerator / denominator)
 
+-- =============================================================================
+-- GROUP HOURLY POINTS INTO DAILY BUCKETS
+-- Key = first 10 chars of dt ("YYYY-MM-DD")
+-- =============================================================================
+
 dayKey :: WeatherPoint -> String
 dayKey wp = take 10 (dt wp)
 
@@ -281,6 +288,7 @@ groupByDay pts =
       byKey k = filter ((== k) . dayKey) sorted
   in map byKey keys
 
+-- Daily summary needed for ET0
 data DaySummary = DaySummary
   { dsTmin  :: Double
   , dsTmax  :: Double
@@ -291,7 +299,7 @@ data DaySummary = DaySummary
   , dsRain  :: Double   -- total rain mm
   , dsSnow  :: Double   -- total snowfall mm (SWE)
   , dsPres  :: Double   -- mean pressure hPa
-  } deriving Show
+  } deriving (Show, Eq)
 
 -- Wind speed at 2 m from 10 m measurement  (FAO-56 Eq. 47)
 windAt2m :: Double -> Double
@@ -334,6 +342,8 @@ dailyET0 meta jDay ds =
 
 -- =============================================================================
 -- GDD — standard daily method  (base 10 °C)
+-- GDD_day = max(0, (Tmax + Tmin)/2 - Tbase)
+-- Summed over all days in the window.
 -- =============================================================================
 
 gddFromDays :: [DaySummary] -> Double
@@ -342,21 +352,24 @@ gddFromDays days =
 
 -- =============================================================================
 -- SPI — Standardised Precipitation Index (McKee et al., 1993)
+--   1. Aggregate hourly rain into daily totals.
+--   2. Compute the mean and standard deviation of those daily totals.
+--   3. SPI = (x - μ) / σ  where x is the total over the window..
 -- =============================================================================
 
 spiApprox :: [WeatherPoint] -> Double
 spiApprox pts =
   let days     = groupByDay pts
       dailyR   = [ sum (map (fromMaybe 0.0 . r) d) | d <- days ]
-      n        = length dailyR
-      total    = sum dailyR
-  in case safeStd dailyR of
-       Nothing  -> 0.0
-       Just std ->
-         if std <= 0.0 then 0.0
-         else
-           let mu = total / fromIntegral n
-           in (total - mu * fromIntegral n) / (std * sqrt (fromIntegral n))
+      n        = fromIntegral (length dailyR)
+  in if n < 2.0 then 0.0
+     else
+       case (safeMean dailyR, safeStd dailyR) of
+         (Just mu, Just std) ->
+           if std <= 0.0 then 0.0
+           -- SPI = (x_mean - mu_clim) / (sigma_clim / sqrt(n))
+           else (last dailyR - mu) / std
+         _ -> 0.0
 
 -- =============================================================================
 -- MAIN ENGINE
@@ -398,7 +411,7 @@ computeMetrics (LocationData meta cur h7 h30) =
     summaries30 = mapMaybe summariseDay days30
 
     -- -------------------------------------------------------------------------
-    -- GDD
+    -- GDD — standard daily method
     -- -------------------------------------------------------------------------
     gddVal     = gddFromDays summaries7
 
@@ -412,7 +425,7 @@ computeMetrics (LocationData meta cur h7 h30) =
     rsVal      = rsAngstrom raVal ccToday
 
     -- -------------------------------------------------------------------------
-    -- ET0
+    -- ET0 — computed per day, summed over each window
     -- -------------------------------------------------------------------------
     assignJ :: [DaySummary] -> [(Int, DaySummary)]
     assignJ summaries =
@@ -426,18 +439,20 @@ computeMetrics (LocationData meta cur h7 h30) =
     et0Sum7     = sum et0PerDay7
     et0Sum30    = sum et0PerDay30
 
+    -- ET0 for the current day
     et0Today    = case summaries7 of
                     [] -> 0.0
                     ds -> last et0PerDay7
 
     -- -------------------------------------------------------------------------
     -- Water deficit  =  cumulative ET0 − cumulative precipitation
+    -- positive → water stress; negative → surplus
     -- -------------------------------------------------------------------------
     waterDef7   = et0Sum7  - (rain7  + snow7)
     waterDef30  = et0Sum30 - rain30
 
     -- -------------------------------------------------------------------------
-    -- SPI
+    -- SPI (1-month approximation from 30d hourly data)
     -- -------------------------------------------------------------------------
     spi1mVal    = spiApprox h30
 
