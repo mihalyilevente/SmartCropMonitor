@@ -11,7 +11,7 @@ from app.core.database import get_db, Events, EventsRules, UserTask
 from app.core.schemas import (
     EventType, StatusType, Status_task, Priority_task
 )
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 router = APIRouter(prefix="/events", tags=["Alerts & Tasks"])
 
@@ -48,11 +48,34 @@ class ManualAlertCreate(BaseModel):
 
 
 class RuleCondition(BaseModel):
-    metric: str
-    operator: str
-    value: float
+    metric: Optional[str] = None
+    operator: Optional[str] = None
+    value: Optional[float] = None
     sensor_id: Optional[int] = None
     location_id: Optional[int] = None
+    logic: Optional[str] = None
+    conditions: Optional[List[dict]] = None
+
+    @model_validator(mode="after")
+    def validate_rule_shape(self):
+        allowed_operators = {">", "<", ">=", "<=", "==", "!="}
+        if self.conditions is not None:
+            logic = (self.logic or "AND").upper()
+            if logic not in {"AND", "OR"}:
+                raise ValueError("Compound rule logic must be AND or OR")
+            if not self.conditions:
+                raise ValueError("Compound rule must include at least one condition")
+            for item in self.conditions:
+                if "conditions" in item:
+                    continue
+                if not item.get("metric") or item.get("operator") not in allowed_operators or item.get("value") is None:
+                    raise ValueError("Each condition requires metric, operator, and value")
+            self.logic = logic
+            return self
+
+        if not self.metric or self.operator not in allowed_operators or self.value is None:
+            raise ValueError("Rule condition requires metric, operator, and value")
+        return self
 
 
 class RuleAction(BaseModel):
@@ -68,6 +91,15 @@ class RuleCreate(BaseModel):
     condition: RuleCondition
     action: RuleAction
     is_active: bool = True
+
+
+class RuleUpdate(BaseModel):
+    name: Optional[str] = None
+    event_type: Optional[EventType] = None
+    condition: Optional[RuleCondition] = None
+    action: Optional[RuleAction] = None
+    is_active: Optional[bool] = None
+    location_id: Optional[int] = None
 
 
 class RuleRead(BaseModel):
@@ -206,15 +238,15 @@ def get_user_rules(user_id: int, db: Session = Depends(get_db)):
 @router.post("/rules/create", response_model=RuleRead)
 def create_rule(rule_data: RuleCreate, db: Session = Depends(get_db)):
     """POST /api/v1/events/rules/create"""
+    condition = rule_data.condition.model_dump(exclude_none=True)
+    if rule_data.location_id:
+        condition["location_id"] = rule_data.location_id
     new_rule = EventsRules(
         user_id=rule_data.user_id,
         name=rule_data.name,
         is_active=rule_data.is_active,
         event_type=rule_data.event_type,
-        condition={
-            **rule_data.condition.model_dump(),
-            **({"location_id": rule_data.location_id} if rule_data.location_id else {}),
-        },
+        condition=condition,
         action=rule_data.action.model_dump(),
     )
     db.add(new_rule)
@@ -225,6 +257,44 @@ def create_rule(rule_data: RuleCreate, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
         raise HTTPException(status_code=400, detail="Failed to create rule")
+
+
+@router.patch("/rules/{rule_id}", response_model=RuleRead)
+def update_rule(rule_id: int, rule_data: RuleUpdate, db: Session = Depends(get_db)):
+    """PATCH /api/v1/events/rules/{rule_id}"""
+    rule = db.get(EventsRules, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+
+    update_data = rule_data.model_dump(exclude_unset=True, exclude_none=True)
+    if "condition" in update_data:
+        condition = update_data.pop("condition")
+        for scope_key in ("location_id", "sensor_id"):
+            if scope_key not in condition and isinstance(rule.condition, dict) and scope_key in rule.condition:
+                condition[scope_key] = rule.condition[scope_key]
+        if rule_data.location_id:
+            condition["location_id"] = rule_data.location_id
+        rule.condition = condition
+    elif rule_data.location_id:
+        condition = dict(rule.condition or {})
+        condition["location_id"] = rule_data.location_id
+        rule.condition = condition
+
+    if "action" in update_data:
+        rule.action = update_data.pop("action")
+
+    for key, value in update_data.items():
+        if key != "location_id":
+            setattr(rule, key, value)
+
+    rule.updated_at = datetime.utcnow()
+    try:
+        db.commit()
+        db.refresh(rule)
+        return rule
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Failed to update rule")
 
 
 @router.patch("/rules/{rule_id}/toggle")
@@ -239,12 +309,12 @@ def toggle_rule(rule_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/rules/{rule_id}")
-def delete_rule(rule_id: int, user_id: int, db: Session = Depends(get_db)):
+def delete_rule(rule_id: int, user_id: Optional[int] = None, db: Session = Depends(get_db)):
     """DELETE /api/v1/events/rules/{rule_id}?user_id=1"""
     rule = db.get(EventsRules, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
-    if rule.user_id != user_id:
+    if user_id is not None and rule.user_id != user_id:
         raise HTTPException(status_code=403, detail="Not your rule")
     db.delete(rule)
     db.commit()
