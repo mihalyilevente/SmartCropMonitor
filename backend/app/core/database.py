@@ -346,6 +346,76 @@ class WeatherMetrics(Base):
     weather = relationship("WeatherHistory", back_populates="metrics")
 
 
+class DiseaseRisk(Base):
+
+    __tablename__ = "disease_risk"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    location_id = Column(
+        Integer,
+        ForeignKey("user_locations.id"),
+        nullable=False,
+        index=True
+    )
+
+    reference_weather_id = Column(
+        Integer,
+        ForeignKey("weather_history.id"),
+        nullable=False,
+        index=True
+    )
+
+    window_end_date = Column(DateTime, nullable=False, index=True)
+
+    # Botrytis Risk Index
+
+    botrytis_hours_48h = Column(Integer, nullable=True)
+    botrytis_risk_level = Column(String(10), nullable=True)
+    botrytis_action_required = Column(Boolean, nullable=True)
+
+    # TOMCAST — Disease Severity Values (Pitblado 1992)
+
+    tomcast_dsv_7d = Column(Float, nullable=True)
+    tomcast_dsv_since_spray = Column(Float, nullable=True)
+    tomcast_action_required = Column(Boolean, nullable=True)
+
+    # Blitecast / P-Value (Wallin 1962 + DSV)
+
+    blitecast_p_value_day = Column(Integer, nullable=True)
+    blitecast_p_value_7d = Column(Float, nullable=True)
+    blitecast_dsv_7d = Column(Float, nullable=True)
+    blitecast_risk_level = Column(String(10), nullable=True)
+    blitecast_action_required = Column(Boolean, nullable=True)
+
+    # Plasmopara viticola —  10-10-24 + EPI
+
+    plasmopara_bbch_stage = Column(Integer, nullable=True)
+    plasmopara_leaf_wetness_hours = Column(Integer, nullable=True)
+    plasmopara_rain_10d = Column(Float, nullable=True)
+    plasmopara_rule_triggered = Column(Boolean, nullable=True)
+    plasmopara_epi = Column(Float, nullable=True)
+    plasmopara_risk_level = Column(String(10), nullable=True)
+    plasmopara_action_required = Column(Boolean, nullable=True)
+
+    computed_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    any_action_required = Column(Boolean, nullable=False, default=False)
+
+    location = relationship("UserLocation")
+    weather = relationship("WeatherHistory")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "location_id",
+            "reference_weather_id",
+            name="uq_disease_risk_location_weather"
+        ),
+        Index("ix_disease_risk_location_date", "location_id", "window_end_date"),
+        Index("ix_disease_risk_action", "any_action_required", "window_end_date"),
+    )
+
+
 class SensorsDB(Base):
     __tablename__ = "sensors"
 
