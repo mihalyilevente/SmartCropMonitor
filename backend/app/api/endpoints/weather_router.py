@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory, WeatherMetrics
 from app.services.weather_service import current_weather_request
 from app.services.spraying_service import calculate_spraying_window
+from app.services.custom_alert_engine import build_metric_snapshot, evaluate_custom_alert_rules
 from typing import Any
 
 router = APIRouter()
@@ -48,6 +49,16 @@ async def get_current_weather(
             detail="Failed to fetch weather data"
         )
 
+    created = evaluate_custom_alert_rules(
+        db,
+        user_id,
+        build_metric_snapshot(weather),
+        location_id=location_id,
+        source="weather_current",
+    )
+    if created:
+        db.commit()
+
     return weather
 
 
@@ -85,6 +96,16 @@ async def get_latest_location_weather(
         .filter(WeatherMetrics.reference_weather_id == latest_history.id)
         .first()
     )
+
+    created = evaluate_custom_alert_rules(
+        db,
+        user_id,
+        build_metric_snapshot(latest_history, latest_metrics),
+        location_id=location_id,
+        source="weather_latest",
+    )
+    if created:
+        db.commit()
 
     return {
         "history": latest_history,
