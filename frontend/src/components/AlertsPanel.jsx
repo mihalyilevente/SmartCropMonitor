@@ -9,11 +9,15 @@
  *   DELETE /api/v1/events/rules/{rule_id}                    → delete rule
  *
  * StatusType: ACTIVE | ACKNOWLEDGED | RESOLVED | ARCHIVED | IGNORED
+ *
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/client';
 
 const BASE_EVENTS = '../api/v1/events';
+
+// How often to silently re-fetch events to catch sensor-recovery resolutions.
+const POLL_INTERVAL_MS = 30_000;
 
 // ── Severity / Status colours ─────────────────────────────────────────────────
 const SEV_COLOR = {
@@ -31,20 +35,20 @@ const STATUS_COLOR = {
 };
 
 const EVT_ICONS = {
-  SENSOR_OFFLINE:   '📡',
+  SENSOR_OFFLINE:    '📡',
   DISEASE_DETECTION: '🦠',
   PEST_OUTBREAK:     '🐛',
-  FROST_HAZARD:     '❄️',
-  HEAT_STRESS:      '🔥',
-  DROUGHT_WARNING:  '🏜️',
-  HEAVY_RAIN:       '🌧️',
-  HAIL_STORM:       '⛈️',
-  HIGH_WIND:        '💨',
-  NDVI_DROP:        '🌿',
-  METRIC_ANOMALY:   '📊',
-  LOW_BATTERY:      '🔋',
-  MANUAL_ALERT:     '✏️',
-  OTHER:            '⚠️',
+  FROST_HAZARD:      '❄️',
+  HEAT_STRESS:       '🔥',
+  DROUGHT_WARNING:   '🏜️',
+  HEAVY_RAIN:        '🌧️',
+  HAIL_STORM:        '⛈️',
+  HIGH_WIND:         '💨',
+  NDVI_DROP:         '🌿',
+  METRIC_ANOMALY:    '📊',
+  LOW_BATTERY:       '🔋',
+  MANUAL_ALERT:      '✏️',
+  OTHER:             '⚠️',
 };
 
 const STATUSES = ['ACTIVE', 'ACKNOWLEDGED', 'RESOLVED', 'ARCHIVED', 'IGNORED'];
@@ -62,12 +66,17 @@ const Pill = ({ label, colors }) => (
 const AlertRow = ({ event, onStatusChange }) => {
   const [updating, setUpdating] = useState(false);
   const [open, setOpen] = useState(false);
-  const sev = SEV_COLOR[event.severity] || SEV_COLOR.INFO;
-  const sta = STATUS_COLOR[event.status] || STATUS_COLOR.ACTIVE;
+  const sev  = SEV_COLOR[event.severity]  || SEV_COLOR.INFO;
+  const sta  = STATUS_COLOR[event.status] || STATUS_COLOR.ACTIVE;
   const icon = EVT_ICONS[event.event_type] || EVT_ICONS.OTHER;
-  const ts = event.created_at
+  const ts   = event.created_at
     ? new Date(event.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
     : '—';
+
+  const autoResolved =
+    event.status === 'RESOLVED' &&
+    event.event_type === 'SENSOR_OFFLINE' &&
+    event.extra_metadata?.resolved_at;
 
   const changeStatus = async (newStatus) => {
     if (newStatus === event.status) return;
@@ -89,7 +98,7 @@ const AlertRow = ({ event, onStatusChange }) => {
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 14px', cursor: 'pointer', userSelect: 'none',
-        borderLeft: `4px solid ${sev.text}`,
+        borderLeft: `4px solid ${event.status === 'RESOLVED' ? '#ce93d8' : sev.text}`,
       }} onClick={() => setOpen(v => !v)}>
         <span style={{ fontSize: 18 }}>{icon}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -99,6 +108,13 @@ const AlertRow = ({ event, onStatusChange }) => {
             </span>
             <Pill label={event.severity} colors={sev} />
             <Pill label={event.status}   colors={sta} />
+            {autoResolved && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7',
+                letterSpacing: '0.05em',
+              }}>✓ SENSOR BACK ONLINE</span>
+            )}
           </div>
           <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{ts}</div>
         </div>
@@ -108,6 +124,17 @@ const AlertRow = ({ event, onStatusChange }) => {
       {/* Expanded body */}
       {open && (
         <div style={{ padding: '12px 14px 14px', borderTop: `1px solid ${sev.border}`, background: '#fff' }}>
+          {/* Auto-resolved notice */}
+          {autoResolved && (
+            <div style={{
+              background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8,
+              padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#2e7d32',
+            }}>
+              ✓ Sensor came back online and this alert was automatically resolved at{' '}
+              <strong>{new Date(event.extra_metadata.resolved_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</strong>.
+            </div>
+          )}
+
           {/* Metadata */}
           {event.extra_metadata && (
             <div style={{ marginBottom: 12 }}>
@@ -584,17 +611,31 @@ const AlertsPanel = ({ userId, locationId }) => {
   const [loading, setLoading] = useState(true);
   const [rulesVer, setRulesVer] = useState(0);
   const [filter, setFilter]   = useState({ status: 'ALL', severity: 'ALL' });
+  const [lastPoll, setLastPoll] = useState(null);
 
+  // ── Initial + manual load (shows spinner) ──────────────────────────────────
   const loadEvents = useCallback(() => {
     if (!userId) return;
     setLoading(true);
     api.get(`${BASE_EVENTS}/user/${userId}`)
-      .then(r => setEvents(r.data))
+      .then(r => { setEvents(r.data); setLastPoll(new Date()); })
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
   }, [userId]);
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
+
+  // ── Silent background poll — catches sensor recovery resolutions ───────────
+  const pollRef = useRef(null);
+  useEffect(() => {
+    if (!userId) return;
+    pollRef.current = setInterval(() => {
+      api.get(`${BASE_EVENTS}/user/${userId}`)
+        .then(r => { setEvents(r.data); setLastPoll(new Date()); })
+        .catch(() => {/* silently ignore transient errors during polling */});
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(pollRef.current);
+  }, [userId]);
 
   const filtered = events.filter(e => {
     if (filter.status !== 'ALL' && e.status !== filter.status) return false;
@@ -602,7 +643,7 @@ const AlertsPanel = ({ userId, locationId }) => {
     return true;
   });
 
-  const activeCount = events.filter(e => e.status === 'ACTIVE').length;
+  const activeCount   = events.filter(e => e.status === 'ACTIVE').length;
   const criticalCount = events.filter(e => e.severity === 'CRITICAL' && e.status === 'ACTIVE').length;
 
   return (
@@ -618,6 +659,11 @@ const AlertsPanel = ({ userId, locationId }) => {
               color: criticalCount > 0 ? '#c62828' : '#e65100',
               border: `1px solid ${criticalCount > 0 ? '#ef9a9a' : '#ffcc02'}`,
             }}>{activeCount} active{criticalCount > 0 ? ` · ${criticalCount} critical` : ''}</span>
+          )}
+          {lastPoll && (
+            <span style={{ fontSize: 10, color: '#ccc', marginLeft: 4 }}>
+              updated {lastPoll.toLocaleTimeString('en-GB', { timeStyle: 'short' })}
+            </span>
           )}
         </div>
         <span style={{ color: '#bbb', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
