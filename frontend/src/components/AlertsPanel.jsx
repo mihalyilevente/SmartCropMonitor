@@ -293,6 +293,124 @@ const TEMPLATES = [
 ];
 
 // ── Rule creation panel ───────────────────────────────────────────────────────
+const EVENT_TYPES = [
+  'FROST_HAZARD','HEAT_STRESS','HEAVY_RAIN','HAIL_STORM','HIGH_WIND','DROUGHT_WARNING',
+  'LIGHTNING_STRIKE','LOW_SOIL_MOISTURE','HIGH_SOIL_MOISTURE','SOIL_TEMP_LOW','SOIL_TEMP_HIGH',
+  'NDVI_DROP','EVI_ANOMALY','PEST_OUTBREAK','DISEASE_DETECTION','METRIC_ANOMALY',
+  'SENSOR_OFFLINE','LOW_BATTERY','GATEWAY_DISCONNECTED','DATA_CORRUPTION',
+  'MANUAL_ALERT','OTHER',
+];
+
+const OPERATORS = ['>', '<', '>=', '<=', '==', '!='];
+
+const METRIC_OPTIONS = [
+  ['temp', 'Temperature'],
+  ['wind_speed', 'Wind speed'],
+  ['humidity', 'Humidity'],
+  ['rain', 'Rain'],
+  ['precipitation', 'Precipitation'],
+  ['pressure', 'Pressure'],
+  ['cloud_coverage', 'Cloud cover'],
+  ['soil_temperature_0cm', 'Soil temp 0 cm'],
+  ['soil_moisture_0_to_1cm', 'Soil moisture 0-1 cm'],
+  ['temp_min_night_7d', 'Min night temp 7d'],
+  ['temp_max_day_7d', 'Max day temp 7d'],
+  ['rain_cum_7d', 'Rain total 7d'],
+  ['rain_cum_30d', 'Rain total 30d'],
+  ['water_deficit_7d', 'Water deficit 7d'],
+  ['water_deficit_30d', 'Water deficit 30d'],
+  ['humidity_mean_7d', 'Humidity mean 7d'],
+  ['spi_1m', 'SPI 1m'],
+  ['gdd_base_10', 'GDD base 10'],
+  ['battery_pct', 'Battery percent'],
+  ['sensor_temp', 'Sensor temperature'],
+  ['sensor_humidity', 'Sensor humidity'],
+  ['sensor_pressure', 'Sensor pressure'],
+];
+
+const blankCondition = () => ({ metric: 'temp', operator: '>', value: '' });
+
+const conditionToRows = (condition = {}) => {
+  const rows = Array.isArray(condition.conditions) ? condition.conditions : [condition];
+  return rows
+    .filter(row => row?.metric)
+    .map(row => ({
+      metric: row.metric,
+      operator: row.operator || '>',
+      value: row.value ?? '',
+    }));
+};
+
+const buildConditionPayload = (logic, rows) => {
+  const conditions = rows.map(row => ({
+    metric: row.metric,
+    operator: row.operator,
+    value: Number(row.value),
+  }));
+  return conditions.length === 1 ? conditions[0] : { logic, conditions };
+};
+
+const describeCondition = (condition = {}) => {
+  if (Array.isArray(condition.conditions)) {
+    const logic = condition.logic || 'AND';
+    return condition.conditions
+      .map(item => `${item.metric} ${item.operator} ${item.value}`)
+      .join(` ${logic} `);
+  }
+  return `${condition.metric ?? 'metric'} ${condition.operator ?? ''} ${condition.value ?? ''}`;
+};
+
+const ConditionRows = ({ logic, setLogic, rows, setRows, inp }) => {
+  const updateRow = (idx, patch) => {
+    setRows(current => current.map((row, i) => i === idx ? { ...row, ...patch } : row));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+      <label style={lbl}>
+        Match
+        <select value={logic} onChange={e => setLogic(e.target.value)} style={inp({ width: 150 })}>
+          <option value="AND">All conditions</option>
+          <option value="OR">Any condition</option>
+        </select>
+      </label>
+
+      {rows.map((row, idx) => (
+        <div key={idx} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+          <label style={lbl}>
+            Metric
+            <select value={row.metric} onChange={e => updateRow(idx, { metric: e.target.value })} style={inp({ minWidth: 190 })}>
+              {METRIC_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </label>
+          <label style={lbl}>
+            Operator
+            <select value={row.operator} onChange={e => updateRow(idx, { operator: e.target.value })} style={inp({ width: 80 })}>
+              {OPERATORS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </label>
+          <label style={lbl}>
+            Value
+            <input type="number" value={row.value} onChange={e => updateRow(idx, { value: e.target.value })}
+              placeholder="0" style={inp({ width: 100 })} />
+          </label>
+          {rows.length > 1 && (
+            <button type="button" onClick={() => setRows(current => current.filter((_, i) => i !== idx))}
+              style={{ ...btnSecondary, padding: '6px 10px' }}>
+              Remove
+            </button>
+          )}
+        </div>
+      ))}
+
+      <button type="button" onClick={() => setRows(current => [...current, blankCondition()])}
+        style={{ ...btnSecondary, width: 'fit-content' }}>
+        + Add condition
+      </button>
+    </div>
+  );
+};
+
 const RuleCreator = ({ userId, locationId, onCreated }) => {
   const [tab, setTab] = useState('template'); // 'template' | 'custom'
   const [busy, setBusy] = useState(false);
@@ -307,9 +425,8 @@ const RuleCreator = ({ userId, locationId, onCreated }) => {
     name: '',
     event_type: 'MANUAL_ALERT',
     severity: 'INFO',
-    metric: '',
-    operator: '>',
-    value: '',
+    logic: 'AND',
+    conditions: [blankCondition()],
     description: '',
   });
 
@@ -348,8 +465,9 @@ const RuleCreator = ({ userId, locationId, onCreated }) => {
   };
 
   const submitCustom = async () => {
-    if (!custom.name || !custom.metric || !custom.value) {
-      alert('Name, metric, and value are required.');
+    const invalidCondition = custom.conditions.some(row => !row.metric || row.value === '');
+    if (!custom.name || invalidCondition) {
+      alert('Name and every condition value are required.');
       return;
     }
     setBusy(true);
@@ -359,12 +477,12 @@ const RuleCreator = ({ userId, locationId, onCreated }) => {
         location_id: locationId,
         name: custom.name,
         event_type: custom.event_type,
-        condition: { metric: custom.metric, operator: custom.operator, value: Number(custom.value) },
+        condition: buildConditionPayload(custom.logic, custom.conditions),
         action: { notify: true, severity: custom.severity },
         is_active: true,
       });
       setSuccess(true);
-      setCustom({ name: '', event_type: 'MANUAL_ALERT', severity: 'INFO', metric: '', operator: '>', value: '', description: '' });
+      setCustom({ name: '', event_type: 'MANUAL_ALERT', severity: 'INFO', logic: 'AND', conditions: [blankCondition()], description: '' });
       setTimeout(() => setSuccess(false), 3000);
       onCreated();
     } catch { alert('Failed to create rule.'); }
@@ -474,22 +592,15 @@ const RuleCreator = ({ userId, locationId, onCreated }) => {
                 {['INFO','WARNING','ERROR','CRITICAL'].map(s => <option key={s}>{s}</option>)}
               </select>
             </label>
-            <label style={lbl}>
-              Metric key *
-              <input value={custom.metric} onChange={e => setCustom(c => ({ ...c, metric: e.target.value }))}
-                placeholder="e.g. temp_min_night_7d" style={inp({ minWidth: 180 })} />
-            </label>
-            <label style={lbl}>
-              Operator
-              <select value={custom.operator} onChange={e => setCustom(c => ({ ...c, operator: e.target.value }))} style={inp({ width: 80 })}>
-                {['>', '<', '>=', '<=', '==', '!='].map(o => <option key={o}>{o}</option>)}
-              </select>
-            </label>
-            <label style={lbl}>
-              Value *
-              <input type="number" value={custom.value} onChange={e => setCustom(c => ({ ...c, value: e.target.value }))}
-                placeholder="0" style={inp({ width: 90 })} />
-            </label>
+            <div style={{ flexBasis: '100%' }}>
+              <ConditionRows
+                logic={custom.logic}
+                setLogic={logic => setCustom(c => ({ ...c, logic }))}
+                rows={custom.conditions}
+                setRows={conditions => setCustom(c => ({ ...c, conditions: typeof conditions === 'function' ? conditions(c.conditions) : conditions }))}
+                inp={inp}
+              />
+            </div>
           </div>
           <button onClick={submitCustom} disabled={busy} style={{ ...btnPrimary, marginTop: 14 }}>
             {busy ? 'Creating…' : '＋ Create Custom Rule'}
@@ -505,6 +616,8 @@ const RulesList = ({ userId, refresh }) => {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(null);
 
   const load = useCallback(() => {
     if (!userId) return;
@@ -517,13 +630,52 @@ const RulesList = ({ userId, refresh }) => {
 
   useEffect(() => { load(); }, [load, refresh]);
 
+  const startEdit = (rule) => {
+    const rows = conditionToRows(rule.condition);
+    setEditingId(rule.id);
+    setDraft({
+      name: rule.name,
+      event_type: rule.event_type || 'MANUAL_ALERT',
+      severity: rule.action?.severity || 'WARNING',
+      is_active: rule.is_active,
+      logic: rule.condition?.logic || 'AND',
+      conditions: rows.length ? rows : [blankCondition()],
+    });
+  };
+
+  const saveEdit = async (ruleId) => {
+    const invalidCondition = draft.conditions.some(row => !row.metric || row.value === '');
+    if (!draft.name || invalidCondition) {
+      alert('Name and every condition value are required.');
+      return;
+    }
+    try {
+      await api.patch(`${BASE_EVENTS}/rules/${ruleId}`, {
+        name: draft.name,
+        event_type: draft.event_type,
+        condition: buildConditionPayload(draft.logic, draft.conditions),
+        action: { notify: true, severity: draft.severity },
+        is_active: draft.is_active,
+      });
+      setEditingId(null);
+      setDraft(null);
+      load();
+    } catch { alert('Failed to update rule.'); }
+  };
+
   const deleteRule = async (ruleId) => {
     if (!window.confirm('Delete this rule?')) return;
     try {
-      await api.delete(`${BASE_EVENTS}/rules/${ruleId}`);
+      await api.delete(`${BASE_EVENTS}/rules/${ruleId}`, { params: { user_id: userId } });
       load();
     } catch { alert('Failed to delete.'); }
   };
+
+  const inp = (extra) => ({
+    padding: '6px 10px', borderRadius: 6,
+    border: '1px solid #ddd', fontSize: 13, fontFamily: 'inherit',
+    outline: 'none', background: '#fff', ...extra,
+  });
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -542,12 +694,52 @@ const RulesList = ({ userId, refresh }) => {
           ) : rules.length === 0 ? (
             <div style={{ color: '#bbb', fontSize: 13, padding: 10 }}>No rules yet.</div>
           ) : (
-            rules.map(rule => (
+            rules.map(rule => {
+              const isEditing = editingId === rule.id && draft;
+              return (
               <div key={rule.id} style={{
                 display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between',
                 background: '#fafaf8', border: '1px solid #e0d8cf', borderRadius: 8,
                 padding: '8px 12px', marginBottom: 6,
               }}>
+                {isEditing ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+                      <label style={lbl}>
+                        Rule name
+                        <input value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} style={inp({ minWidth: 180 })} />
+                      </label>
+                      <label style={lbl}>
+                        Event type
+                        <select value={draft.event_type} onChange={e => setDraft(d => ({ ...d, event_type: e.target.value }))} style={inp({})}>
+                          {EVENT_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                        </select>
+                      </label>
+                      <label style={lbl}>
+                        Severity
+                        <select value={draft.severity} onChange={e => setDraft(d => ({ ...d, severity: e.target.value }))} style={inp({})}>
+                          {['INFO','WARNING','ERROR','CRITICAL'].map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      </label>
+                      <label style={{ ...lbl, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                        <input type="checkbox" checked={draft.is_active} onChange={e => setDraft(d => ({ ...d, is_active: e.target.checked }))} />
+                        Active
+                      </label>
+                    </div>
+                    <ConditionRows
+                      logic={draft.logic}
+                      setLogic={logic => setDraft(d => ({ ...d, logic }))}
+                      rows={draft.conditions}
+                      setRows={conditions => setDraft(d => ({ ...d, conditions: typeof conditions === 'function' ? conditions(d.conditions) : conditions }))}
+                      inp={inp}
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => saveEdit(rule.id)} style={btnPrimary}>Save</button>
+                      <button onClick={() => { setEditingId(null); setDraft(null); }} style={btnSecondary}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#444' }}>{rule.name}</span>
@@ -559,15 +751,24 @@ const RulesList = ({ userId, refresh }) => {
                     }}>{rule.is_active ? 'Active' : 'Inactive'}</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                    {rule.event_type?.replace(/_/g, ' ')} · {rule.condition?.metric} {rule.condition?.operator} {rule.condition?.value}
+                    {rule.event_type?.replace(/_/g, ' ')} - {describeCondition(rule.condition)}
                   </div>
                 </div>
-                <button onClick={() => deleteRule(rule.id)} style={{
-                  background: 'none', border: '1px solid #ffcdd2', color: '#e53935',
-                  borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer',
-                }}>Delete</button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => startEdit(rule)} style={{
+                    background: 'none', border: '1px solid #d7ccc8', color: '#6b4c2a',
+                    borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer',
+                  }}>Edit</button>
+                  <button onClick={() => deleteRule(rule.id)} style={{
+                    background: 'none', border: '1px solid #ffcdd2', color: '#e53935',
+                    borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer',
+                  }}>Delete</button>
+                </div>
+                  </>
+                )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
