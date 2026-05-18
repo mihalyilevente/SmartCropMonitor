@@ -17,6 +17,7 @@ from app.monitoring.alerting import format_alert, AlertService
 from app.services.anomaly_processor import find_all_anomaly
 from app.services.spot_anomaly_processor import find_all_satellite_anomaly
 from app.events.alerts_orchestrator import run_all_alert_checks
+from app.services.disease_service import disease_risk
 from app.core.config import WEBHOOK_URL
 from geoalchemy2.shape import to_shape
 
@@ -59,6 +60,7 @@ def short_sync_process(db: Session):
             print(f"[PROCESS] Fetching weather for: {loc.label}")
             fetch_and_save_weather(db, loc)
             weather_metrics(db, loc)
+            disease_risk(db, loc)
         run_all_alert_checks()
     except Exception as e:
         logger.error(f"Critical orchestrator failure: {e}", exc_info=True)

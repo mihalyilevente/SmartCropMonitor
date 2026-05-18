@@ -20,6 +20,8 @@ import WeatherMetrics (computeMetrics, LocationData)
 import SprayingWindow (computeSprayingWindows, ForecastPoint)
 import SatelliteAnomaly (computeSnapshotAnomaly, SnapshotInput)
 import Biomass (computeBiomass, BiomassInput)
+import DiseaseModels (computeDiseaseRisk)
+import DiseaseTypes  (DiseaseInput)
 
 -- =========================
 -- WRAPPER PAYLOAD
@@ -133,6 +135,20 @@ main = scotty 8081 $ do
          Success inp -> json (computeBiomass inp)
          Error err   -> status status400 >> text (TL.pack err)
        Nothing -> status status400 >> text "Missing raw_data for config=6"
+
+      -- Disease model
+      7 -> case raw_data req of
+            Just d -> do
+              let parsed = eitherDecode (encode d) :: Either String DiseaseInput
+              case parsed of
+                Right diseaseInput -> json (computeDiseaseRisk diseaseInput)
+                Left err -> do
+                  status status400
+                  text (mconcat ["Invalid disease payload: ", TL.pack err])
+            Nothing -> do
+              status status400
+              text "Missing raw_data for config=7"
+
 
       _ -> do
         status status400
