@@ -16,6 +16,8 @@ library
       Validation
       WeatherMetrics
       SatelliteAnomaly
+      DiseaseModels
+      DiseaseTypes
   other-modules:
       Main
       Paths_haskell_service
@@ -35,6 +37,8 @@ executable haskell-service-exe
   main-is: Main.hs
   other-modules:
       Biomass
+      DiseaseModels
+      DiseaseTypes
       SatelliteAnomaly
       SprayingWindow
       Stats
@@ -60,6 +64,7 @@ test-suite haskell-service-test
   main-is: Spec.hs
   other-modules:
       BiomassSpec
+      DiseaseModelsSpec
       SatelliteAnomalySpec
       SprayingWindowSpec
       StatsSpec

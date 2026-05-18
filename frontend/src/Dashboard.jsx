@@ -24,6 +24,7 @@ import FieldMapPanel from './components/FieldMapPanel';
 import AddLocationModal from './components/AddLocationModal';
 import SegmentationModal from './components/SegmentationModal';
 import ManualFieldModal from './components/ManualFieldModal';
+import MorningBriefingPanel from './components/MorningBriefingPanel';
 import logo from './assets/logo1.png';
 
 const Dashboard = ({ userId, onLogout }) => {
@@ -170,6 +171,7 @@ const Dashboard = ({ userId, onLogout }) => {
 
       {/* ── Panels ── */}
       {/* Alerts panel — above weather so critical events are immediately visible */}
+      <MorningBriefingPanel userId={userId} locationId={locationId} chartData={chartData} />
       <AlertsPanel userId={userId} locationId={locationId} />
       <TasksPanel userId={userId} />
       <FieldWorkPanel userId={userId} locationId={locationId} />
