@@ -32,6 +32,7 @@ const STATUS_COLOR = {
 
 const EVT_ICONS = {
   SENSOR_OFFLINE:   '📡',
+  DISEASE_DETECTION: '🦠',
   FROST_HAZARD:     '❄️',
   HEAT_STRESS:      '🔥',
   DROUGHT_WARNING:  '🏜️',
