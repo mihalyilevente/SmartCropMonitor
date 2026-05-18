@@ -10,7 +10,7 @@ from PIL import Image
 from pyproj import Transformer
 from datetime import datetime
 from app.models.utae import AgriculturalSegmentationModel
-from scipy.ndimage import label, binary_erosion, binary_dilation
+from scipy.ndimage import label
 from shapely.geometry import shape, MultiPolygon, mapping
 from shapely.ops import transform as shapely_transform
 from rasterio import features
@@ -18,7 +18,7 @@ from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
 from app.core.schemas import FieldType
 from app.core.database import FieldAnalysis, FieldUnit, UserLocation
-from app.core.config import SEGM_DIR, DATA_DIR, MAX_SEGM_INPUT, MIN_SEGM_INPUTS, QUALITY_THRESHOLD_SEGM, TEMP_MODEL_WEIGHTS
+from app.core.config import SEGM_DIR, DATA_DIR, TEMP_MODEL_WEIGHTS, MAX_SEGM_INPUT, MIN_SEGM_INPUTS, QUALITY_THRESHOLD_SEGM
 from app.utils.fields import validate_field_shape
 
 
@@ -35,8 +35,6 @@ PASTIS_STD = torch.tensor([
 ], dtype=torch.float32).view(1, 10, 1, 1)
 
 RGB_INDICES = (2, 1, 0)
-
-SOURCE_LABEL = "U-TAE segm"
 
 
 def _extract_rgb_preview(nc_path: str, target_size: int = 512) -> str | None:
@@ -89,8 +87,8 @@ def _extract_rgb_preview(nc_path: str, target_size: int = 512) -> str | None:
 
 
 def _run_segmentation_inference(
-        location_id: int,
-        db: Session
+    location_id: int,
+    db: Session
 ) -> dict:
     location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
     if not location:
@@ -185,14 +183,11 @@ def _run_segmentation_inference(
             all_tensors.append(img_tensor)
             all_timestamps.append(an.last_data_request_date.timestamp())
 
-    n_real = len(all_tensors)
-
-    if n_real < MAX_SEGM_INPUT:
-        pad_count = MAX_SEGM_INPUT - n_real
-        last_tensor = all_tensors[-1]
-        last_ts = all_timestamps[-1]
-        all_tensors.extend([last_tensor] * pad_count)
-        all_timestamps.extend([last_ts] * pad_count)
+    if len(all_tensors) < MAX_SEGM_INPUT:
+        pad_count = MAX_SEGM_INPUT - len(all_tensors)
+        zero_tensor = torch.zeros_like(all_tensors[0])
+        all_tensors.extend([zero_tensor] * pad_count)
+        all_timestamps.extend([all_timestamps[-1]] * pad_count)
 
     input_tensor = torch.stack(all_tensors, dim=0).unsqueeze(0)
 
@@ -241,35 +236,14 @@ def _run_segmentation_inference(
                 weight_sum[y0:y1, x0:x1] += hann_2d
 
     probs = np.where(weight_sum > 0, prob_sum / weight_sum, 0.0)
-
-    PROB_THRESHOLD = 0.50
-
-    raw_mask = (probs > PROB_THRESHOLD).astype(np.uint8)
-    eroded = binary_erosion(raw_mask, iterations=2).astype(np.uint8)
-    binary_mask = binary_dilation(eroded, iterations=2).astype(np.uint8)
-
-    MIN_AREA_PX = 100
-    MAX_AREA_PX = 50000
-
+    binary_mask = (probs > 0.5).astype(np.uint8)
     labeled_mask, num_features = label(binary_mask)
 
-    component_sizes = np.bincount(labeled_mask.ravel())
-    valid_labels = np.where(
-        (component_sizes >= MIN_AREA_PX) & (component_sizes <= MAX_AREA_PX)
-    )[0]
-    valid_labels = valid_labels[valid_labels > 0]
-
-    filtered_mask = np.zeros_like(labeled_mask, dtype=np.int32)
-    for new_id, old_label in enumerate(valid_labels, start=1):
-        filtered_mask[labeled_mask == old_label] = new_id
-
-    num_filtered = len(valid_labels)
-    print(f"[INFO] Segmentation: {num_features} raw features → {num_filtered} after size filter "
-          f"(min={MIN_AREA_PX}px, max={MAX_AREA_PX}px)")
+    print(f"[INFO] Segmentation inference complete: {num_features} raw features")
 
     mask_shapes = features.shapes(
-        filtered_mask,
-        mask=(filtered_mask > 0),
+        labeled_mask.astype('int32'),
+        mask=(labeled_mask > 0),
         transform=transform
     )
 
@@ -297,7 +271,7 @@ def _run_segmentation_inference(
     return {
         "fields": detected_fields,
         "preview_b64": preview_b64,
-        "num_detected": num_filtered,
+        "num_detected": num_features,
     }
 
 
@@ -306,10 +280,10 @@ def run_segmentation_preview(location_id: int, db: Session) -> dict:
 
 
 def confirm_segmentation_fields(
-        location_id: int,
-        selected_field_ids: list[int],
-        fields_data: list[dict],
-        db: Session
+    location_id: int,
+    selected_field_ids: list[int],
+    fields_data: list[dict],
+    db: Session
 ) -> dict:
     from shapely.geometry import shape as shapely_shape
     from decimal import Decimal
@@ -321,7 +295,7 @@ def confirm_segmentation_fields(
 
     db.query(FieldUnit).filter(
         FieldUnit.location_id == location_id,
-        FieldUnit.source == SOURCE_LABEL
+        FieldUnit.source == "UTAE segm"
     ).delete()
     db.flush()
     db.execute(
@@ -344,7 +318,7 @@ def confirm_segmentation_fields(
             geometry=geometry_db,
             label=f["label"],
             status="active",
-            source=SOURCE_LABEL,
+            source="UTAE segm",
             field_type=FieldType.crop,
             area_ha=Decimal(str(round(float(area_ha), 2))),
         )
