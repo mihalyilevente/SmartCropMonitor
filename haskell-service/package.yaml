@@ -19,6 +19,8 @@ library:
     - Validation
     - WeatherMetrics
     - SatelliteAnomaly
+    - DiseaseModels
+    - DiseaseTypes
 
 executables:
   haskell-service-exe:
