@@ -16,12 +16,36 @@
   --color-spraying-fair: #fdcb6e;
   --color-spraying-poor: #d63031;
   --color-spraying-active: #2d8f47;
+
+  /* ── Font scale ───────────────────────────────────────────────────────────
+   * All rem-based sizes scale automatically when we change --base-font-size.
+   * The default browser base is 16px. Large mode bumps it to ~20px (+25%).
+   * ----------------------------------------------------------------------- */
+  --base-font-size: 16px;
+  --font-scale: 1;           /* multiplier used for non-rem inline styles */
+}
+
+/* ── Large font mode ────────────────────────────────────────────────────────
+ * Applied by FontSizeContext to <html class="large-fonts">.
+ * Raising font-size on :root / html makes every rem unit larger automatically.
+ * The --font-scale custom property lets JS-inline-styled components read the
+ * current multiplier if they need to compute sizes dynamically.
+ * -------------------------------------------------------------------------- */
+html.large-fonts {
+  --base-font-size: 20px;
+  --font-scale: 1.25;
+  font-size: 20px !important;   /* escalates all rem values app-wide */
+}
+
+html {
+  font-size: var(--base-font-size);
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: var(--font-main);
+  font-size: 1rem;              /* 16px normal / 20px large */
   background-color: var(--color-bg-champagne);
   color: var(--color-accent-chernozem);
   -webkit-font-smoothing: antialiased;
@@ -38,39 +62,89 @@ h1, h2, h3 {
   width: 100%;
 }
 
-/* Animations for spraying components */
+/* ── Large-font overrides for components that use px inline styles ──────────
+ * Panels, cards and buttons in this codebase often use hardcoded px values via
+ * inline JS styles. The selectors below catch the most visible text elements
+ * and scale them up when large-fonts is active, complementing the rem cascade.
+ * -------------------------------------------------------------------------- */
+
+/* Panel section headers */
+html.large-fonts .panel-section-title,
+html.large-fonts [class*="sectionTitle"],
+html.large-fonts [class*="titleStyle"] {
+  font-size: 1.15rem !important;
+}
+
+/* Metric card main values (the big number) */
+html.large-fonts .metric-value {
+  font-size: 1.5rem !important;
+}
+
+/* Buttons across the app */
+html.large-fonts button {
+  font-size: 0.9rem !important;
+  padding-top: 0.5em !important;
+  padding-bottom: 0.5em !important;
+}
+
+/* Inputs and selects */
+html.large-fonts input,
+html.large-fonts select,
+html.large-fonts textarea {
+  font-size: 0.95rem !important;
+}
+
+/* Pill badges */
+html.large-fonts .pill,
+html.large-fonts [class*="Pill"],
+html.large-fonts [class*="badge"] {
+  font-size: 0.7rem !important;
+}
+
+/* Labels and muted sub-text */
+html.large-fonts label {
+  font-size: 0.85rem !important;
+}
+
+/* Ensure flex containers wrap instead of overflow */
+html.large-fonts [style*="display: flex"],
+html.large-fonts [style*="display:flex"] {
+  flex-wrap: wrap;
+}
+
+/* Stat cards minimum width grows with font */
+html.large-fonts [style*="minWidth: 130"],
+html.large-fonts [style*="minWidth:130"] {
+  min-width: 160px !important;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────*/
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
 }
 
 @keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  to   { transform: rotate(360deg); }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200px 0; }
+  0%   { background-position: -200px 0; }
   100% { background-position: calc(200px + 100%) 0; }
 }
 
-/* Spraying window timeline styles */
+/* ── Spraying-specific styles ───────────────────────────────────────────────*/
 .spraying-timeline {
   position: relative;
   overflow: hidden;
@@ -92,14 +166,12 @@ h1, h2, h3 {
 .spraying-window-item:nth-child(4) { animation-delay: 0.4s; }
 .spraying-window-item:nth-child(5) { animation-delay: 0.5s; }
 
-/* Loading shimmer effect */
 .loading-shimmer {
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Spraying status badge animations */
 .spraying-status-badge {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -109,7 +181,6 @@ h1, h2, h3 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Score progress bar */
 .score-progress {
   position: relative;
   overflow: hidden;
@@ -118,32 +189,26 @@ h1, h2, h3 {
 .score-progress::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
   animation: shimmer 2s infinite;
 }
 
-/* Weather condition indicators */
 .condition-good { color: var(--color-spraying-excellent); }
 .condition-fair { color: var(--color-spraying-fair); }
 .condition-poor { color: var(--color-spraying-poor); }
 
-/* Responsive breakpoints */
 @media (max-width: 768px) {
   .spraying-timeline {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-
   .spraying-window-card {
     min-width: 280px;
   }
 }
 
-/* Focus and accessibility */
 .spraying-window-item:focus,
 .spraying-status-badge:focus {
   outline: 2px solid var(--color-green-primary);
