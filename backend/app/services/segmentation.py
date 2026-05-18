@@ -9,8 +9,8 @@ import io
 from PIL import Image
 from pyproj import Transformer
 from datetime import datetime
-from app.models.uconvltc import AgriculturalSegmentationModel
-from scipy.ndimage import label
+from app.models.utae import AgriculturalSegmentationModel
+from scipy.ndimage import label, binary_erosion, binary_dilation
 from shapely.geometry import shape, MultiPolygon, mapping
 from shapely.ops import transform as shapely_transform
 from rasterio import features
@@ -36,7 +36,7 @@ PASTIS_STD = torch.tensor([
 
 RGB_INDICES = (2, 1, 0)
 
-SOURCE_LABEL = "U-ConvLTC segm"
+SOURCE_LABEL = "U-TAE segm"
 
 
 def _extract_rgb_preview(nc_path: str, target_size: int = 512) -> str | None:
@@ -234,21 +234,42 @@ def _run_segmentation_inference(
             for x0 in x_starts:
                 y1, x1 = y0 + TILE_SIZE, x0 + TILE_SIZE
                 tile = input_tensor[:, :, :, y0:y1, x0:x1].to(device)
-                output = model(tile, batch_dates.to(device), n_real=n_real)
+                output = model(tile, batch_dates.to(device))
                 logits = output[0] if isinstance(output, tuple) else output
                 tile_prob = torch.sigmoid(logits)[0, 0].cpu().numpy()
                 prob_sum[y0:y1, x0:x1] += tile_prob * hann_2d
                 weight_sum[y0:y1, x0:x1] += hann_2d
 
     probs = np.where(weight_sum > 0, prob_sum / weight_sum, 0.0)
-    binary_mask = (probs > 0.5).astype(np.uint8)
+
+    PROB_THRESHOLD = 0.50
+
+    raw_mask = (probs > PROB_THRESHOLD).astype(np.uint8)
+    eroded = binary_erosion(raw_mask, iterations=2).astype(np.uint8)
+    binary_mask = binary_dilation(eroded, iterations=2).astype(np.uint8)
+
+    MIN_AREA_PX = 100
+    MAX_AREA_PX = 50000
+
     labeled_mask, num_features = label(binary_mask)
 
-    print(f"[INFO] Segmentation inference complete: {num_features} raw features")
+    component_sizes = np.bincount(labeled_mask.ravel())
+    valid_labels = np.where(
+        (component_sizes >= MIN_AREA_PX) & (component_sizes <= MAX_AREA_PX)
+    )[0]
+    valid_labels = valid_labels[valid_labels > 0]
+
+    filtered_mask = np.zeros_like(labeled_mask, dtype=np.int32)
+    for new_id, old_label in enumerate(valid_labels, start=1):
+        filtered_mask[labeled_mask == old_label] = new_id
+
+    num_filtered = len(valid_labels)
+    print(f"[INFO] Segmentation: {num_features} raw features → {num_filtered} after size filter "
+          f"(min={MIN_AREA_PX}px, max={MAX_AREA_PX}px)")
 
     mask_shapes = features.shapes(
-        labeled_mask.astype('int32'),
-        mask=(labeled_mask > 0),
+        filtered_mask,
+        mask=(filtered_mask > 0),
         transform=transform
     )
 
@@ -276,7 +297,7 @@ def _run_segmentation_inference(
     return {
         "fields": detected_fields,
         "preview_b64": preview_b64,
-        "num_detected": num_features,
+        "num_detected": num_filtered,
     }
 
 
