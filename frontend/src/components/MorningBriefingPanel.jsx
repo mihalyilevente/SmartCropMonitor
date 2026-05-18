@@ -8,8 +8,11 @@
  * Endpoint: GET /api/v1/events/user/{user_id}
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/client';
+
+// How often to silently re-fetch to pick up sensor-recovery resolutions.
+const POLL_INTERVAL_MS = 30_000;
 
 // ── Risk ranking ──────────────────────────────────────────────────────────────
 
@@ -61,8 +64,8 @@ const RiskBadge = ({ level }) => {
 };
 
 const RiskRow = ({ event, rank }) => {
-  const risk = severityToRisk(event.severity);
-  const icon = EVT_ICONS[event.event_type] || EVT_ICONS.OTHER;
+  const risk  = severityToRisk(event.severity);
+  const icon  = EVT_ICONS[event.event_type] || EVT_ICONS.OTHER;
   const model = event.extra_metadata?.model;
   const loc   = event.extra_metadata?.location_label;
 
@@ -96,6 +99,7 @@ const MorningBriefingPanel = ({ userId }) => {
   const [events, setEvents]   = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ── Initial + manual load (shows spinner) ──────────────────────────────────
   const load = useCallback(() => {
     if (!userId) return;
     setLoading(true);
@@ -107,6 +111,22 @@ const MorningBriefingPanel = ({ userId }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── Silent background poll — catches sensor recovery resolutions ───────────
+  // Does NOT set loading=true so the header badge never flickers.
+  // SENSOR_OFFLINE events resolved by handle_sensor_came_online will disappear
+  // from the active list because they are filtered to status === 'ACTIVE' below.
+  const pollRef = useRef(null);
+  useEffect(() => {
+    if (!userId) return;
+    pollRef.current = setInterval(() => {
+      api.get(`/api/v1/events/user/${userId}`)
+        .then(r => setEvents(r.data || []))
+        .catch(() => {/* silently ignore transient errors during polling */});
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(pollRef.current);
+  }, [userId]);
+
+  // Only show ACTIVE alerts in the briefing — resolved ones drop off automatically
   const active = events
     .filter(e => e.status === 'ACTIVE')
     .sort((a, b) => (RISK_ORDER[a.severity] ?? 9) - (RISK_ORDER[b.severity] ?? 9));
@@ -114,11 +134,11 @@ const MorningBriefingPanel = ({ userId }) => {
   const highCount   = active.filter(e => severityToRisk(e.severity) === 'HIGH').length;
   const mediumCount = active.filter(e => severityToRisk(e.severity) === 'MEDIUM').length;
 
-  const now         = new Date();
-  const greeting    = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
-  const dateStr     = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const now           = new Date();
+  const greeting      = now.getHours() < 12 ? 'Good morning' : now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
+  const dateStr       = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const overallStatus = highCount > 0 ? 'HIGH' : mediumCount > 0 ? 'MEDIUM' : 'LOW';
-  const statusMsg   = {
+  const statusMsg     = {
     HIGH:   'Immediate attention required in some areas.',
     MEDIUM: 'Some areas need monitoring today.',
     LOW:    'All fields look good. Routine checks only.',
