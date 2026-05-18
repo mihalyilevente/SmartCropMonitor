@@ -177,7 +177,7 @@ const Dashboard = ({ userId, onLogout }) => {
       <FieldWorkPanel userId={userId} locationId={locationId} />
       <FieldsPanel userId={userId} locationId={locationId} />
 
-      <WeatherMetricsPanel latestWeather={latestWeather} />
+      <WeatherMetricsPanel latestWeather={latestWeather} userId={userId} locationId={locationId} />
       <WeatherCharts data={chartData} />
       <SprayingWindowsPanel userId={userId} locationId={locationId} />
       <FieldMapPanel ref={fieldMapRef} userId={userId} locationId={locationId} locationCenter={locationCenter} />
