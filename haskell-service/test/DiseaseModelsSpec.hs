@@ -23,13 +23,16 @@ mkWP temp hum rain hour = WP
 
 replicateWP :: Int -> Double -> Double -> Double -> [WP]
 replicateWP n temp hum rain =
-  [ mkWP temp hum rain (i `mod` 24)
-      { wpDt = dayStr (i `div` 24) ++ "T" ++ pad (i `mod` 24) ++ ":00:00" }
+  [ WP { wpT  = Just temp
+        , wpH  = Just hum
+        , wpR  = Just rain
+        , wpDt = dayStr (i `div` 24) ++ "T" ++ pad (i `mod` 24) ++ ":00:00"
+        }
   | i <- [0 .. n - 1]
   ]
   where
-    dayStr d  = "2026-05-" ++ (if d + 1 < 10 then "0" else "") ++ show (d + 1)
-    pad h     = if h < 10 then "0" ++ show h else show h
+    dayStr d = "2026-05-" ++ (if d + 1 < 10 then "0" else "") ++ show (d + 1)
+    pad h    = if h < 10 then "0" ++ show h else show h
 
 (<+>) :: [WP] -> [WP] -> [WP]
 (<+>) = (++)
@@ -183,9 +186,14 @@ spec = do
       let r = computeDiseaseRisk baseInput { history_7d = warmWetWPs 168 }
       blitecast_p_value_7d r `shouldSatisfy` (>= 0.0)
 
-    it "warm wet conditions accumulate P-Value > DSV (different scale)" $ do
-      let r = computeDiseaseRisk baseInput { history_7d = warmWetWPs 168 }
-      blitecast_p_value_7d r `shouldNotBe` blitecast_dsv_7d r
+    it "P-Value and DSV use independent tables (diverge at T=15, LW=10h)" $ do
+      -- Pitblado T=13-17: LW=10h -> DSV/day = 2 (threshold 9h crossed, next at 12h)
+      -- Wallin   T=14.9-17.7: LW=10h -> P/day  = 3 (threshold 10h crossed)
+      let dayPts = replicateWP 10 15.0 92.0 0.0
+                   <+> replicateWP 14 15.0 50.0 0.0
+          r = computeDiseaseRisk baseInput { history_7d = dayPts }
+      blitecast_p_value_day r `shouldBe` 3
+      tomcast_dsv_7d        r `shouldBe` 2.0
 
     it "blitecast_dsv_7d matches tomcast_dsv_7d (same window, same input)" $ do
       let inp = baseInput { history_7d = warmWetWPs 168 }

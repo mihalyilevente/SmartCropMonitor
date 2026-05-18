@@ -5,10 +5,9 @@ module DiseaseModels
   ) where
 
 import Data.Maybe  (fromMaybe, mapMaybe)
-import Data.List   (nub, sortBy, isPrefixOf)
+import Data.List   (nub, sortBy, sum)
 import Data.Ord    (comparing)
 import Prelude hiding (sum)
-import Data.List   (sum)
 
 import DiseaseTypes
 
