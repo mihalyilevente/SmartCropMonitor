@@ -101,7 +101,7 @@ def _get_nearest_weather(
         db.query(WeatherHistory)
         .filter(WeatherHistory.location_id == location_id)
         .order_by(
-            func.abs(WeatherHistory.timestamp - timestamp)
+            func.abs(func.extract("epoch", WeatherHistory.timestamp - timestamp))
         )
         .first()
     )
