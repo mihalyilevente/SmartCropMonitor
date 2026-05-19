@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { getSprayingWindows, getCurrentSprayingWindow, calculateWindowMetrics, formatDuration } from '../api/spraying';
 import { useLang } from '../context/LanguageContext';
 
-// ── Canvas timeline
 const InteractiveTimeline = ({ windows, weatherForecast, title }) => {
   const canvasRef = useRef(null);
 
-  useEffect(() => { if (!canvasRef.current) return; drawTimeline(); }, [windows, weatherForecast]);
-
-  const drawTimeline = () => {
+  useEffect(() => {
+    if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const width = canvas.width, height = canvas.height;
@@ -47,7 +45,7 @@ const InteractiveTimeline = ({ windows, weatherForecast, title }) => {
     });
 
     ctx.strokeStyle = '#054e05'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, height); ctx.stroke();
-  };
+  }, [windows, weatherForecast]);
 
   return (
     <div style={{ position: 'relative', marginTop: 20 }}>
