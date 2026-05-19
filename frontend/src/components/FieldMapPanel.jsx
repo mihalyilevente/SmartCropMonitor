@@ -122,7 +122,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     try {
       const savedView = (() => { try { return JSON.parse(sessionStorage.getItem('fmp_view')); } catch { return null; } })();
       map = new mapboxgl.Map({ container: node, style: 'mapbox://styles/mapbox/satellite-streets-v12', center: savedView ? [savedView.lng, savedView.lat] : [19.648, 47.728], zoom: savedView ? savedView.zoom : 13, attributionControl: false, renderWorldCopies: false });
-      map.on('moveend', () => { const c = map.getCenter(); try { sessionStorage.setItem('fmp_view', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() })); } catch {} });
+      map.on('moveend', () => { const c = map.getCenter(); try { sessionStorage.setItem('fmp_view', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() })); } catch (_e) { /* sessionStorage unavailable */ } });
     } catch (err) { setMapError(t('fmp_map_err_init', err.message)); return; }
 
     map.on('error', e => console.error('[FieldMapPanel]', e.error?.message || String(e)));
@@ -166,7 +166,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     if (!locationCenter?.lat || !locationCenter?.lon) return;
     const fly = (map) => {
       map.flyTo({ center: [locationCenter.lon, locationCenter.lat], zoom: 14, duration: 1200, essential: true });
-      try { sessionStorage.setItem('fmp_view', JSON.stringify({ lat: locationCenter.lat, lng: locationCenter.lon, zoom: 14 })); } catch {}
+      try { sessionStorage.setItem('fmp_view', JSON.stringify({ lat: locationCenter.lat, lng: locationCenter.lon, zoom: 14 })); } catch (_e) { /* sessionStorage unavailable */ }
     };
     const map = mapRef.current; if (!map) return;
     if (loadedRef.current) { fly(map); } else { map.once('load', () => fly(map)); }
