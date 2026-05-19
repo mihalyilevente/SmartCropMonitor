@@ -91,7 +91,7 @@ export default function ManualFieldModal({ locationId, onClose, onSaved }) {
       const feature = e.features[0]; if (!feature) return;
       const geom = feature.geometry;
       setDrawnGeom(geom); setAreaHa(calcAreaHa(geom.coordinates)); setDrawMode('done');
-      requestAnimationFrame(() => { try { draw.changeMode('simple_select', { featureIds: [feature.id] }); } catch (_e) { /* mode change not critical */ } });
+      requestAnimationFrame(() => { try { draw.changeMode('simple_select', { featureIds: [feature.id] }); } catch { /* mode change not critical */ } });
     });
     map.on('draw.update', (e) => {
       const feature = e.features[0]; if (!feature) return;
@@ -100,17 +100,17 @@ export default function ManualFieldModal({ locationId, onClose, onSaved }) {
     });
     map.on('draw.delete', () => { setDrawnGeom(null); setAreaHa(null); setDrawMode('idle'); });
     mapRef.current = map;
-  }, []); // eslint-disable-line
+  }, []);
 
   const startDraw = () => {
     const draw = drawRef.current; if (!draw) return;
     draw.deleteAll(); setDrawnGeom(null); setAreaHa(null);
     setDrawMode('drawing'); draw.changeMode('draw_polygon');
   };
-  const undoVertex = () => { const draw = drawRef.current; if (!draw || drawMode !== 'drawing') return; try { draw.trash(); } catch (_e) { /* trash not available in this mode */ } };
+  const undoVertex = () => { const draw = drawRef.current; if (!draw || drawMode !== 'drawing') return; try { draw.trash(); } catch { /* trash not available in this mode */ } };
   const resetDraw  = () => {
     const draw = drawRef.current; if (!draw) return;
-    try { draw.changeMode('simple_select'); } catch (_e) { /* mode change not critical */ }
+    try { draw.changeMode('simple_select'); } catch { /* mode change not critical */ }
     draw.deleteAll(); setDrawnGeom(null); setAreaHa(null); setDrawMode('idle');
   };
 
