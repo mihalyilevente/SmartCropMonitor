@@ -409,6 +409,235 @@ async def get_biomass_history_for_field(
 # Field Management Endpoints
 # =========================
 
+# =========================
+# Pasture / Grazing Endpoints
+# =========================
+
+# ── Grazing capacity constants ────────────────────────────────────────────────
+# AUM = Animal Unit Month (1 cow ~450 kg, needs ~12 kg DM/day)
+_KG_DM_PER_AUM_DAY   = 12.0   # kg dry matter per AUM per day
+_BIOMASS_TO_DM_RATIO = 0.25   # 25 % of fresh biomass is dry matter (typical pasture)
+_UTILISATION_RATE    = 0.50   # only 50 % of available DM should be grazed (sustainability)
+_DAYS_PER_MONTH      = 30
+
+# Grass growth stages derived from EVI / biomass thresholds
+def _growth_stage(evi: float, biomass_tha: float) -> dict:
+    if evi < 0.15 or biomass_tha < 0.3:
+        return {"stage": "Dormant / Bare",  "code": "dormant",  "color": "#bdbdbd", "icon": "💤"}
+    if evi < 0.30 or biomass_tha < 1.0:
+        return {"stage": "Early Growth",    "code": "early",    "color": "#aed581", "icon": "🌱"}
+    if evi < 0.50 or biomass_tha < 2.5:
+        return {"stage": "Active Growth",   "code": "active",   "color": "#66bb6a", "icon": "🌿"}
+    if evi < 0.65 or biomass_tha < 4.0:
+        return {"stage": "Peak / Mature",   "code": "peak",     "color": "#2e7d32", "icon": "🌾"}
+    return         {"stage": "Overmature",  "code": "over",     "color": "#827717", "icon": "🍂"}
+
+
+def _rotation_recommendation(stage_code: str, area_ha: float, aum_capacity: float) -> dict:
+    recs = {
+        "dormant": {
+            "action":  "Rest field — avoid grazing",
+            "rest_days": 60,
+            "graze_days": 0,
+            "note": "Biomass too low. Allow recovery before introducing livestock.",
+        },
+        "early": {
+            "action":  "Light grazing only (< 30 % utilisation)",
+            "rest_days": 45,
+            "graze_days": 3,
+            "note": "Short grazing pass (≤ 3 days) then rest for full tiller development.",
+        },
+        "active": {
+            "action":  "Begin rotation block",
+            "rest_days": 28,
+            "graze_days": 5,
+            "note": "Optimum window. Graze for 4–6 days then rotate to next paddock.",
+        },
+        "peak": {
+            "action":  "Graze now — prime condition",
+            "rest_days": 21,
+            "graze_days": 7,
+            "note": "Peak DM availability. Maximise AUM stocking for 5–8 days.",
+        },
+        "over": {
+            "action":  "Mow / top before grazing",
+            "rest_days": 14,
+            "graze_days": 4,
+            "note": "Overmature biomass reduces palatability. Consider topping first.",
+        },
+    }
+    r = recs.get(stage_code, recs["dormant"])
+    r["aum_capacity"] = round(aum_capacity, 2)
+    r["area_ha"]      = round(area_ha, 2)
+    return r
+
+
+@router.get("/locations/{location_id}/pasture", tags=["Pasture"])
+def get_pasture_overview(location_id: int, db: Session = Depends(get_db)):
+    """
+    Returns all pasture-type fields for a location with:
+    - Latest biomass reading (EVI, MSI, CI, biomass_tha, confidence)
+    - Grazing capacity (AUM/month)
+    - Growth stage classification
+    - Rotation recommendation
+    """
+    location = db.query(UserLocation).filter(UserLocation.id == location_id).first()
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+
+    pasture_fields = (
+        db.query(FieldUnit)
+        .filter(
+            FieldUnit.location_id == location_id,
+            FieldUnit.field_type  == "pasture",
+            FieldUnit.status      == "active",
+            FieldUnit.deleted_at.is_(None),
+        )
+        .all()
+    )
+
+    if not pasture_fields:
+        return {"location_id": location_id, "location_label": location.label, "fields": []}
+
+    field_ids = [f.id for f in pasture_fields]
+    field_map  = {f.id: f for f in pasture_fields}
+
+    # ── Latest biomass per field ──────────────────────────────────────────────
+    latest_subq = (
+        db.query(
+            Biomass.field_id,
+            func.max(Biomass.analysis_date).label("max_date"),
+        )
+        .filter(Biomass.field_id.in_(field_ids))
+        .group_by(Biomass.field_id)
+        .subquery()
+    )
+
+    biomass_records = (
+        db.query(Biomass)
+        .join(
+            latest_subq,
+            (Biomass.field_id     == latest_subq.c.field_id) &
+            (Biomass.analysis_date == latest_subq.c.max_date),
+        )
+        .all()
+    )
+    biomass_map = {r.field_id: r for r in biomass_records}
+
+    # ── Build response ────────────────────────────────────────────────────────
+    result_fields = []
+    total_aum = 0.0
+
+    for field in pasture_fields:
+        area = float(field.area_ha or 0)
+        b    = biomass_map.get(field.id)
+
+        if b:
+            evi_val      = float(b.evi)
+            biomass_val  = float(b.biomass_tha)
+            msi_val      = float(b.msi)
+            ci_val       = float(b.ci)
+            confidence   = float(b.confidence)
+            analysis_date = b.analysis_date
+
+            # Grazing capacity: available DM → AUM-months
+            dm_total_kg   = biomass_val * 1000 * area * _BIOMASS_TO_DM_RATIO * _UTILISATION_RATE
+            aum_capacity  = dm_total_kg / (_KG_DM_PER_AUM_DAY * _DAYS_PER_MONTH)
+        else:
+            evi_val = msi_val = ci_val = biomass_val = confidence = 0.0
+            dm_total_kg  = 0.0
+            aum_capacity = 0.0
+            analysis_date = None
+
+        stage  = _growth_stage(evi_val, biomass_val)
+        recco  = _rotation_recommendation(stage["code"], area, aum_capacity)
+        total_aum += aum_capacity
+
+        result_fields.append({
+            "field_id":      field.id,
+            "label":         field.label,
+            "area_ha":       area,
+            "analysis_date": analysis_date,
+            # biomass metrics
+            "biomass_tha":   round(biomass_val, 4),
+            "evi":           round(evi_val, 4),
+            "msi":           round(msi_val, 4),
+            "ci":            round(ci_val, 4),
+            "confidence":    round(confidence, 4),
+            # grazing
+            "dm_available_kg": round(dm_total_kg, 1),
+            "aum_capacity":    round(aum_capacity, 2),
+            # stage & recommendation
+            "growth_stage":       stage,
+            "recommendation":     recco,
+            "has_biomass_data":   b is not None,
+        })
+
+    return {
+        "location_id":    location_id,
+        "location_label": location.label,
+        "total_pasture_ha":  round(sum(f["area_ha"] for f in result_fields), 2),
+        "total_aum_capacity": round(total_aum, 2),
+        "field_count":    len(result_fields),
+        "fields":         result_fields,
+    }
+
+
+@router.get("/fields/{field_id}/pasture-history", tags=["Pasture"])
+def get_pasture_field_history(
+    field_id: int,
+    limit: int = 30,
+    db: Session = Depends(get_db),
+):
+    """
+    Returns biomass history for a single pasture field enriched with
+    growth stage and grazing capacity per reading.
+    """
+    field = db.query(FieldUnit).filter(FieldUnit.id == field_id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+    if str(field.field_type).replace("FieldType.", "") != "pasture":
+        raise HTTPException(status_code=400, detail="Field is not of type 'pasture'")
+
+    area = float(field.area_ha or 0)
+
+    records = (
+        db.query(Biomass)
+        .filter(Biomass.field_id == field_id)
+        .order_by(Biomass.analysis_date.desc())
+        .limit(limit)
+        .all()
+    )
+
+    history = []
+    for r in records:
+        evi_val     = float(r.evi)
+        biomass_val = float(r.biomass_tha)
+        dm_kg       = biomass_val * 1000 * area * _BIOMASS_TO_DM_RATIO * _UTILISATION_RATE
+        aum         = dm_kg / (_KG_DM_PER_AUM_DAY * _DAYS_PER_MONTH)
+        stage       = _growth_stage(evi_val, biomass_val)
+
+        history.append({
+            "id":            r.id,
+            "analysis_date": r.analysis_date,
+            "biomass_tha":   float(r.biomass_tha),
+            "evi":           float(r.evi),
+            "msi":           float(r.msi),
+            "ci":            float(r.ci),
+            "confidence":    float(r.confidence),
+            "dm_available_kg": round(dm_kg, 1),
+            "aum_capacity":    round(aum, 2),
+            "growth_stage":    stage,
+        })
+
+    return {
+        "field_id":    field.id,
+        "label":       field.label,
+        "area_ha":     area,
+        "history":     history,
+    }
+
+
 class FieldUpdate(BaseModel):
     label: Optional[str] = None
     field_type: Optional[FieldType] = None
