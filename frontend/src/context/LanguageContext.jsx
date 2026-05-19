@@ -1,4 +1,5 @@
 // context/LanguageContext.jsx
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState } from 'react';
 import en from '../locales/en';
 import hu from '../locales/hu';
@@ -11,7 +12,7 @@ const LanguageContext = createContext(null);
 
 export const LanguageProvider = ({ children }) => {
   const [lang, setLang] = useState(
-    () => localStorage.getItem('lang') || 'en'
+    () => localStorage.getItem('lang') || 'hu'
   );
 
   const switchLang = (l) => {
