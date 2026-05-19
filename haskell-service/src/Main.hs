@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric     #-}
 
 module Main where
 
@@ -7,8 +7,8 @@ import Web.Scotty
 import Data.Aeson hiding (json)
 import Data.Aeson (Value(..), eitherDecode, encode, Result(..), fromJSON)
 import qualified Data.Aeson.KeyMap as KM
-import qualified Data.Aeson.Key as K
-import qualified Data.Text.Lazy as TL
+import qualified Data.Aeson.Key    as K
+import qualified Data.Text.Lazy    as TL
 import GHC.Generics
 import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Network.HTTP.Types (status400)
@@ -16,25 +16,22 @@ import Data.Maybe (fromMaybe)
 
 import Stats
 import Validation
-import WeatherMetrics (computeMetrics, LocationData)
-import SprayingWindow (computeSprayingWindows, ForecastPoint)
-import SatelliteAnomaly (computeSnapshotAnomaly, SnapshotInput)
-import Biomass (computeBiomass, BiomassInput)
-import DiseaseModels (computeDiseaseRisk)
-import DiseaseTypes  (DiseaseInput)
-
--- =========================
--- WRAPPER PAYLOAD
--- =========================
+import WeatherMetrics     (computeMetrics,          LocationData)
+import SprayingWindow     (computeSprayingWindows,  ForecastPoint)
+import SatelliteAnomaly   (computeSnapshotAnomaly,  SnapshotInput)
+import Biomass            (computeBiomass,           BiomassInput)
+import DiseaseModels      (computeDiseaseRisk)
+import DiseaseTypes       (DiseaseInput)
+import IrrigationAdvisor  (computeIrrigation,       IrrigationInput)
 
 data RequestWrapper = RequestWrapper
-  { config :: Int
-  , raw_data :: Maybe Value
-  , labels :: Maybe [[Int]]
-  , ndvi :: Maybe [[Double]]
+  { config       :: Int
+  , raw_data     :: Maybe Value
+  , labels       :: Maybe [[Int]]
+  , ndvi         :: Maybe [[Double]]
   , num_features :: Maybe Int
-  , scl_values :: Maybe [Int]
-  , threshold :: Maybe Double
+  , scl_values   :: Maybe [Int]
+  , threshold    :: Maybe Double
   } deriving (Show, Generic)
 
 instance FromJSON RequestWrapper where
@@ -97,16 +94,16 @@ main = scotty 8081 $ do
 
       -- NDVI metrics
       1 -> case raw_data req of
-          Just d -> do
-            let parsed = fromJSON d :: Result RawData
-            case parsed of
-              Success rd -> json (computeNDVIMetrics rd)
-              Error err -> do
-                status status400
-                text (mconcat ["Invalid NDVI payload: ", TL.pack err])
-          Nothing -> do
-            status status400
-            text "Missing raw_data for config=1"
+            Just d -> do
+              let parsed = fromJSON d :: Result RawData
+              case parsed of
+                Success rd -> json (computeNDVIMetrics rd)
+                Error err -> do
+                  status status400
+                  text (mconcat ["Invalid NDVI payload: ", TL.pack err])
+            Nothing -> do
+              status status400
+              text "Missing raw_data for config=1"
 
       -- SCL validation
       2 -> case scl_values req of
@@ -131,10 +128,10 @@ main = scotty 8081 $ do
               text "Missing raw_data for config=5"
       -- Biomass
       6 -> case raw_data req of
-       Just d -> case fromJSON d :: Result BiomassInput of
-         Success inp -> json (computeBiomass inp)
-         Error err   -> status status400 >> text (TL.pack err)
-       Nothing -> status status400 >> text "Missing raw_data for config=6"
+            Just d -> case fromJSON d :: Result BiomassInput of
+              Success inp -> json (computeBiomass inp)
+              Error err   -> status status400 >> text (TL.pack err)
+            Nothing -> status status400 >> text "Missing raw_data for config=6"
 
       -- Disease model
       7 -> case raw_data req of
@@ -149,6 +146,18 @@ main = scotty 8081 $ do
               status status400
               text "Missing raw_data for config=7"
 
+      -- Irrigation decision-support
+      8 -> case raw_data req of
+            Just d -> do
+              let parsed = eitherDecode (encode d) :: Either String IrrigationInput
+              case parsed of
+                Right irrigInput -> json (computeIrrigation irrigInput)
+                Left err -> do
+                  status status400
+                  text (mconcat ["Invalid irrigation payload: ", TL.pack err])
+            Nothing -> do
+              status status400
+              text "Missing raw_data for config=8"
 
       _ -> do
         status status400
