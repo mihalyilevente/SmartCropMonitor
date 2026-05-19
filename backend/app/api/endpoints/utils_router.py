@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app.core.database import UserLocation, FieldAnalysis, get_db
 from app.services.orchestrator import full_sync_process, short_sync_process
 from app.services.biomass_service import run_biomass_estimation
-
+from app.services.irrigation_service import run_irrigation_recommendations
 
 router = APIRouter()
 
@@ -54,7 +54,7 @@ def get_location_analysis_stats(
 
 @router.get("/test_func")
 def test_function(db: Session = Depends(get_db)):
-    run_biomass_estimation(db)
+    run_irrigation_recommendations(db)
     return 0
 
 

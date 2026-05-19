@@ -416,6 +416,43 @@ class DiseaseRisk(Base):
     )
 
 
+class IrrigationRecommendation(Base):
+    __tablename__ = "irrigation_recommendations"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    field_id    = Column(Integer, ForeignKey("field_units.id"),    nullable=False, index=True)
+    location_id = Column(Integer, ForeignKey("user_locations.id"), nullable=False, index=True)
+
+    window_end_date = Column(DateTime, nullable=False, index=True)
+
+    urgency          = Column(String(10), nullable=False, default="NONE")
+    should_irrigate  = Column(Boolean,    nullable=False, default=False)
+    score            = Column(Float,      nullable=True)
+
+    recommended_mm    = Column(Float, nullable=True)
+    recommended_m3_ha = Column(Float, nullable=True)
+    total_volume_m3   = Column(Float, nullable=True)
+
+    et0              = Column(Float, nullable=True)
+    water_deficit_7d = Column(Float, nullable=True)
+    rain_cum_7d      = Column(Float, nullable=True)
+    soil_moisture    = Column(Float, nullable=True)
+    ndwi_mean        = Column(Float, nullable=True)
+    spi_1m           = Column(Float, nullable=True)
+
+    reason           = Column(String(1000), nullable=True)
+
+    haskell_snapshot = Column(JSONB, nullable=True)
+
+    computed_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("field_id", "window_end_date", name="uq_irrigation_field_window"),
+        Index("ix_irrigation_urgency_date",  "urgency",     "window_end_date"),
+        Index("ix_irrigation_location_date", "location_id", "window_end_date"),
+    )
+
+
 class SensorsDB(Base):
     __tablename__ = "sensors"
 
