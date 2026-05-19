@@ -11,6 +11,7 @@ from sqlalchemy import desc
 from geoalchemy2.shape import to_shape
 from app.monitoring.alerting import AlertService, format_alert
 from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL, WEBHOOK_URL, WEATHER_API_KEY
+from app.services.dem_service import get_elevation_for_location
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 
@@ -184,7 +185,11 @@ def weather_metrics(db: Session, location: UserLocation):
 
     point = to_shape(location.location)
     lon, lat = point.x, point.y
-    elevation = request_elevation(lat, lon) or 0.0
+
+    elevation = get_elevation_for_location(location)
+    if elevation is None:
+        print(f"[WARN] DEM unavailable for loc {location.id}, falling back to open-elevation API.")
+        elevation = request_elevation(lat, lon) or 0.0
 
     for weather_record in pending_list:
 

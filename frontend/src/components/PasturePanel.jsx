@@ -6,8 +6,8 @@
  * and rotation recommendations per field.
  *
  * Endpoints:
- *   GET /api/v1/fields/locations/{location_id}/pasture
- *   GET /api/v1/fields/fields/{field_id}/pasture-history
+ *   GET /api/v1/locations/{location_id}/pasture
+ *   GET /api/v1/fields/{field_id}/pasture-history
  */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
@@ -87,7 +87,7 @@ const HistoryModal = ({ fieldId, label, onClose }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/api/v1/fields/fields/${fieldId}/pasture-history`, { params: { limit: 30 } })
+    api.get(`/api/v1/fields/${fieldId}/pasture-history`, { params: { limit: 30 } })
       .then(r => setHistory(r.data))
       .catch(() => setHistory(null))
       .finally(() => setLoading(false));
@@ -371,9 +371,13 @@ const PasturePanel = ({ locationId }) => {
     if (!locationId) return;
     setLoading(true);
     setError(null);
-    api.get(`/api/v1/fields/locations/${locationId}/pasture`)
+    api.get(`/api/v1/locations/${locationId}/pasture`)
       .then(r => setData(r.data))
-      .catch(() => setError('Failed to load pasture data.'))
+      .catch(err => {
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.detail;
+        setError(`Failed to load pasture data (${status ?? 'network error'}${detail ? ': ' + detail : ''}).`);
+      })
       .finally(() => setLoading(false));
   }, [locationId]);
 
