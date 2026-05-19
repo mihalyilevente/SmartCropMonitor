@@ -1,22 +1,12 @@
-/**
- * FieldsPanel.jsx
- *
- * Panel for managing field units — list, full info, inline editing.
- *
- * Endpoints used:
- *   GET   /api/v1/user_fields?user_id=1&location_id=2   → list fields
- *   PATCH /api/v1/{field_id}?user_id=1                    → update field
- */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
+import { useLang } from '../context/LanguageContext';
 
-// ── Enums (mirror schemas.py) ─────────────────────────────────────────────────
 const FIELD_TYPES = [
   'pasture','crop','hayfield','orchard','vineyard','berry_patch',
   'nursery','greenhouse','fallow','fallow_land','forest_belt',
   'storage','water_body','other',
 ];
-
 const FIELD_CROPS = [
   'WHEAT_WINTER','WHEAT_SPRING','BARLEY','CORN','OATS','RYE','RICE',
   'PEAS','SOYBEANS','CHICKPEAS','LENTILS',
@@ -27,10 +17,8 @@ const FIELD_CROPS = [
   'TOMATO','ONION','CARROT','CABBAGE',
   'FALLOW','COVER_CROP','OTHER',
 ];
-
 const FIELD_STATUSES = ['active', 'inactive', 'archived'];
 
-// ── Visual config ─────────────────────────────────────────────────────────────
 const TYPE_CFG = {
   crop:        { icon: '🌾', color: '#2e7d32' },
   pasture:     { icon: '🐄', color: '#558b2f' },
@@ -48,14 +36,9 @@ const TYPE_CFG = {
   other:       { icon: '📍', color: '#757575' },
 };
 
-const STATUS_CFG = {
-  active:   { bg: '#e8f5e9', text: '#1b5e20', border: '#a5d6a7', label: 'Active'   },
-  inactive: { bg: '#fff8e1', text: '#f57f17', border: '#ffe082', label: 'Inactive' },
-  archived: { bg: '#f5f5f5', text: '#9e9e9e', border: '#e0e0e0', label: 'Archived' },
-};
-
-// ── Inline edit form ──────────────────────────────────────────────────────────
+// ── EditForm ──────────────────────────────────────────────────────────────────
 const EditForm = ({ field, userId, onSaved, onCancel }) => {
+  const { t } = useLang();
   const [form, setForm] = useState({
     label:       field.label       || '',
     field_type:  field.field_type  || 'crop',
@@ -64,11 +47,18 @@ const EditForm = ({ field, userId, onSaved, onCancel }) => {
     status:      field.status      || 'active',
   });
   const [busy, setBusy] = useState(false);
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  // status labels derived from locale
+  const statusLabel = (s) => {
+    if (s === 'active')   return t('status_active');
+    if (s === 'inactive') return t('status_inactive');
+    if (s === 'archived') return t('status_archived');
+    return s;
+  };
+
   const submit = async () => {
-    if (!form.label.trim()) { alert('Label is required.'); return; }
+    if (!form.label.trim()) { alert(t('field_err_label')); return; }
     setBusy(true);
     try {
       await api.patch(`/api/v1/${field.id}`, {
@@ -79,7 +69,7 @@ const EditForm = ({ field, userId, onSaved, onCancel }) => {
         status:      form.status,
       }, { params: { user_id: userId } });
       onSaved();
-    } catch { alert('Failed to save changes.'); }
+    } catch { alert(t('field_err_save')); }
     finally { setBusy(false); }
   };
 
@@ -87,56 +77,69 @@ const EditForm = ({ field, userId, onSaved, onCancel }) => {
     <div style={editBox} onClick={e => e.stopPropagation()}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
         <label style={lbl}>
-          Name
-          <input value={form.label} onChange={e => set('label', e.target.value)}
-            style={{ ...inp, minWidth: 160 }} />
+          {t('field_form_name')}
+          <input value={form.label} onChange={e => set('label', e.target.value)} style={{ ...inp, minWidth: 160 }} />
         </label>
         <label style={lbl}>
-          Field type
+          {t('field_form_type')}
           <select value={form.field_type} onChange={e => set('field_type', e.target.value)} style={inp}>
-            {FIELD_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+            {FIELD_TYPES.map(tp => <option key={tp} value={tp}>{tp.replace(/_/g,' ')}</option>)}
           </select>
         </label>
         <label style={lbl}>
-          Crop
+          {t('field_form_crop')}
           <select value={form.crop_type} onChange={e => set('crop_type', e.target.value)} style={inp}>
-            <option value="">— none —</option>
+            <option value="">{t('field_form_none')}</option>
             {FIELD_CROPS.map(c => <option key={c} value={c}>{c.replace(/_/g,' ')}</option>)}
           </select>
         </label>
         <label style={lbl}>
-          Season year
-          <input type="number" min="2000" max="2100" placeholder="e.g. 2025"
+          {t('field_form_season')}
+          <input type="number" min="2000" max="2100" placeholder={t('field_form_season_ph')}
             value={form.season_year} onChange={e => set('season_year', e.target.value)}
             style={{ ...inp, width: 110 }} />
         </label>
         <label style={lbl}>
-          Status
+          {t('field_form_status')}
           <select value={form.status} onChange={e => set('status', e.target.value)} style={inp}>
-            {FIELD_STATUSES.map(s => <option key={s} value={s}>{STATUS_CFG[s]?.label ?? s}</option>)}
+            {FIELD_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
           </select>
         </label>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <button onClick={submit} disabled={busy} style={btnSave}>
-          {busy ? 'Saving…' : '✓ Save changes'}
+          {busy ? t('field_saving') : t('field_save_btn')}
         </button>
-        <button onClick={onCancel} style={btnCancel}>Cancel</button>
+        <button onClick={onCancel} style={btnCancel}>{t('field_cancel')}</button>
       </div>
     </div>
   );
 };
 
-// ── Field card ────────────────────────────────────────────────────────────────
+// ── FieldCard ─────────────────────────────────────────────────────────────────
 const FieldCard = ({ field, userId, onUpdate }) => {
+  const { t } = useLang();
   const [expanded, setExpanded] = useState(false);
   const [editing,  setEditing]  = useState(false);
 
-  const typeCfg   = TYPE_CFG[field.field_type]   || TYPE_CFG.other;
-  const statusCfg = STATUS_CFG[field.status]      || STATUS_CFG.active;
+  const typeCfg  = TYPE_CFG[field.field_type] || TYPE_CFG.other;
   const addedDate = field.created_at
-    ? new Date(field.created_at).toLocaleDateString('en-GB', { dateStyle: 'medium' })
+    ? new Date(field.created_at).toLocaleDateString('hu-HU', { dateStyle: 'medium' })
     : '—';
+
+  const statusLabel = (s) => {
+    if (s === 'active')   return t('status_active');
+    if (s === 'inactive') return t('status_inactive');
+    if (s === 'archived') return t('status_archived');
+    return s;
+  };
+
+  // build status badge config on the fly (colours stay, label localised)
+  const statusCfg = {
+    active:   { bg: '#e8f5e9', text: '#1b5e20', border: '#a5d6a7' },
+    inactive: { bg: '#fff8e1', text: '#f57f17', border: '#ffe082' },
+    archived: { bg: '#f5f5f5', text: '#9e9e9e', border: '#e0e0e0' },
+  }[field.status] || { bg: '#f5f5f5', text: '#9e9e9e', border: '#e0e0e0' };
 
   const handleSaved = () => { setEditing(false); onUpdate(); };
 
@@ -144,31 +147,22 @@ const FieldCard = ({ field, userId, onUpdate }) => {
     <div style={{
       border: `1.5px solid ${typeCfg.color}30`,
       borderLeft: `4px solid ${typeCfg.color}`,
-      borderRadius: 12,
-      overflow: 'hidden',
-      marginBottom: 8,
-      background: '#fafaf8',
+      borderRadius: 12, overflow: 'hidden', marginBottom: 8, background: '#fafaf8',
       transition: 'box-shadow 0.2s',
       boxShadow: expanded ? '0 4px 16px rgba(0,0,0,0.10)' : '0 1px 4px rgba(0,0,0,0.05)',
     }}>
-      {/* ── Header row ── */}
-      <div
-        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', userSelect: 'none' }}
-        onClick={() => { setExpanded(v => !v); setEditing(false); }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => { setExpanded(v => !v); setEditing(false); }}>
         <span style={{ fontSize: 22, flexShrink: 0 }}>{typeCfg.icon}</span>
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#222' }}>{field.label}</span>
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-              background: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>{statusCfg.label}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {statusLabel(field.status)}
+            </span>
             {field.manual_added && (
               <span style={{ fontSize: 10, color: '#0277bd', background: '#e1f5fe', border: '1px solid #81d4fa', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
-                ✏️ Manual
+                {t('fields_manual_badge')}
               </span>
             )}
           </div>
@@ -179,26 +173,23 @@ const FieldCard = ({ field, userId, onUpdate }) => {
             {field.season_year && <span>📅 {field.season_year}</span>}
           </div>
         </div>
-
         <span style={{ color: '#ccc', fontSize: 12, flexShrink: 0 }}>{expanded ? '▲' : '▼'}</span>
       </div>
 
-      {/* ── Expanded detail ── */}
       {expanded && (
         <div style={{ borderTop: `1px solid ${typeCfg.color}20`, background: '#fff', padding: '12px 16px 14px' }}>
           {!editing ? (
             <>
-              {/* Info grid */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, marginBottom: 14 }}>
                 {[
-                  { label: 'Field ID',    value: `#${field.id}` },
-                  { label: 'Type',        value: field.field_type?.replace(/_/g,' ') || '—' },
-                  { label: 'Crop',        value: field.crop_type?.replace(/_/g,' ') || '—' },
-                  { label: 'Season year', value: field.season_year || '—' },
-                  { label: 'Area',        value: field.area_ha ? `${Number(field.area_ha).toFixed(2)} ha` : '—' },
-                  { label: 'Source',      value: field.source || '—' },
-                  { label: 'Status',      value: statusCfg.label },
-                  { label: 'Added',       value: addedDate },
+                  { label: t('field_id_lbl'),     value: `#${field.id}` },
+                  { label: t('field_type_lbl'),   value: field.field_type?.replace(/_/g,' ') || '—' },
+                  { label: t('field_crop_lbl'),   value: field.crop_type?.replace(/_/g,' ') || '—' },
+                  { label: t('field_season_lbl'), value: field.season_year || '—' },
+                  { label: t('field_area_lbl'),   value: field.area_ha ? `${Number(field.area_ha).toFixed(2)} ha` : '—' },
+                  { label: t('field_source_lbl'), value: field.source || '—' },
+                  { label: t('field_status_lbl'), value: statusLabel(field.status) },
+                  { label: t('field_added_lbl'),  value: addedDate },
                 ].map(({ label, value }) => (
                   <div key={label} style={{ background: '#f8f4f0', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
@@ -206,9 +197,8 @@ const FieldCard = ({ field, userId, onUpdate }) => {
                   </div>
                 ))}
               </div>
-
               <button onClick={e => { e.stopPropagation(); setEditing(true); }} style={btnEdit}>
-                ✏️ Edit field info
+                {t('field_edit_btn')}
               </button>
             </>
           ) : (
@@ -222,6 +212,7 @@ const FieldCard = ({ field, userId, onUpdate }) => {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 const FieldsPanel = ({ userId, locationId }) => {
+  const { t } = useLang();
   const [open,    setOpen]    = useState(true);
   const [fields,  setFields]  = useState([]);
   const [loading, setLoading] = useState(true);
@@ -231,9 +222,7 @@ const FieldsPanel = ({ userId, locationId }) => {
   const load = useCallback(() => {
     if (!userId) return;
     setLoading(true);
-    api.get('/api/v1/user_fields', {
-      params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) },
-    })
+    api.get('/api/v1/user_fields', { params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) } })
       .then(r => {
         const data = r.data;
         setFields(Array.isArray(data) ? data : (data?.fields ?? data?.items ?? []));
@@ -244,88 +233,68 @@ const FieldsPanel = ({ userId, locationId }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  // unique types present in data
   const presentTypes = ['ALL', ...new Set(fields.map(f => f.field_type).filter(Boolean))];
 
   const filtered = fields.filter(f => {
-    if (filterType   !== 'ALL'    && f.field_type !== filterType)   return false;
-    if (filterStatus !== 'ALL'    && f.status     !== filterStatus) return false;
+    if (filterType   !== 'ALL' && f.field_type !== filterType)   return false;
+    if (filterStatus !== 'ALL' && f.status     !== filterStatus) return false;
     return true;
   });
 
   const activeCount = fields.filter(f => f.status === 'active').length;
-  const totalHa     = fields.filter(f => f.status === 'active')
-    .reduce((s, f) => s + (parseFloat(f.area_ha) || 0), 0);
+  const totalHa     = fields.filter(f => f.status === 'active').reduce((s, f) => s + (parseFloat(f.area_ha) || 0), 0);
+
+  const statusFilterLabel = (s) => {
+    if (s === 'ALL')      return t('fields_all_statuses');
+    if (s === 'active')   return t('status_active');
+    if (s === 'inactive') return t('status_inactive');
+    if (s === 'archived') return t('status_archived');
+    return s;
+  };
 
   return (
     <div style={panelWrap}>
-      {/* ── Panel header ── */}
       <div style={panelHead} onClick={() => setOpen(v => !v)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18 }}>🗺️</span>
-          <span style={titleStyle}>My Fields</span>
-          <span style={badge}>{fields.length} total</span>
-          {activeCount > 0 && (
-            <span style={{ ...badge, background: '#e8f5e9', color: '#2e7d32' }}>
-              {activeCount} active
-            </span>
-          )}
-          {totalHa > 0 && (
-            <span style={{ ...badge, background: '#e3f2fd', color: '#0d47a1' }}>
-              {totalHa.toFixed(1)} ha
-            </span>
-          )}
+          <span style={titleStyle}>{t('fields_title')}</span>
+          <span style={badge}>{t('fields_total', fields.length)}</span>
+          {activeCount > 0 && <span style={{ ...badge, background: '#e8f5e9', color: '#2e7d32' }}>{t('fields_active_count', activeCount)}</span>}
+          {totalHa > 0 && <span style={{ ...badge, background: '#e3f2fd', color: '#0d47a1' }}>{t('fields_ha', totalHa.toFixed(1))}</span>}
         </div>
         <span style={{ color: '#bbb', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
       </div>
 
       {open && (
         <div style={panelBody}>
-          {/* ── Filters ── */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-            {/* Status filter */}
             <div style={filterRow}>
               {(['ALL', 'active', 'inactive', 'archived']).map(s => (
-                <button key={s} onClick={() => setFilterStatus(s)} style={{
-                  ...filterBtn,
-                  background: filterStatus === s ? 'var(--color-accent-soil,#6b4c2a)' : '#f5f0ea',
-                  color: filterStatus === s ? '#fff' : '#888',
-                }}>
-                  {s === 'ALL' ? 'All statuses' : STATUS_CFG[s]?.label ?? s}
+                <button key={s} onClick={() => setFilterStatus(s)} style={{ ...filterBtn, background: filterStatus === s ? 'var(--color-accent-soil,#6b4c2a)' : '#f5f0ea', color: filterStatus === s ? '#fff' : '#888' }}>
+                  {statusFilterLabel(s)}
                 </button>
               ))}
             </div>
 
-            {/* Type filter — only present types */}
             {presentTypes.length > 2 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {presentTypes.map(t => (
-                  <button key={t} onClick={() => setFilterType(t)} style={{
-                    padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                    border: 'none', cursor: 'pointer',
-                    background: filterType === t ? 'var(--color-green-primary,#054e05)' : '#ede7df',
-                    color: filterType === t ? '#fff' : '#777',
-                  }}>
-                    {t === 'ALL' ? 'All types' : `${TYPE_CFG[t]?.icon || ''} ${t.replace(/_/g,' ')}`}
+                {presentTypes.map(tp => (
+                  <button key={tp} onClick={() => setFilterType(tp)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', background: filterType === tp ? 'var(--color-green-primary,#054e05)' : '#ede7df', color: filterType === tp ? '#fff' : '#777' }}>
+                    {tp === 'ALL' ? t('fields_all_types') : `${TYPE_CFG[tp]?.icon || ''} ${tp.replace(/_/g,' ')}`}
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* ── Content ── */}
           {loading ? (
-            <div style={{ color: '#bbb', padding: 20, textAlign: 'center', fontSize: 13 }}>Loading fields…</div>
+            <div style={{ color: '#bbb', padding: 20, textAlign: 'center', fontSize: 13 }}>{t('fields_loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ color: '#bbb', padding: 20, textAlign: 'center', fontSize: 13 }}>
-              {fields.length === 0
-                ? 'No fields yet. Use "Draw Field" or "Segment Fields" to add them.'
-                : 'No fields match the current filter.'}
+              {fields.length === 0 ? t('fields_empty_all') : t('fields_empty_filter')}
             </div>
           ) : (
-            filtered.map(f => (
-              <FieldCard key={f.id} field={f} userId={userId} onUpdate={load} />
-            ))
+            filtered.map(f => <FieldCard key={f.id} field={f} userId={userId} onUpdate={load} />)
           )}
         </div>
       )}
@@ -335,7 +304,6 @@ const FieldsPanel = ({ userId, locationId }) => {
 
 export default FieldsPanel;
 
-// ── Styles ────────────────────────────────────────────────────────────────────
 const panelWrap  = { background: '#fff', borderRadius: 14, border: '1px solid var(--color-accent-soil)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', overflow: 'hidden', marginBottom: 20 };
 const panelHead  = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 20px', cursor: 'pointer', background: 'var(--color-bg-champagne)', borderBottom: '1px solid var(--color-accent-soil)', userSelect: 'none' };
 const panelBody  = { padding: '16px 20px 20px' };
