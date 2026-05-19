@@ -16,6 +16,7 @@ from app.services.biomass_service import run_biomass_estimation
 from app.monitoring.alerting import format_alert, AlertService
 from app.services.anomaly_processor import find_all_anomaly
 from app.services.spot_anomaly_processor import find_all_satellite_anomaly
+from app.services.irrigation_service import run_irrigation_recommendations
 from app.events.alerts_orchestrator import run_all_alert_checks
 from app.services.disease_service import disease_risk
 from app.core.config import WEBHOOK_URL
@@ -61,6 +62,7 @@ def short_sync_process(db: Session):
             fetch_and_save_weather(db, loc)
             weather_metrics(db, loc)
             disease_risk(db, loc)
+        run_irrigation_recommendations(db)
         run_all_alert_checks()
     except Exception as e:
         logger.error(f"Critical orchestrator failure: {e}", exc_info=True)

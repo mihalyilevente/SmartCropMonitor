@@ -6,7 +6,10 @@ module IrrigationAdvisor
   , IrrigationInput(..)
   , IrrigationResult(..)
   , FieldAdvice(..)
+  , FieldInput(..)
+  , WeatherContext(..)
   ) where
+
 
 import Data.Aeson
 import GHC.Generics
@@ -147,7 +150,7 @@ data CropParams = CropParams
   { cpKc           :: Double   -- crop coefficient (mid-season)
   , cpDepletionFrac:: Double   -- RAW fraction  (p in FAO-56)
   , cpMaxDoseMm    :: Double   -- max single irrigation application [mm]
-  , cpCriticalSM   :: Double   -- soil moisture → CRITICAL  [m³/m³]
+  , cpCriticalSM   :: Double   -- soil moisture → CRITICAL  [m3/m3]
   , cpHighSM       :: Double   -- soil moisture → HIGH
   } deriving (Show)
 
@@ -258,13 +261,13 @@ scoreWeather wx cp =
         Just v
           | v < cpCriticalSM cp ->
               [Signal 4.0 ("Soil moisture critically low ("
-                ++ show2 v ++ " m³/m³ < " ++ show2 (cpCriticalSM cp) ++ ")")]
+                ++ show2 v ++ " m^3/m^3 < " ++ show2 (cpCriticalSM cp) ++ ")")]
           | v < cpHighSM cp ->
               [Signal 2.0 ("Soil moisture below threshold ("
-                ++ show2 v ++ " m³/m³ < " ++ show2 (cpHighSM cp) ++ ")")]
+                ++ show2 v ++ " m^3/m^3 < " ++ show2 (cpHighSM cp) ++ ")")]
           | v > 0.35 ->
               [Signal (-1.0) ("Soil moisture adequate ("
-                ++ show2 v ++ " m³/m³)")]
+                ++ show2 v ++ " m^3/m^3)")]
           | otherwise -> []
 
       wdSignals = case wd7 of
@@ -290,7 +293,7 @@ scoreWeather wx cp =
       rainSignals = case r7 of
         Nothing -> []
         Just v
-          | v <  5.0 -> [Signal 2.0 ("Very dry week — only "   ++ show1 v ++ " mm rain")]
+          | v <  5.0 -> [Signal 2.0 ("Very dry week -- only "   ++ show1 v ++ " mm rain")]
           | v < 15.0 -> [Signal 1.0 ("Below-avg rain last 7d (" ++ show1 v ++ " mm)")]
           | v > 40.0 -> [Signal (-2.0) ("Abundant rain last 7d (" ++ show1 v ++ " mm)")]
           | otherwise -> []
@@ -324,7 +327,7 @@ scoreField fi =
         Nothing -> []
         Just v
           | v < 0.25  -> [Signal 1.0 ("Low NDVI suggests vegetation stress (" ++ show3 v ++ ")")]
-          | v > 0.65  -> [Signal (-0.5) ("High NDVI — healthy canopy ("        ++ show3 v ++ ")")]
+          | v > 0.65  -> [Signal (-0.5) ("High NDVI -- healthy canopy ("        ++ show3 v ++ ")")]
           | otherwise -> []
   in ndwiSigs ++ ndviSigs
 
