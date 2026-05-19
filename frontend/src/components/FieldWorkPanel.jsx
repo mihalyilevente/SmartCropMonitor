@@ -1,28 +1,14 @@
-/**
- * FieldWorkPanel.jsx
- *
- * Endpoints:
- *   GET   /api/v1/fieldwork/user/{user_id}              → list all field work records
- *   GET   /api/v1/fieldwork/field/{field_id}            → records for one field
- *   POST  /api/v1/fieldwork/create                      → create record
- *   PATCH /api/v1/fieldwork/{work_id}                   → update status / cost / harvest
- *   DELETE /api/v1/fieldwork/{work_id}?user_id=1        → delete record
- *
- * FieldWorkType  — see schemas.py
- * FieldWorkStatus: DRAFT | PLANNED | SCHEDULED | ON_HOLD | IN_PROGRESS | COMPLETED | VERIFIED | CANCELLED | FAILED
- */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
+import { useLang } from '../context/LanguageContext';
 
 const BASE = '/api/v1/fieldwork';
 
 const WORK_TYPES = [
   'PLOWING','SUBSOILING','DISCING','HARROWING','CULTIVATION','ROLLING',
-  'SOWING','PLANTING',
-  'FERTILIZATION','SPRAYING','IRRIGATION','WEEDING',
+  'SOWING','PLANTING','FERTILIZATION','SPRAYING','IRRIGATION','WEEDING',
   'PRUNING','GRAFTING','MULCHING','THINNING','TRELLIS_REPAIR',
-  'MOWING','RAKING','BALING','GRAZING',
-  'HARVESTING','DESICCATION',
+  'MOWING','RAKING','BALING','GRAZING','HARVESTING','DESICCATION',
   'SOIL_SAMPLING','MAINTENANCE',
 ];
 
@@ -48,18 +34,18 @@ const WORK_ICONS = {
 };
 
 const StatusPill = ({ status }) => {
+  const { t } = useLang();
   const c = STATUS_CFG[status] || STATUS_CFG.PLANNED;
   return (
-    <span style={{
-      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-      background: c.bg, color: c.text, border: `1px solid ${c.border}`,
-      textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap',
-    }}>{status}</span>
+    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: c.bg, color: c.text, border: `1px solid ${c.border}`, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+      {t(`fw_status_${status.toLowerCase()}`)}
+    </span>
   );
 };
 
 // ── Create form ───────────────────────────────────────────────────────────────
 const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
+  const { t } = useLang();
   const fields = Array.isArray(fieldsProp) ? fieldsProp : [];
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -75,13 +61,12 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // refresh default field_id when fields load
   useEffect(() => {
     if (fields.length > 0 && !form.field_id) set('field_id', fields[0].id);
   }, [fields]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async () => {
-    if (!form.field_id) { alert('Select a field.'); return; }
+    if (!form.field_id) { alert(t('fw_err_field')); return; }
     setBusy(true);
     try {
       await api.post(`${BASE}/create`, {
@@ -96,14 +81,14 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
       });
       setOpen(false);
       onCreated();
-    } catch { alert('Failed to create field work record.'); }
+    } catch { alert(t('fw_err_create')); }
     finally { setBusy(false); }
   };
 
   return (
     <div style={{ marginBottom: 14 }}>
       <button onClick={() => setOpen(v => !v)} style={btnAdd}>
-        {open ? '✕ Cancel' : '＋ Log Field Work'}
+        {open ? t('fw_cancel_btn') : t('fw_log_btn')}
       </button>
 
       {open && (
@@ -111,57 +96,49 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
             {fields.length > 0 ? (
               <label style={lbl}>
-                Field *
+                {t('fw_field')}
                 <select value={form.field_id} onChange={e => set('field_id', e.target.value)} style={inp}>
-                  {fields.map(f => <option key={f.id} value={f.id}>{f.label || `Field #${f.id}`}</option>)}
+                  {fields.map(f => <option key={f.id} value={f.id}>{f.label || t('fw_field_ph', f.id)}</option>)}
                 </select>
               </label>
             ) : (
               <label style={lbl}>
-                Field ID *
-                <input type="number" placeholder="Enter field ID" value={form.field_id}
-                  onChange={e => set('field_id', e.target.value)}
-                  style={{ ...inp, width: 120 }} />
+                {t('fw_field_id')}
+                <input type="number" placeholder={t('fw_field_id_ph')} value={form.field_id}
+                  onChange={e => set('field_id', e.target.value)} style={{ ...inp, width: 120 }} />
               </label>
             )}
             <label style={lbl}>
-              Work type *
+              {t('fw_work_type')}
               <select value={form.work_type} onChange={e => set('work_type', e.target.value)} style={inp}>
-                {WORK_TYPES.map(t => (
-                  <option key={t} value={t}>{WORK_ICONS[t] || '🌾'} {t.replace(/_/g, ' ')}</option>
-                ))}
+                {WORK_TYPES.map(tp => <option key={tp} value={tp}>{WORK_ICONS[tp] || '🌾'} {tp.replace(/_/g, ' ')}</option>)}
               </select>
             </label>
             <label style={lbl}>
-              Status
+              {t('fw_status')}
               <select value={form.work_status} onChange={e => set('work_status', e.target.value)} style={inp}>
-                {Object.keys(STATUS_CFG).map(s => <option key={s} value={s}>{s}</option>)}
+                {Object.keys(STATUS_CFG).map(s => <option key={s} value={s}>{t(`fw_status_${s.toLowerCase()}`)}</option>)}
               </select>
             </label>
             <label style={lbl}>
-              Date *
-              <input type="datetime-local" value={form.work_date}
-                onChange={e => set('work_date', e.target.value)} style={inp} />
+              {t('fw_date')}
+              <input type="datetime-local" value={form.work_date} onChange={e => set('work_date', e.target.value)} style={inp} />
             </label>
             <label style={lbl}>
-              Cost (€)
-              <input type="number" placeholder="Optional" value={form.work_cost}
-                onChange={e => set('work_cost', e.target.value)} style={{ ...inp, width: 100 }} />
+              {t('fw_cost')}
+              <input type="number" placeholder={t('fw_cost_ph')} value={form.work_cost} onChange={e => set('work_cost', e.target.value)} style={{ ...inp, width: 100 }} />
             </label>
             <label style={lbl}>
-              Harvest (ton)
-              <input type="number" placeholder="If harvest" value={form.harvest_ton}
-                onChange={e => set('harvest_ton', e.target.value)} style={{ ...inp, width: 110 }} />
+              {t('fw_harvest')}
+              <input type="number" placeholder={t('fw_harvest_ph')} value={form.harvest_ton} onChange={e => set('harvest_ton', e.target.value)} style={{ ...inp, width: 110 }} />
             </label>
             <label style={{ ...lbl, flex: 1, minWidth: 200 }}>
-              Note
-              <input placeholder="Optional note…" value={form.note}
-                onChange={e => set('note', e.target.value)}
-                style={{ ...inp, width: '100%' }} />
+              {t('fw_note')}
+              <input placeholder={t('fw_note_ph')} value={form.note} onChange={e => set('note', e.target.value)} style={{ ...inp, width: '100%' }} />
             </label>
           </div>
           <button onClick={submit} disabled={busy} style={{ ...btnPrimary, marginTop: 12 }}>
-            {busy ? 'Saving…' : 'Save Record'}
+            {busy ? t('fw_saving') : t('fw_save_btn')}
           </button>
         </div>
       )}
@@ -171,47 +148,45 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
 
 // ── Work record row ───────────────────────────────────────────────────────────
 const WorkRow = ({ record, onUpdate }) => {
-  const [open, setOpen] = useState(false);
+  const { t } = useLang();
+  const [open, setOpen]       = useState(false);
   const [updating, setUpdating] = useState(false);
 
   const icon = WORK_ICONS[record.work_type] || '🌾';
-  const ts = record.work_date
-    ? new Date(record.work_date).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
+  const ts   = record.work_date
+    ? new Date(record.work_date).toLocaleString('hu-HU', { dateStyle: 'medium', timeStyle: 'short' })
     : '—';
 
-  const changeStatus = async (work_status) => {
+  const changeStatus = async (s) => {
+    if (s === record.work_status) return;
     setUpdating(true);
     try {
-      await api.patch(`${BASE}/${record.id}`, { work_status });
+      await api.patch(`${BASE}/${record.id}`, { work_status: s });
       onUpdate();
-    } catch { alert('Update failed.'); }
+    } catch { alert(t('fw_err_status')); }
     finally { setUpdating(false); }
   };
 
   const del = async () => {
-    if (!window.confirm('Delete this record?')) return;
+    if (!window.confirm('?')) return;
     try {
       await api.delete(`${BASE}/${record.id}`, { params: { user_id: record.user_id } });
       onUpdate();
-    } catch { alert('Delete failed.'); }
+    } catch { alert(t('fw_err_delete')); }
   };
 
+  const sc = STATUS_CFG[record.work_status] || STATUS_CFG.PLANNED;
+
   return (
-    <div style={{ border: '1px solid #e8e0d6', borderRadius: 10, overflow: 'hidden', marginBottom: 6, background: '#fafaf8' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', userSelect: 'none' }}
+    <div style={{ border: `1px solid ${sc.border}`, borderRadius: 10, overflow: 'hidden', background: '#fafaf8', marginBottom: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', userSelect: 'none', borderLeft: `4px solid ${sc.text}` }}
         onClick={() => setOpen(v => !v)}>
-        <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: 18 }}>{icon}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>
-              {record.work_type?.replace(/_/g, ' ')}
-            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>{record.work_type?.replace(/_/g, ' ')}</span>
             <StatusPill status={record.work_status} />
-            {record.field_label && (
-              <span style={{ fontSize: 11, color: '#aaa', background: '#f0ebe3', borderRadius: 8, padding: '1px 7px' }}>
-                {record.field_label}
-              </span>
-            )}
+            {record.field_label && <span style={{ fontSize: 11, color: '#888' }}>{record.field_label}</span>}
           </div>
           <div style={{ fontSize: 11, color: '#aaa', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span>📅 {ts}</span>
@@ -226,26 +201,16 @@ const WorkRow = ({ record, onUpdate }) => {
       {open && (
         <div style={{ padding: '10px 14px 14px', borderTop: '1px solid #ede7df', background: '#fff' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-            Change Status
+            {t('fw_change_status')}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
             {Object.entries(STATUS_CFG).map(([s, c]) => (
-              <button key={s} disabled={updating || s === record.work_status} onClick={() => changeStatus(s)}
-                style={{
-                  padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                  cursor: s === record.work_status ? 'default' : 'pointer',
-                  background: s === record.work_status ? c.bg : '#f5f5f5',
-                  color: s === record.work_status ? c.text : '#999',
-                  border: s === record.work_status ? `1px solid ${c.border}` : '1px solid #e0e0e0',
-                  opacity: updating ? 0.5 : 1, transition: 'all 0.15s',
-                  textTransform: 'uppercase', letterSpacing: '0.04em',
-                }}>{s}</button>
+              <button key={s} disabled={updating || s === record.work_status} onClick={() => changeStatus(s)} style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: s === record.work_status ? 'default' : 'pointer', background: s === record.work_status ? c.bg : '#f5f5f5', color: s === record.work_status ? c.text : '#999', border: s === record.work_status ? `1px solid ${c.border}` : '1px solid #e0e0e0', opacity: updating ? 0.5 : 1, transition: 'all 0.15s', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t(`fw_status_${s.toLowerCase()}`)}</button>
             ))}
           </div>
-          <button onClick={del} style={{
-            background: 'none', border: '1px solid #ffcdd2', color: '#e53935',
-            borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer',
-          }}>🗑 Delete record</button>
+          <button onClick={del} style={{ background: 'none', border: '1px solid #ffcdd2', color: '#e53935', borderRadius: 6, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}>
+            {t('fw_delete_btn')}
+          </button>
         </div>
       )}
     </div>
@@ -254,21 +219,18 @@ const WorkRow = ({ record, onUpdate }) => {
 
 // ── Main export ───────────────────────────────────────────────────────────────
 const FieldWorkPanel = ({ userId, locationId }) => {
-  const [open, setOpen] = useState(true);
-  const [records, setRecords] = useState([]);
-  const [fields, setFields] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState('ALL');
+  const { t } = useLang();
+  const [open, setOpen]           = useState(true);
+  const [records, setRecords]     = useState([]);
+  const [fields, setFields]       = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [filterType, setFilterType]     = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
   const loadFields = useCallback(() => {
     if (!userId) return;
-    // Загружаем поля — защита от не-массива на случай разных форматов ответа
     api.get('/api/v1/fields/user_fields', { params: { user_id: userId, ...(locationId ? { location_id: locationId } : {}) } })
-      .then(r => {
-        const data = r.data;
-        setFields(Array.isArray(data) ? data : (data?.fields ?? data?.items ?? []));
-      })
+      .then(r => { const data = r.data; setFields(Array.isArray(data) ? data : (data?.fields ?? data?.items ?? [])); })
       .catch(() => setFields([]));
   }, [userId, locationId]);
 
@@ -276,30 +238,19 @@ const FieldWorkPanel = ({ userId, locationId }) => {
     if (!userId) return;
     setLoading(true);
     api.get(`${BASE}/user/${userId}`)
-      .then(r => {
-        const data = r.data;
-        setRecords(Array.isArray(data) ? data : (data?.items ?? []));
-      })
+      .then(r => { const data = r.data; setRecords(Array.isArray(data) ? data : (data?.items ?? [])); })
       .catch(() => setRecords([]))
       .finally(() => setLoading(false));
   }, [userId]);
 
-  useEffect(() => {
-    loadFields();
-    loadRecords();
-  }, [loadFields, loadRecords]);
+  useEffect(() => { loadFields(); loadRecords(); }, [loadFields, loadRecords]);
 
-  const refresh = () => { loadRecords(); };
-
-  // Unique work types in current records for filter
   const typeOptions = ['ALL', ...new Set(records.map(r => r.work_type))];
-
   const filtered = records.filter(r => {
     if (filterType !== 'ALL' && r.work_type !== filterType) return false;
     if (filterStatus !== 'ALL' && r.work_status !== filterStatus) return false;
     return true;
   });
-
   const inProgressCount = records.filter(r => r.work_status === 'IN_PROGRESS').length;
 
   return (
@@ -307,60 +258,45 @@ const FieldWorkPanel = ({ userId, locationId }) => {
       <div style={panelHead} onClick={() => setOpen(v => !v)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🚜</span>
-          <span style={titleStyle}>Field Work</span>
-          <span style={badge}>{records.length} records</span>
-          {inProgressCount > 0 && (
-            <span style={{ ...badge, background: '#e1f5fe', color: '#01579b' }}>
-              {inProgressCount} in progress
-            </span>
-          )}
+          <span style={titleStyle}>{t('fw_title')}</span>
+          <span style={badge}>{t('fw_records', records.length)}</span>
+          {inProgressCount > 0 && <span style={{ ...badge, background: '#e1f5fe', color: '#01579b' }}>{t('fw_in_progress', inProgressCount)}</span>}
         </div>
         <span style={{ color: '#bbb', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
       </div>
 
       {open && (
         <div style={panelBody}>
-          <CreateWorkForm userId={userId} fields={fields} onCreated={refresh} />
+          <CreateWorkForm userId={userId} fields={fields} onCreated={loadRecords} />
 
-          {/* Filters */}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-            {/* Status filter */}
             <div style={{ display: 'flex', gap: 0, border: '1px solid #e0d8cf', borderRadius: 8, overflow: 'hidden' }}>
               {['ALL', ...Object.keys(STATUS_CFG)].map(s => (
-                <button key={s} onClick={() => setFilterStatus(s)} style={{
-                  padding: '5px 10px', fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer',
-                  background: filterStatus === s ? 'var(--color-accent-soil,#6b4c2a)' : '#f5f0ea',
-                  color: filterStatus === s ? '#fff' : '#888',
-                  textTransform: 'uppercase', letterSpacing: '0.03em',
-                }}>{s === 'ALL' ? 'All' : s}</button>
+                <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: '5px 10px', fontSize: 10, fontWeight: 700, border: 'none', cursor: 'pointer', background: filterStatus === s ? 'var(--color-accent-soil,#6b4c2a)' : '#f5f0ea', color: filterStatus === s ? '#fff' : '#888', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  {t(`fw_status_${s.toLowerCase()}`)}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Work type filter — only types present */}
           {typeOptions.length > 2 && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-              {typeOptions.map(t => (
-                <button key={t} onClick={() => setFilterType(t)} style={{
-                  padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                  border: 'none', cursor: 'pointer',
-                  background: filterType === t ? 'var(--color-green-primary,#054e05)' : '#ede7df',
-                  color: filterType === t ? '#fff' : '#777',
-                }}>
-                  {t === 'ALL' ? 'All types' : `${WORK_ICONS[t] || ''} ${t.replace(/_/g, ' ')}`}
+              {typeOptions.map(tp => (
+                <button key={tp} onClick={() => setFilterType(tp)} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer', background: filterType === tp ? 'var(--color-green-primary,#054e05)' : '#ede7df', color: filterType === tp ? '#fff' : '#777' }}>
+                  {tp === 'ALL' ? t('fw_all_types') : `${WORK_ICONS[tp] || ''} ${tp.replace(/_/g, ' ')}`}
                 </button>
               ))}
             </div>
           )}
 
           {loading ? (
-            <div style={{ color: '#bbb', padding: 16, textAlign: 'center', fontSize: 13 }}>Loading records…</div>
+            <div style={{ color: '#bbb', padding: 16, textAlign: 'center', fontSize: 13 }}>{t('fw_loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ color: '#bbb', padding: 16, textAlign: 'center', fontSize: 13 }}>
-              {records.length === 0 ? 'No field work logged yet.' : 'No records match filters.'}
+              {records.length === 0 ? t('fw_empty_all') : t('fw_empty_filter')}
             </div>
           ) : (
-            filtered.map(r => <WorkRow key={r.id} record={r} onUpdate={refresh} />)
+            filtered.map(r => <WorkRow key={r.id} record={r} onUpdate={loadRecords} />)
           )}
         </div>
       )}
@@ -370,7 +306,6 @@ const FieldWorkPanel = ({ userId, locationId }) => {
 
 export default FieldWorkPanel;
 
-// ── Styles ────────────────────────────────────────────────────────────────────
 const panelWrap  = { background: '#fff', borderRadius: 14, border: '1px solid var(--color-accent-soil)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', overflow: 'hidden', marginBottom: 20 };
 const panelHead  = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 20px', cursor: 'pointer', background: 'var(--color-bg-champagne)', borderBottom: '1px solid var(--color-accent-soil)', userSelect: 'none' };
 const panelBody  = { padding: '16px 20px 20px' };
