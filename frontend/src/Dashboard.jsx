@@ -139,21 +139,17 @@ const Dashboard = ({ userId, onLogout }) => {
         {/* ── Right side: lang toggle + accessibility toggle + logout ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
-          {/* Language switcher */}
-          <div style={styles.langSwitcher}>
-            {['hu', 'en'].map(l => (
-              <button
-                key={l}
-                onClick={() => setLang(l)}
-                style={{
-                  ...styles.langBtn,
-                  ...(lang === l ? styles.langBtnActive : {}),
-                }}
-              >
-                {l.toUpperCase()}
-              </button>
-            ))}
-          </div>
+          {/* Language selector */}
+          <select
+            value={lang}
+            onChange={e => setLang(e.target.value)}
+            style={styles.langSelect}
+          >
+            <option value="hu">🇭🇺 Magyar</option>
+            <option value="en">🇬🇧 English</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="de">🇩🇪 Deutsch</option>
+          </select>
 
           {/* Large font toggle */}
           <button
@@ -306,26 +302,18 @@ const styles = {
     color: '#fff', border: 'none', padding: '8px 16px',
     borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
   },
-  langSwitcher: {
-    display: 'flex',
+  langSelect: {
+    padding: '7px 10px',
     borderRadius: 8,
-    overflow: 'hidden',
     border: '1px solid var(--color-accent-soil)',
-  },
-  langBtn: {
-    padding: '7px 11px',
-    border: 'none',
     background: '#f0ebe3',
     color: 'var(--color-accent-chernozem)',
     cursor: 'pointer',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 700,
     fontFamily: 'inherit',
-    transition: 'all 0.15s',
-  },
-  langBtnActive: {
-    background: 'var(--color-accent-soil)',
-    color: '#fff',
+    outline: 'none',
+    transition: 'border-color 0.15s',
   },
 };
 
