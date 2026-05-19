@@ -1,22 +1,8 @@
-/**
- * Dashboard.jsx
- * Main view. Collapsible panels below the header banner:
- *  0. MorningBriefingPanel — daily risk summary
- *  1. AlertsPanel          — events list + alert rules
- *  2. TasksPanel
- *  3. FieldWorkPanel
- *  4. FieldsPanel
- *  5. WeatherMetricsPanel  — latest-weather (history + metrics objects)
- *  6. WeatherCharts        — hourly time series
- *  7. SprayingWindowsPanel — optimal application times
- *  8. FieldMapPanel        — Mapbox GL JS field boundaries + heatmap
- *  9. SensorPanel          — sensor management
- */
-
 import { useState, useEffect, useRef } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
 import { useFontSize } from './context/FontSizeContext';
+import { useLang } from './context/LanguageContext';
 import AlertsPanel from './components/AlertsPanel';
 import TasksPanel from './components/TasksPanel';
 import FieldWorkPanel from './components/FieldWorkPanel';
@@ -35,6 +21,7 @@ import logo from './assets/logo1.png';
 
 const Dashboard = ({ userId, onLogout }) => {
   const { largeFonts, toggleFonts } = useFontSize();
+  const { t, lang, setLang } = useLang();
 
   const [locations, setLocations]           = useState([]);
   const [locationId, setLocationId]         = useState(null);
@@ -96,7 +83,7 @@ const Dashboard = ({ userId, onLogout }) => {
     setTimeout(() => setSegmentationStatus(null), 4000);
   };
 
-  if (loading) return <div style={styles.container}>Loading…</div>;
+  if (loading) return <div style={styles.container}>{t('loading')}</div>;
 
   return (
     <div style={styles.container}>
@@ -111,7 +98,7 @@ const Dashboard = ({ userId, onLogout }) => {
         <div style={styles.locationRow}>
           {locations.length > 0 ? (
             <div style={styles.locationSelector}>
-              <label style={styles.label}>Location:</label>
+              <label style={styles.label}>{t('location_label')}</label>
               <select
                 value={locationId || ''}
                 onChange={e => setLocationId(Number(e.target.value))}
@@ -119,22 +106,22 @@ const Dashboard = ({ userId, onLogout }) => {
               >
                 {locations.map(loc => (
                   <option key={loc.id} value={loc.id}>
-                    {loc.label || `Location #${loc.id}`}
+                    {loc.label || t('location_fallback', loc.id)}
                   </option>
                 ))}
               </select>
             </div>
           ) : (
-            <div style={{ color: 'red', fontSize: 13 }}>No locations configured</div>
+            <div style={{ color: 'red', fontSize: 13 }}>{t('no_locations')}</div>
           )}
 
-          <button onClick={() => setShowAddLocation(true)} style={styles.addLocationBtn} title="Add new location">
-            + Add Location
+          <button onClick={() => setShowAddLocation(true)} style={styles.addLocationBtn} title={t('add_location')}>
+            {t('add_location')}
           </button>
 
           {locationId && (
-            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title="Draw a field boundary manually">
-              ✏️ Draw Field
+            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title={t('draw_field')}>
+              {t('draw_field')}
             </button>
           )}
 
@@ -142,19 +129,36 @@ const Dashboard = ({ userId, onLogout }) => {
             <button
               onClick={() => setShowSegmentation(true)}
               style={{ ...styles.segmentBtn, ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}) }}
-              title="Run AI field segmentation"
+              title={t('segment_fields')}
             >
-              {segmentationStatus === 'done' ? '✓ Fields Updated' : '🛰 Segment Fields'}
+              {segmentationStatus === 'done' ? t('fields_updated') : t('segment_fields')}
             </button>
           )}
         </div>
 
-        {/* ── Right side: accessibility toggle + logout ── */}
+        {/* ── Right side: lang toggle + accessibility toggle + logout ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+          {/* Language switcher */}
+          <div style={styles.langSwitcher}>
+            {['hu', 'en'].map(l => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                style={{
+                  ...styles.langBtn,
+                  ...(lang === l ? styles.langBtnActive : {}),
+                }}
+              >
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
           {/* Large font toggle */}
           <button
             onClick={toggleFonts}
-            title={largeFonts ? 'Switch to normal font size' : 'Switch to large font size'}
+            title={largeFonts ? t('font_switch_to_normal') : t('font_switch_to_large')}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               background: largeFonts ? 'var(--color-accent-chernozem)' : '#f0ebe3',
@@ -169,11 +173,11 @@ const Dashboard = ({ userId, onLogout }) => {
             <span style={{ fontSize: largeFonts ? 17 : 14, lineHeight: 1 }}>A</span>
             <span style={{ fontSize: 11, lineHeight: 1 }}>A</span>
             <span style={{ fontSize: 10, marginLeft: 2, opacity: 0.7 }}>
-              {largeFonts ? 'Large' : 'Normal'}
+              {largeFonts ? t('font_large') : t('font_normal')}
             </span>
           </button>
 
-          <button onClick={onLogout} style={styles.logoutBtn}>Logout</button>
+          <button onClick={onLogout} style={styles.logoutBtn}>{t('logout')}</button>
         </div>
       </header>
 
@@ -185,11 +189,11 @@ const Dashboard = ({ userId, onLogout }) => {
           </h2>
           <p style={{ margin: '0 0 4px', opacity: 0.8 }}>{currentWeather.weather_description}</p>
           <p style={{ margin: 0, fontSize: 13, opacity: 0.7 }}>
-            Humidity: {currentWeather.humidity}% &nbsp;·&nbsp; Wind: {currentWeather.wind_speed} m/s
+            {t('humidity')}: {currentWeather.humidity}% &nbsp;·&nbsp; {t('wind')}: {currentWeather.wind_speed} m/s
           </p>
         </div>
       ) : (
-        <div style={{ ...styles.weatherBanner, color: '#aaa' }}>No weather data for this location</div>
+        <div style={{ ...styles.weatherBanner, color: '#aaa' }}>{t('no_weather')}</div>
       )}
 
       {/* ── Panels ── */}
@@ -301,6 +305,27 @@ const styles = {
     background: 'var(--color-accent-mulberry)',
     color: '#fff', border: 'none', padding: '8px 16px',
     borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+  },
+  langSwitcher: {
+    display: 'flex',
+    borderRadius: 8,
+    overflow: 'hidden',
+    border: '1px solid var(--color-accent-soil)',
+  },
+  langBtn: {
+    padding: '7px 11px',
+    border: 'none',
+    background: '#f0ebe3',
+    color: 'var(--color-accent-chernozem)',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    transition: 'all 0.15s',
+  },
+  langBtnActive: {
+    background: 'var(--color-accent-soil)',
+    color: '#fff',
   },
 };
 
