@@ -1,3 +1,7 @@
+"""
+Copernicus DEM (GLO-30, 30m) — download & cache service.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -5,8 +9,8 @@ import os
 from typing import Optional
 
 import numpy as np
+import requests
 import rioxarray
-from pystac_client import Client
 from sqlalchemy.orm import Session
 
 from app.core.config import TOPO_DIR
@@ -15,9 +19,38 @@ from geoalchemy2.shape import to_shape
 
 logger = logging.getLogger(__name__)
 
-COPERNICUS_STAC_URL = "https://stac.element84.com"
-COPERNICUS_COLLECTION = "cop-dem-glo-30"
+S3_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
 
+
+# ---------------------------------------------------------------------------
+# URL helpers
+# ---------------------------------------------------------------------------
+
+def _tile_url(lat: float, lon: float) -> str:
+    """
+    Build the direct S3 URL for the GLO-30 tile that contains (lat, lon).
+
+    GLO-30 tiles are 1°×1° cells. The tile is identified by the floor of
+    the coordinates, e.g. lat=47.728 → N47, lon=19.648 → E019.
+    """
+    lat_floor = int(lat // 1)   # floor toward zero for negative latitudes
+    lon_floor = int(lon // 1)
+
+    ns = "N" if lat_floor >= 0 else "S"
+    ew = "E" if lon_floor >= 0 else "W"
+
+    lat_abs = abs(lat_floor)
+    lon_abs = abs(lon_floor)
+
+    tile_name = (
+        f"Copernicus_DSM_COG_10_{ns}{lat_abs:02d}_00_{ew}{lon_abs:03d}_00_DEM"
+    )
+    return f"{S3_BASE}/{tile_name}/{tile_name}.tif"
+
+
+# ---------------------------------------------------------------------------
+# File path
+# ---------------------------------------------------------------------------
 
 def _dem_path(loc: UserLocation) -> str:
     os.makedirs(TOPO_DIR, exist_ok=True)
@@ -26,6 +59,10 @@ def _dem_path(loc: UserLocation) -> str:
         f"dem_user_{loc.user_id}_loc_{loc.id}.tif",
     )
 
+
+# ---------------------------------------------------------------------------
+# Public API — download
+# ---------------------------------------------------------------------------
 
 def ensure_dem_for_location(db: Session, loc: UserLocation) -> bool:
     tif_path = _dem_path(loc)
@@ -41,42 +78,28 @@ def ensure_dem_for_location(db: Session, loc: UserLocation) -> bool:
         logger.error("Cannot resolve geometry for loc=%d: %s", loc.id, exc)
         return False
 
+    url = _tile_url(lat, lon)
     logger.info(
-        "Downloading Copernicus DEM for loc=%d (user=%d) at (%.5f, %.5f) → %s",
-        loc.id, loc.user_id, lat, lon, tif_path,
+        "Downloading Copernicus DEM for loc=%d (user=%d) at (%.5f, %.5f)\n  → %s",
+        loc.id, loc.user_id, lat, lon, url,
     )
 
     try:
-        client = Client.open(COPERNICUS_STAC_URL)
-        search = client.search(
-            collections=[COPERNICUS_COLLECTION],
-            bbox=[lon - 0.05, lat - 0.05, lon + 0.05, lat + 0.05],
-            max_items=1,
-        )
-        items = list(search.items())
-    except Exception as exc:
-        logger.error("STAC search failed for loc=%d: %s", loc.id, exc)
-        return False
-
-    if not items:
-        logger.warning(
-            "No Copernicus DEM tile found for loc=%d at (%.5f, %.5f).",
-            loc.id, lat, lon,
-        )
-        return False
-
-    item = items[0]
-    asset = item.assets.get("data") or item.assets.get("dem")
-
-    if asset is None:
-        logger.error(
-            "DEM item for loc=%d has no 'data'/'dem' asset. Available: %s",
-            loc.id, list(item.assets.keys()),
-        )
+        head = requests.head(url, timeout=10)
+        if head.status_code == 404:
+            logger.warning(
+                "DEM tile not found on S3 for loc=%d (%.5f, %.5f). "
+                "Tile may be in restricted country list.",
+                loc.id, lat, lon,
+            )
+            return False
+        head.raise_for_status()
+    except requests.RequestException as exc:
+        logger.error("HEAD check failed for loc=%d: %s", loc.id, exc)
         return False
 
     try:
-        da = rioxarray.open_rasterio(asset.href, chunks=True)
+        da = rioxarray.open_rasterio(url, chunks=True)
 
         clipped = da.rio.clip_box(
             minx=lon - 0.05,
@@ -96,6 +119,10 @@ def ensure_dem_for_location(db: Session, loc: UserLocation) -> bool:
             os.remove(tif_path)
         return False
 
+
+# ---------------------------------------------------------------------------
+# Public API — read elevation
+# ---------------------------------------------------------------------------
 
 def get_elevation_for_location(loc: UserLocation) -> Optional[float]:
     tif_path = _dem_path(loc)
@@ -127,6 +154,10 @@ def get_elevation_for_location(loc: UserLocation) -> Optional[float]:
         logger.error("Failed to read elevation for loc=%d: %s", loc.id, exc)
         return None
 
+
+# ---------------------------------------------------------------------------
+# Batch helper
+# ---------------------------------------------------------------------------
 
 def ensure_dem_for_all_locations(db: Session) -> dict[int, bool]:
     locations = db.query(UserLocation).all()

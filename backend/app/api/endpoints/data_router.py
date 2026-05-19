@@ -6,9 +6,9 @@ from fastapi import Depends, APIRouter, HTTPException
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from app.core.database import UserLocation, FieldAnalysis, get_db,FieldUnit
+from app.core.database import UserLocation, FieldAnalysis, get_db, FieldUnit
 import json
-from app.core.config import STORAGE_PATH,NDVI_DIR
+from app.core.config import STORAGE_PATH, NDVI_DIR, TOPO_DIR
 
 router = APIRouter()
 
@@ -97,7 +97,7 @@ def get_latest_plotly_data(
 
             step = max(1, min(step, 10))
 
-            data    = data[::step, ::step]
+            data     = data[::step, ::step]
             y_coords = y_coords[::step]
             x_coords = x_coords[::step]
 
@@ -121,6 +121,106 @@ def get_latest_plotly_data(
     except Exception as e:
         print(f"[ERROR] Plotly extraction failed: {e}")
         raise HTTPException(status_code=500, detail="Error processing NetCDF data")
+
+
+@router.get("/location/{location_id}/dem-contours")
+def get_dem_contours(
+    location_id: int,
+    user_id: int,
+    interval: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate contour lines from the cached Copernicus DEM tile for a location.
+
+    Returns a GeoJSON FeatureCollection of LineStrings — one per contour level.
+    Each feature has properties: { elevation: <metres> }
+
+    Query params:
+        interval  — contour interval in metres (default 10, min 5, max 100)
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import rioxarray
+
+    loc = (
+        db.query(UserLocation)
+        .filter(UserLocation.id == location_id, UserLocation.user_id == user_id)
+        .first()
+    )
+    if not loc:
+        raise HTTPException(status_code=404, detail="Location not found or access denied")
+
+    tif_path = os.path.join(TOPO_DIR, f"dem_user_{loc.user_id}_loc_{loc.id}.tif")
+    if not os.path.exists(tif_path):
+        raise HTTPException(
+            status_code=404,
+            detail="DEM tile not found for this location. Run a full sync first."
+        )
+
+    interval = max(5, min(interval, 100))
+
+    try:
+        da = rioxarray.open_rasterio(tif_path, masked=True)
+        elev = da.squeeze().values.astype(float)
+
+        lons = da.coords["x"].values
+        lats = da.coords["y"].values
+
+        nodata = da.rio.nodata
+        if nodata is not None:
+            elev[elev == nodata] = np.nan
+
+        valid = elev[~np.isnan(elev)]
+        if valid.size == 0:
+            raise HTTPException(status_code=422, detail="DEM contains no valid elevation data")
+
+        elev_min = float(np.floor(valid.min() / interval) * interval)
+        elev_max = float(np.ceil(valid.max()  / interval) * interval)
+        levels   = np.arange(elev_min, elev_max + interval, interval).tolist()
+
+        if len(levels) < 2:
+            raise HTTPException(status_code=422, detail="Elevation range too small for chosen interval")
+
+        fig, ax = plt.subplots()
+        cs = ax.contour(lons, lats, elev, levels=levels)
+        plt.close(fig)
+
+        features = []
+        for level_idx, level_val in enumerate(cs.levels):
+            for seg in cs.allsegs[level_idx]:
+                if len(seg) < 2:
+                    continue
+                coords = [[round(float(x), 6), round(float(y), 6)] for x, y in seg]
+                features.append({
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": coords,
+                    },
+                    "properties": {
+                        "elevation": round(float(level_val), 1),
+                        "index_line": (round(level_val) % 50 == 0),
+                    },
+                })
+
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+            "meta": {
+                "interval_m": interval,
+                "levels": len(levels),
+                "elev_min": round(elev_min, 1),
+                "elev_max": round(elev_max, 1),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] DEM contour generation failed for loc={location_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate contours from DEM")
 
 
 @router.get("/user/fields")
@@ -160,14 +260,13 @@ def get_user_fields(user_id: int, db: Session = Depends(get_db)):
         "features": features
     }
 
+
 @router.get("/user/fields-list")
 def get_user_fields_list(
     user_id: int,
     location_id: int = None,
     db: Session = Depends(get_db)
 ):
-    """GET /api/v1/user/fields-list?user_id=1&location_id=2
-    Full field info for the management panel (not GeoJSON)."""
     query = (
         db.query(FieldUnit)
         .join(UserLocation, FieldUnit.location_id == UserLocation.id)
@@ -176,7 +275,6 @@ def get_user_fields_list(
     if location_id:
         query = query.filter(FieldUnit.location_id == location_id)
 
-    # exclude soft-deleted
     try:
         query = query.filter(FieldUnit.deleted_at.is_(None))
     except Exception:
@@ -219,7 +317,6 @@ def patch_field(
     user_id: int,
     db: Session = Depends(get_db),
 ):
-    """PATCH /api/v1/fields/{field_id}?user_id=1"""
     from sqlalchemy import and_
     field = (
         db.query(FieldUnit)
@@ -235,8 +332,7 @@ def patch_field(
     if payload.crop_type   is not None: field.crop_type   = payload.crop_type or None
     if payload.season_year is not None: field.season_year = payload.season_year
     if payload.status      is not None: field.status      = payload.status
-    if payload.field_type  is not None:
-        field.field_type = payload.field_type
+    if payload.field_type  is not None: field.field_type  = payload.field_type
     field.updated_at = datetime.datetime.utcnow()
     db.commit()
     db.refresh(field)
