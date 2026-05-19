@@ -21,6 +21,7 @@ import AlertsPanel from './components/AlertsPanel';
 import TasksPanel from './components/TasksPanel';
 import FieldWorkPanel from './components/FieldWorkPanel';
 import FieldsPanel from './components/FieldsPanel';
+import PasturePanel from './components/PasturePanel';
 import SensorPanel from './components/SensorPanel';
 import WeatherCharts from './components/WeatherCharts';
 import WeatherMetricsPanel from './components/WeatherMetricsPanel';
@@ -197,6 +198,7 @@ const Dashboard = ({ userId, onLogout }) => {
       <TasksPanel userId={userId} />
       <FieldWorkPanel userId={userId} locationId={locationId} />
       <FieldsPanel userId={userId} locationId={locationId} />
+      <PasturePanel userId={userId} locationId={locationId} />
 
       <WeatherMetricsPanel latestWeather={latestWeather} userId={userId} locationId={locationId} />
       <WeatherCharts data={chartData} />
