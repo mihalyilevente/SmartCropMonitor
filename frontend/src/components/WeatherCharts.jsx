@@ -131,7 +131,7 @@ const WeatherCharts = ({ data = [] }) => {
   const ALL_TABS = [...WEATHER_TABS, ...METRIC_TABS];
 
   const cfg    = ALL_TABS.find(tb => tb.key === active) || ALL_TABS[0];
-  const points = useMemo(() => data.map(row => ({ x: row.timestamp, y: cfg.src === 'weather' ? row.weather_data?.[cfg.key] : row.metrics_data?.[cfg.key] })), [data, active]);
+  const points = useMemo(() => data.map(row => ({ x: row.timestamp, y: cfg.src === 'weather' ? row.weather_data?.[cfg.key] : row.metrics_data?.[cfg.key] })), [data, active, cfg.key, cfg.src]);
   const validPoints = useMemo(() => points.filter(p => p.y != null && !isNaN(p.y)), [points]);
   const vals = validPoints.map(p => p.y);
   const stats = vals.length ? { min: Math.min(...vals).toFixed(2), max: Math.max(...vals).toFixed(2), avg: (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2), last: vals[vals.length - 1].toFixed(2) } : null;
