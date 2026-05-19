@@ -87,7 +87,7 @@ const HistoryModal = ({ fieldId, label, onClose }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/api/v1/fields/${fieldId}/pasture-history`, { params: { limit: 30 } })
+    api.get(`/api/v1/fields/fields/${fieldId}/pasture-history`, { params: { limit: 30 } })
       .then(r => setHistory(r.data))
       .catch(() => setHistory(null))
       .finally(() => setLoading(false));
@@ -361,7 +361,7 @@ const PastureSummary = ({ data }) => {
 };
 
 // ── Main panel ────────────────────────────────────────────────────────────────
-const PasturePanel = ({ userId, locationId }) => {
+const PasturePanel = ({ locationId }) => {
   const [open,    setOpen]    = useState(true);
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -371,7 +371,7 @@ const PasturePanel = ({ userId, locationId }) => {
     if (!locationId) return;
     setLoading(true);
     setError(null);
-    api.get(`/api/v1/locations/${locationId}/pasture`)
+    api.get(`/api/v1/fields/locations/${locationId}/pasture`)
       .then(r => setData(r.data))
       .catch(() => setError('Failed to load pasture data.'))
       .finally(() => setLoading(false));
