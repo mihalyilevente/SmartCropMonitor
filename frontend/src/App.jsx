@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Auth from './Auth';
 import Dashboard from './Dashboard';
 import { FontSizeProvider } from './context/FontSizeContext';
-
+import { LanguageProvider } from './context/LanguageContext';
 function App() {
   const [userId, setUserId] = useState(localStorage.getItem('userId'));
 
@@ -18,6 +18,7 @@ function App() {
   };
 
   return (
+      <LanguageProvider>
     <FontSizeProvider>
       <BrowserRouter>
         <div style={{ minHeight: '100vh', backgroundColor: '#f4f7f6' }}>
@@ -35,6 +36,7 @@ function App() {
         </div>
       </BrowserRouter>
     </FontSizeProvider>
+    </LanguageProvider>
   );
 }
 

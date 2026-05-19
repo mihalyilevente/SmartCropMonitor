@@ -1,29 +1,28 @@
 import { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { getPlotData } from '../api/plots';
+import { useLang } from '../context/LanguageContext';
 
 const PlotViewer = ({ filename }) => {
+  const { t } = useLang();
   const [plotData, setPlotData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('heatmap');
-  const [filter, setFilter] = useState('none');
+  const [loading, setLoading]   = useState(false);
+  const [mode, setMode]         = useState('heatmap');
+  const [filter, setFilter]     = useState('none');
 
   const load = async (f, m, fi) => {
-    setLoading(true);
-    setPlotData(null);
+    setLoading(true); setPlotData(null);
     try {
       const data = await getPlotData(f, m, fi);
       setPlotData({ ...data, filename: f });
     } catch {
-      alert('Error loading plot');
+      alert(t('pv_err_load'));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    load(filename, mode, filter);
-  }, [filename]);
+  useEffect(() => { load(filename, mode, filter); }, [filename]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const safeZ = (() => {
     if (!Array.isArray(plotData?.z) || !Array.isArray(plotData.z[0])) return null;
@@ -35,30 +34,27 @@ const PlotViewer = ({ filename }) => {
   return (
     <section style={styles.card}>
       <h3>{filename}</h3>
-
       <div style={styles.controls}>
         <select value={mode} onChange={e => setMode(e.target.value)}>
           <option value="heatmap">Heatmap</option>
           <option value="raw">Raw</option>
         </select>
         <select value={filter} onChange={e => setFilter(e.target.value)}>
-          <option value="none">No filter</option>
+          <option value="none">{t('pv_no_filter')}</option>
           <option value="ndvi">NDVI</option>
           <option value="log">Log</option>
         </select>
         <button onClick={() => load(filename, mode, filter)} style={styles.applyBtn}>
-          Apply
+          {t('pv_apply')}
         </button>
       </div>
 
       {loading ? (
-        <p>Processing...</p>
+        <p>{t('pv_loading')}</p>
       ) : !safeZ ? (
-        <p style={{ color: 'red' }}>Invalid raster</p>
+        <p style={{ color: 'red' }}>{t('pv_invalid')}</p>
       ) : isRaw ? (
-        <pre style={{ textAlign: 'left', fontSize: 12 }}>
-          {JSON.stringify(plotData.z, null, 2)}
-        </pre>
+        <pre style={{ textAlign: 'left', fontSize: 12 }}>{JSON.stringify(plotData.z, null, 2)}</pre>
       ) : (
         <Plot
           data={[{ z: safeZ, type: 'heatmap', colorscale: 'Greens', showscale: true, zsmooth: 'best' }]}
@@ -71,7 +67,7 @@ const PlotViewer = ({ filename }) => {
 };
 
 const styles = {
-  card: { marginTop: 20, padding: 15, background: '#fff', borderRadius: 8 },
+  card:     { marginTop: 20, padding: 15, background: '#fff', borderRadius: 8 },
   controls: { display: 'flex', gap: 10, justifyContent: 'center' },
   applyBtn: { background: '#333', color: '#fff', padding: 5 },
 };
