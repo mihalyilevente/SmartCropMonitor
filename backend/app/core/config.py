@@ -9,6 +9,7 @@ SEGM_DIR = os.path.join(STORAGE_PATH, "segmentation")
 GRID_DIR = os.path.join(STORAGE_PATH, "grid")
 VIS_DIR = os.path.join(STORAGE_PATH, "visual")
 NDVI_DIR = os.path.join(STORAGE_PATH, "ndvi")
+TOPO_DIR = os.path.join(STORAGE_PATH, "topo")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
@@ -16,6 +17,7 @@ os.makedirs(SEGM_DIR, exist_ok=True)
 os.makedirs(GRID_DIR, exist_ok=True)
 os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
+os.makedirs(TOPO_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
 API_VERSION = "0.1.11"
@@ -38,7 +40,7 @@ QUALITY_THRESHOLD_NDVI = 0.75
 MIN_DIM = 128
 
 STAC_API_URL = "https://earth-search.aws.element84.com/v1"
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:root@127.0.0.1:5430/smartcropmonitordb"
+SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL")
 HASKELL_URL = os.getenv("HASKELL_SERVICE_URL", "http://localhost:8081/field-stats")
 
 MODEL_WEIGHTS = "app/models/unet_ai4boundaries.pth"
