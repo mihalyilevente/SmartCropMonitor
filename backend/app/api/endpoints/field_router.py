@@ -405,12 +405,22 @@ async def get_biomass_history_for_field(
         ]
     }
 
+# =========================
+# Field Management Endpoints
+# =========================
 
-_KG_DM_PER_AUM_DAY   = 12.0
-_BIOMASS_TO_DM_RATIO = 0.25
-_UTILISATION_RATE    = 0.50
+# =========================
+# Pasture / Grazing Endpoints
+# =========================
+
+# ── Grazing capacity constants ────────────────────────────────────────────────
+# AUM = Animal Unit Month (1 cow ~450 kg, needs ~12 kg DM/day)
+_KG_DM_PER_AUM_DAY   = 12.0   # kg dry matter per AUM per day
+_BIOMASS_TO_DM_RATIO = 0.25   # 25 % of fresh biomass is dry matter (typical pasture)
+_UTILISATION_RATE    = 0.50   # only 50 % of available DM should be grazed (sustainability)
 _DAYS_PER_MONTH      = 30
 
+# Grass growth stages derived from EVI / biomass thresholds
 def _growth_stage(evi: float, biomass_tha: float) -> dict:
     if evi < 0.15 or biomass_tha < 0.3:
         return {"stage": "Dormant / Bare",  "code": "dormant",  "color": "#bdbdbd", "icon": "💤"}
@@ -492,6 +502,7 @@ def get_pasture_overview(location_id: int, db: Session = Depends(get_db)):
     field_ids = [f.id for f in pasture_fields]
     field_map  = {f.id: f for f in pasture_fields}
 
+    # ── Latest biomass per field ──────────────────────────────────────────────
     latest_subq = (
         db.query(
             Biomass.field_id,
@@ -513,6 +524,7 @@ def get_pasture_overview(location_id: int, db: Session = Depends(get_db)):
     )
     biomass_map = {r.field_id: r for r in biomass_records}
 
+    # ── Build response ────────────────────────────────────────────────────────
     result_fields = []
     total_aum = 0.0
 
@@ -528,6 +540,7 @@ def get_pasture_overview(location_id: int, db: Session = Depends(get_db)):
             confidence   = float(b.confidence)
             analysis_date = b.analysis_date
 
+            # Grazing capacity: available DM → AUM-months
             dm_total_kg   = biomass_val * 1000 * area * _BIOMASS_TO_DM_RATIO * _UTILISATION_RATE
             aum_capacity  = dm_total_kg / (_KG_DM_PER_AUM_DAY * _DAYS_PER_MONTH)
         else:
