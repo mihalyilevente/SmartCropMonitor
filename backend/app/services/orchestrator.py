@@ -18,6 +18,7 @@ from app.services.anomaly_processor import find_all_anomaly
 from app.services.spot_anomaly_processor import find_all_satellite_anomaly
 from app.services.irrigation_service import run_irrigation_recommendations
 from app.events.alerts_orchestrator import run_all_alert_checks
+from app.services.dem_service import ensure_dem_for_all_locations
 from app.services.disease_service import disease_risk
 from app.core.config import WEBHOOK_URL
 from geoalchemy2.shape import to_shape
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 def full_sync_process(db: Session):
     try:
+        ensure_dem_for_all_locations(db)
         download_sentinel_data(db)
         validate_pending_analyses(db)
         sateline_metrics(db)

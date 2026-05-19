@@ -1,9 +1,13 @@
 /**
  * FieldMapPanel.jsx
- * Mapbox GL JS — field boundaries + metric heatmap overlay.
+ * Mapbox GL JS — field boundaries + metric heatmap overlay + contour lines toggle.
  *
- * KEY: all map operations go through applyToMap() which queues on 'load' if needed.
- * Callback ref guarantees the div is in the DOM before mapboxgl.Map() is called.
+ * Contour lines come from GET /api/v1/location/{id}/dem-contours
+ * which generates isolines from our cached Copernicus DEM tile (server-side,
+ * matplotlib contour → GeoJSON). No external tile service needed.
+ *
+ * index_line=true  → every 50 m  (thicker, labelled)
+ * index_line=false → every 10 m  (thin, no label)
  */
 
 import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
@@ -20,6 +24,10 @@ const METRIC_META = {
 };
 const METRICS = Object.keys(METRIC_META);
 
+const CONTOUR_SRC   = 'dem-contour-src';
+const CONTOUR_LAYER = 'dem-contour-lines';
+const CONTOUR_LABEL = 'dem-contour-labels';
+
 function bboxFromGeoJSON(geojson) {
   let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
   geojson.features.forEach(f => {
@@ -34,8 +42,6 @@ function bboxFromGeoJSON(geojson) {
   return [[minLng, minLat], [maxLng, maxLat]];
 }
 
-// Convert UTM (zone 34N / EPSG:32634) to WGS84 [lng, lat]
-// Hungary satellite data comes in UTM 34N (x≈397000-400000, y≈5280000-5300000)
 function utmToWgs84(easting, northing, zone = 34) {
   const a = 6378137.0, e1sq = 0.00669437999014, k0 = 0.9996;
   const e0 = easting - 500000.0;
@@ -55,10 +61,9 @@ function utmToWgs84(easting, northing, zone = 34) {
   const lon0 = ((zone-1)*6 - 180 + 3) * Math.PI/180;
   const lon = lon0 + (D - (1+2*T1+C1)*D*D*D/6
     + (5-2*C1+28*T1-3*C1*C1+8*e2+24*T1*T1)*D*D*D*D*D/120) / Math.cos(fp);
-  return [lon*180/Math.PI, lat*180/Math.PI]; // [lng, lat] for Mapbox
+  return [lon*180/Math.PI, lat*180/Math.PI];
 }
 
-// Detect if coordinates are UTM (large metre values) or already WGS84
 function isUtm(coords) {
   return Math.abs(coords[0]) > 180 || Math.abs(coords[1]) > 90;
 }
@@ -66,10 +71,8 @@ function isUtm(coords) {
 function gridToGeoJSON(z, x, y) {
   const needsConversion = isUtm([x[0], y[0]]);
   const features = [];
-  // Pre-convert x coords once (they repeat per row)
   const xWgs = needsConversion ? x.map(ex => utmToWgs84(ex, y[0])[0]) : x;
   for (let row = 0; row < y.length; row++) {
-    // Convert y once per row
     const latVal = needsConversion ? utmToWgs84(x[0], y[row])[1] : y[row];
     for (let col = 0; col < x.length; col++) {
       const val = z[row]?.[col];
@@ -85,6 +88,65 @@ function gridToGeoJSON(z, x, y) {
   return { type: 'FeatureCollection', features };
 }
 
+// ─── helpers to add / remove contour layers on the map ───────────────────────
+
+function addContourLayers(map, geojson) {
+  if (map.getLayer(CONTOUR_LABEL)) map.removeLayer(CONTOUR_LABEL);
+  if (map.getLayer(CONTOUR_LAYER)) map.removeLayer(CONTOUR_LAYER);
+  if (map.getSource(CONTOUR_SRC))  map.removeSource(CONTOUR_SRC);
+
+  map.addSource(CONTOUR_SRC, { type: 'geojson', data: geojson });
+
+  // thin lines for minor contours, thicker for index (every 50 m)
+  map.addLayer({
+    id:     CONTOUR_LAYER,
+    type:   'line',
+    source: CONTOUR_SRC,
+    paint: {
+      'line-color': [
+        'case',
+        ['==', ['get', 'index_line'], true], '#5a3e1b',
+        'rgba(90,62,27,0.45)',
+      ],
+      'line-width': [
+        'case',
+        ['==', ['get', 'index_line'], true], 1.6,
+        0.8,
+      ],
+      'line-opacity': 0.85,
+    },
+  });
+
+  // elevation labels only on index lines (every 50 m)
+  map.addLayer({
+    id:     CONTOUR_LABEL,
+    type:   'symbol',
+    source: CONTOUR_SRC,
+    filter: ['==', ['get', 'index_line'], true],
+    layout: {
+      'symbol-placement':    'line',
+      'text-field':          ['concat', ['to-string', ['get', 'elevation']], ' m'],
+      'text-size':           10,
+      'text-font':           ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-offset':         [0, -0.4],
+      'symbol-spacing':      200,
+    },
+    paint: {
+      'text-color':       '#3b2a10',
+      'text-halo-color':  'rgba(255,255,255,0.75)',
+      'text-halo-width':  1.2,
+    },
+  });
+}
+
+function removeContourLayers(map) {
+  if (map.getLayer(CONTOUR_LABEL)) map.removeLayer(CONTOUR_LABEL);
+  if (map.getLayer(CONTOUR_LAYER)) map.removeLayer(CONTOUR_LAYER);
+  if (map.getSource(CONTOUR_SRC))  map.removeSource(CONTOUR_SRC);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) => {
   const mapRef    = useRef(null);
   const loadedRef = useRef(false);
@@ -99,7 +161,13 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
   const [selectedField, setSelectedField] = useState(null);
   const [mapError, setMapError]           = useState(null);
 
-  // Expose refreshFields to parent via ref
+  // contour state
+  const [contoursOn,      setContoursOn]      = useState(false);
+  const [contourData,     setContourData]     = useState(null);   // GeoJSON from backend
+  const [contourLoading,  setContourLoading]  = useState(false);
+  const [contourError,    setContourError]    = useState(null);
+  const [contourMeta,     setContourMeta]     = useState(null);   // { elev_min, elev_max, interval_m }
+
   useImperativeHandle(ref, () => ({
     refreshFields: () => {
       if (!userId) return;
@@ -109,18 +177,12 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     },
   }));
 
-  // Run fn(map) now if loaded, else queue on 'load'
   const applyToMap = useCallback((fn) => {
     const map = mapRef.current;
     if (!map) return;
-    if (loadedRef.current) {
-      fn(map);
-    } else {
-      map.once('load', () => fn(map));
-    }
+    if (loadedRef.current) { fn(map); } else { map.once('load', () => fn(map)); }
   }, []);
 
-  // Callback ref: called by React with the real DOM node (or null on unmount)
   const mapCallbackRef = useCallback((node) => {
     if (!node) {
       if (mapRef.current) {
@@ -132,25 +194,16 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     }
     if (mapRef.current) return;
 
-    // Vite exposes env vars via import.meta.env with VITE_ prefix only.
-    // process.env does not exist in Vite — reading it throws or returns undefined.
     const token = import.meta.env.VITE_MAPBOX_TOKEN || '';
-
     if (!token) {
-      const msg = 'Mapbox token missing — set VITE_MAPBOX_TOKEN or REACT_APP_MAPBOX_TOKEN';
-      console.error('[FieldMapPanel]', msg);
-      setMapError(msg);
+      setMapError('Mapbox token missing — set VITE_MAPBOX_TOKEN');
       return;
     }
-
-    console.log('[FieldMapPanel] init — size:', node.offsetWidth, 'x', node.offsetHeight,
-      '| token:', token.slice(0, 12) + '…');
 
     mapboxgl.accessToken = token;
 
     let map;
     try {
-      // Restore last saved view so reload doesn't fly to wrong location
       const savedView = (() => {
         try { return JSON.parse(sessionStorage.getItem('fmp_view')); } catch { return null; }
       })();
@@ -164,33 +217,21 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
         renderWorldCopies: false,
       });
 
-      // Persist view on every move so reload restores it
       map.on('moveend', () => {
         const c = map.getCenter();
         try {
           sessionStorage.setItem('fmp_view', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
-        } catch {
-          // Session storage can be unavailable in private browsing or strict modes.
-        }
+        } catch { /* noop */ }
       });
     } catch (err) {
-      const msg = 'Map init failed: ' + err.message;
-      console.error('[FieldMapPanel]', msg);
-      setMapError(msg);
+      setMapError('Map init failed: ' + err.message);
       return;
     }
 
-    map.on('error', e => {
-      const msg = e.error?.message || String(e);
-      console.error('[FieldMapPanel] runtime error:', msg);
-      // Don't setMapError here — tile 404s etc are non-fatal
-    });
+    map.on('error', e => console.error('[FieldMapPanel] runtime error:', e.error?.message || String(e)));
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100 }), 'bottom-left');
-    map.on('load', () => {
-      console.log('[FieldMapPanel] ✅ map loaded');
-      loadedRef.current = true;
-    });
+    map.on('load', () => { loadedRef.current = true; });
 
     mapRef.current = map;
   }, []);
@@ -217,23 +258,56 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
 
   useEffect(() => { loadMetric(); }, [loadMetric]);
 
-  // Fly to location center when locationId or locationCenter changes
+  // ── Fetch contours from backend (only when toggled on and not yet loaded) ──
+  useEffect(() => {
+    if (!contoursOn || !locationId || !userId) return;
+    if (contourData) return; // already loaded for this location
+
+    setContourLoading(true);
+    setContourError(null);
+
+    api.get(`/api/v1/location/${locationId}/dem-contours`, {
+      params: { user_id: userId, interval: 10 },
+    })
+      .then(r => {
+        setContourData(r.data);
+        setContourMeta(r.data.meta);
+        setContourLoading(false);
+      })
+      .catch(() => {
+        setContourError('DEM contours unavailable');
+        setContourLoading(false);
+        setContoursOn(false);
+      });
+  }, [contoursOn, locationId, userId, contourData]);
+
+  // Reset cached contour data when location changes
+  useEffect(() => {
+    setContourData(null);
+    setContourMeta(null);
+    setContourError(null);
+    setContoursOn(false);
+  }, [locationId]);
+
+  // ── Apply / remove contour layers on map ───────────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    applyToMap(map => {
+      if (contoursOn && contourData) {
+        addContourLayers(map, contourData);
+      } else {
+        removeContourLayers(map);
+      }
+    });
+  }, [contoursOn, contourData, open, applyToMap]);
+
+  // Fly to location center
   useEffect(() => {
     if (!locationCenter?.lat || !locationCenter?.lon) return;
     const fly = (map) => {
-      map.flyTo({
-        center: [locationCenter.lon, locationCenter.lat],
-        zoom: 14,
-        duration: 1200,
-        essential: true,
-      });
-      // Update sessionStorage so the new center is remembered
+      map.flyTo({ center: [locationCenter.lon, locationCenter.lat], zoom: 14, duration: 1200, essential: true });
       try {
-        sessionStorage.setItem('fmp_view', JSON.stringify({
-          lat: locationCenter.lat,
-          lng: locationCenter.lon,
-          zoom: 14,
-        }));
+        sessionStorage.setItem('fmp_view', JSON.stringify({ lat: locationCenter.lat, lng: locationCenter.lon, zoom: 14 }));
       } catch { /* noop */ }
     };
     const map = mapRef.current;
@@ -253,29 +327,15 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
         map.addLayer({
           id: 'fields-fill', type: 'fill', source: SRC,
           paint: {
-            'fill-color': ['case',
-              ['==', ['get', 'field_type'], 'crop'], 'rgba(134,197,75,0.25)',
-              'rgba(100,160,255,0.25)',
-            ],
+            'fill-color': ['case', ['==', ['get', 'field_type'], 'crop'], 'rgba(134,197,75,0.25)', 'rgba(100,160,255,0.25)'],
             'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.55, 0.3],
           },
         });
-        map.addLayer({
-          id: 'fields-outline', type: 'line', source: SRC,
-          paint: { 'line-color': '#86c54b', 'line-width': 2.5 },
-        });
+        map.addLayer({ id: 'fields-outline', type: 'line', source: SRC, paint: { 'line-color': '#86c54b', 'line-width': 2.5 } });
         map.addLayer({
           id: 'fields-label', type: 'symbol', source: SRC,
-          layout: {
-            'text-field': ['get', 'label'],
-            'text-size': 13,
-            'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-          },
-          paint: {
-            'text-color': '#fff',
-            'text-halo-color': '#1a2a12',
-            'text-halo-width': 1.5,
-          },
+          layout: { 'text-field': ['get', 'label'], 'text-size': 13, 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] },
+          paint: { 'text-color': '#fff', 'text-halo-color': '#1a2a12', 'text-halo-width': 1.5 },
         });
 
         let hoverId = null;
@@ -304,10 +364,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
         });
       }
       if (fields.features.length > 0) {
-        // Only auto-fit on first load (no saved view). After that user controls zoom.
-        const hasSavedView = (() => {
-          try { return !!sessionStorage.getItem('fmp_view'); } catch { return false; }
-        })();
+        const hasSavedView = (() => { try { return !!sessionStorage.getItem('fmp_view'); } catch { return false; } })();
         if (!hasSavedView) {
           map.fitBounds(bboxFromGeoJSON(fields), { padding: 60, maxZoom: 16, duration: 800 });
         }
@@ -315,13 +372,11 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     });
   }, [fields, open, applyToMap]);
 
-  // Draw metric overlay as circle layer (precise per-pixel coloring, not blurred heatmap)
+  // Draw metric overlay
   useEffect(() => {
     if (!open) return;
     applyToMap(map => {
-      const HM_SRC   = 'metric-src';
-      const HM_LAYER = 'metric-layer';
-
+      const HM_SRC = 'metric-src', HM_LAYER = 'metric-layer';
       if (map.getLayer(HM_LAYER)) map.removeLayer(HM_LAYER);
       if (map.getSource(HM_SRC))  map.removeSource(HM_SRC);
       if (!metricData) return;
@@ -330,44 +385,17 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
       const gj   = gridToGeoJSON(z, x, y);
       const meta = METRIC_META[metric];
 
-      // Use reduce instead of spread to avoid stack overflow on large arrays
       let dMin = Infinity, dMax = -Infinity;
-      gj.features.forEach(f => {
-        const v = f.properties.value;
-        if (v < dMin) dMin = v;
-        if (v > dMax) dMax = v;
-      });
+      gj.features.forEach(f => { const v = f.properties.value; if (v < dMin) dMin = v; if (v > dMax) dMax = v; });
       const dMid = dMin + (dMax - dMin) * 0.5;
-      console.log('[FieldMapPanel] metric overlay:', gj.features.length, 'pts | range:', dMin.toFixed(3), '—', dMax.toFixed(3));
 
       map.addSource(HM_SRC, { type: 'geojson', data: gj });
-
-      // Sharp circle pixels — no blur, tight radius so each point covers exactly
-      // its 30m grid cell at current zoom without overlap bleeding.
       map.addLayer({
-        id: HM_LAYER,
-        type: 'circle',
-        source: HM_SRC,
+        id: HM_LAYER, type: 'circle', source: HM_SRC,
         paint: {
-          'circle-color': [
-            'interpolate', ['linear'], ['get', 'value'],
-            dMin, meta.ramp[0],
-            dMid, meta.ramp[1],
-            dMax, meta.ramp[2],
-          ],
-          // Each UTM cell is 30m. At step=3 → 90m cells.
-          // circle-radius in px ≈ (cell_m * zoom_scale) / 2
-          // tuned so cells tile with no gap and no overlap:
-          'circle-radius': [
-              'interpolate', ['exponential', 1.5], ['zoom'],
-              8,  0.5,
-              10, 1.2,
-              12, 3,
-              14, 6,
-              16, 12,
-              18, 22,
-            ],
-                      'circle-opacity': 0.7,
+          'circle-color': ['interpolate', ['linear'], ['get', 'value'], dMin, meta.ramp[0], dMid, meta.ramp[1], dMax, meta.ramp[2]],
+          'circle-radius': ['interpolate', ['exponential', 1.5], ['zoom'], 8, 0.5, 10, 1.2, 12, 3, 14, 6, 16, 12, 18, 22],
+          'circle-opacity': 0.7,
           'circle-blur': 0,
           'circle-stroke-width': 0,
           'circle-pitch-alignment': 'map',
@@ -377,6 +405,15 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
   }, [metricData, metric, open, applyToMap]);
 
   const meta = METRIC_META[metric];
+
+  const handleContourToggle = () => {
+    if (contoursOn) {
+      setContoursOn(false);
+    } else {
+      if (!locationId) return;
+      setContoursOn(true);
+    }
+  };
 
   return (
     <div style={styles.panel}>
@@ -391,7 +428,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
           )}
         </div>
         <div style={styles.panelRight}>
-          {metricLoading && <span style={styles.loadingDot} title="Loading…" />}
+          {(metricLoading || contourLoading) && <span style={styles.loadingDot} title="Loading…" />}
           <span style={styles.chevron}>{open ? '▲' : '▼'}</span>
         </div>
       </div>
@@ -399,6 +436,8 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
       {open && (
         <div style={styles.panelBody}>
           <div style={styles.toolbar}>
+
+            {/* Metric selector */}
             <span style={styles.toolbarLabel}>Overlay:</span>
             {METRICS.map(m => (
               <button
@@ -409,18 +448,47 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
                 {METRIC_META[m].label}
               </button>
             ))}
+
+            {/* Divider */}
+            <span style={styles.divider} />
+
+            {/* Contour toggle */}
+            <button
+              onClick={handleContourToggle}
+              disabled={!locationId || contourLoading}
+              title={
+                !locationId        ? 'Select a location first' :
+                contourLoading     ? 'Loading DEM contours…'  :
+                contourError       ? contourError              :
+                contoursOn         ? 'Hide contour lines'      :
+                                     'Show elevation contours from Copernicus DEM'
+              }
+              style={{
+                ...styles.metricBtn,
+                ...(contoursOn ? styles.contourBtnActive : {}),
+                opacity: (!locationId || contourLoading) ? 0.45 : 1,
+              }}
+            >
+              {contourLoading ? '⟳ Loading…' : '⛰ Contours'}
+            </button>
+
+            {/* Elevation range badge — shown when contours are on */}
+            {contoursOn && contourMeta && (
+              <span style={styles.elevBadge}>
+                {contourMeta.elev_min}–{contourMeta.elev_max} m
+                &nbsp;·&nbsp;every {contourMeta.interval_m} m
+              </span>
+            )}
+
             {metricError && <span style={styles.errorNote}>{metricError}</span>}
+            {contourError && <span style={styles.errorNote}>{contourError}</span>}
           </div>
 
-          {/* Map container — explicit px height, NO overflow:hidden on ancestors */}
           <div style={styles.mapWrap}>
             {mapError ? (
               <div style={styles.mapErrorMsg}>{mapError}</div>
             ) : (
-              <div
-                ref={mapCallbackRef}
-                style={{ position: 'absolute', inset: 0 }}
-              />
+              <div ref={mapCallbackRef} style={{ position: 'absolute', inset: 0 }} />
             )}
 
             <div style={styles.legend}>
@@ -456,7 +524,6 @@ const styles = {
     marginBottom: 20,
     borderRadius: 12,
     border: '1px solid var(--color-accent-soil)',
-    // ⚠️ NO overflow:hidden here — it clips the Mapbox canvas
     background: 'var(--color-bg-magnolia)',
   },
   panelHeader: {
@@ -467,17 +534,17 @@ const styles = {
     userSelect: 'none',
   },
   panelTitle: { display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 },
-  panelIcon: { fontSize: 16 },
+  panelIcon:  { fontSize: 16 },
   badge: {
     background: 'var(--color-accent-soil)', color: '#fff',
     fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
   },
-  panelRight: { display: 'flex', alignItems: 'center', gap: 10 },
+  panelRight:  { display: 'flex', alignItems: 'center', gap: 10 },
   loadingDot: {
     width: 8, height: 8, borderRadius: '50%', background: '#86c54b',
     display: 'inline-block', animation: 'pulse 1s infinite',
   },
-  chevron: { fontSize: 11, opacity: 0.5 },
+  chevron:   { fontSize: 11, opacity: 0.5 },
   panelBody: {},
   toolbar: {
     display: 'flex', alignItems: 'center', gap: 6,
@@ -494,9 +561,23 @@ const styles = {
     background: 'var(--color-accent-soil)', color: '#fff',
     borderColor: 'var(--color-accent-soil)',
   },
+  contourBtnActive: {
+    background: '#5a3e1b', color: '#fff',
+    borderColor: '#5a3e1b',
+  },
+  divider: {
+    display: 'inline-block', width: 1, height: 18,
+    background: 'var(--color-accent-soil)', opacity: 0.35, margin: '0 4px',
+  },
+  elevBadge: {
+    fontSize: 11, fontWeight: 600,
+    color: '#5a3e1b',
+    background: 'rgba(90,62,27,0.1)',
+    border: '1px solid rgba(90,62,27,0.25)',
+    borderRadius: 20, padding: '2px 10px',
+  },
   errorNote: { fontSize: 12, color: '#c0392b', marginLeft: 8 },
-  // Explicit px height + position:relative so child position:absolute inset:0 works
-  mapWrap: { position: 'relative', height: '480px', width: '100%' },
+  mapWrap:   { position: 'relative', height: '480px', width: '100%' },
   mapErrorMsg: {
     position: 'absolute', inset: 0, display: 'flex',
     alignItems: 'center', justifyContent: 'center',
@@ -507,8 +588,8 @@ const styles = {
     background: 'rgba(255,255,255,0.92)', borderRadius: 8,
     padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 140,
   },
-  legendTitle: { fontSize: 12, fontWeight: 700, marginBottom: 4 },
-  legendDesc:  { fontWeight: 400, opacity: 0.65, fontSize: 11 },
+  legendTitle:  { fontSize: 12, fontWeight: 700, marginBottom: 4 },
+  legendDesc:   { fontWeight: 400, opacity: 0.65, fontSize: 11 },
   legendLabels: { display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.7 },
   fieldChip: {
     position: 'absolute', top: 12, left: 12, zIndex: 10,
@@ -523,5 +604,4 @@ const styles = {
 };
 
 FieldMapPanel.displayName = 'FieldMapPanel';
-
 export default FieldMapPanel;
