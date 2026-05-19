@@ -21,6 +21,7 @@ library:
     - SatelliteAnomaly
     - DiseaseModels
     - DiseaseTypes
+    - IrrigationAdvisor
 
 executables:
   haskell-service-exe:
