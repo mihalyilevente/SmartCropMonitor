@@ -6,7 +6,7 @@ import xarray as xr
 import requests
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from shapely import wkb
 import geopandas as gpd
 
@@ -101,8 +101,7 @@ def _get_nearest_weather(
         db.query(WeatherHistory)
         .filter(WeatherHistory.location_id == location_id)
         .order_by(
-            (WeatherHistory.timestamp - timestamp)
-            .__abs__()
+            func.abs(WeatherHistory.timestamp - timestamp)
         )
         .first()
     )
