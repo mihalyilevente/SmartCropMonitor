@@ -28,15 +28,27 @@ from geoalchemy2.shape import to_shape
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 logger = logging.getLogger(__name__)
 
-COMPOSE_FILE  = os.environ.get("COMPOSE_FILE", "/app/docker-compose.yml")
+COMPOSE_FILE     = os.environ.get("COMPOSE_FILE_HOST", "/root/SmartCropMonitor/docker-compose.yml")
+PROJECT_DIR      = os.environ.get("PROJECT_DIR",       "/root/SmartCropMonitor")
+PROJECT_NAME     = os.environ.get("COMPOSE_PROJECT_NAME", "smartcropmonitor")
 
 
 def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
     """
     Run wrf-preprocessor + wrf-runner sequentially for one location.
-    Uses subprocess with streaming output to avoid blocking on large WRF logs.
-    Returns True on success, False on failure.
+    Streams output line-by-line to avoid buffering WRF's large logs in RAM.
     """
+    base_cmd = [
+        "docker", "compose",
+        "-f", COMPOSE_FILE,
+        "-p", PROJECT_NAME,
+        "--profile", "wrf",
+        "run", "--rm",
+        "-e", f"WRF_CENTER_LAT={lat}",
+        "-e", f"WRF_CENTER_LON={lon}",
+        "-e", f"WRF_LOCATION_ID={location_id}",
+    ]
+
     env = {
         **os.environ,
         "WRF_CENTER_LAT":  str(lat),
@@ -44,23 +56,16 @@ def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
         "WRF_LOCATION_ID": str(location_id),
     }
 
-    base_cmd = [
-        "docker", "compose", "-f", COMPOSE_FILE, "run", "--rm",
-        "-e", f"WRF_CENTER_LAT={lat}",
-        "-e", f"WRF_CENTER_LON={lon}",
-        "-e", f"WRF_LOCATION_ID={location_id}",
-    ]
-
     for service in ("wrf-preprocessor", "wrf-runner"):
         logger.info(f"[wrf] Starting {service} for loc {location_id} ({lat}, {lon})")
 
-        # Stream output line-by-line — avoids blocking on WRF's large stdout
         proc = subprocess.Popen(
             base_cmd + [service],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             env=env,
+            cwd=PROJECT_DIR,
         )
 
         output_tail = []
@@ -128,8 +133,7 @@ def short_sync_process(db: Session):
 
             if not wrf_ok:
                 logger.warning(f"[sync] WRF failed for {loc.label} — falling back to Open-Meteo only")
-
-            if wrf_ok:
+            else:
                 wrf_count = ingest_wrf_output(db, loc)
                 logger.info(f"[sync] WRF ingested {wrf_count} records for {loc.label}")
 
