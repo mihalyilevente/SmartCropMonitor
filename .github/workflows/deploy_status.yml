@@ -29,6 +29,8 @@ jobs:
           host: 46.225.7.134
           username: root
           key: ${{ secrets.SERVER_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
           script: |
             cd ~/SmartCropMonitor
             git fetch origin master
