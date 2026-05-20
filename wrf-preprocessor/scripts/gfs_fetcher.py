@@ -124,7 +124,7 @@ def _build_url(run_dt, run_hour, fhour, lat_min, lon_min, lat_max, lon_max):
         "subregion=",
         f"leftlon={lon_min}", f"rightlon={lon_max}",
         f"toplat={lat_max}",  f"bottomlat={lat_min}",
-    ] + REQUIRED_VARS + PRESSURE_LEVELS + SURFACE_LEVELS
+    ] + [v + "=on" for v in REQUIRED_VARS] + [v + "=on" for v in PRESSURE_LEVELS] + [v + "=on" for v in SURFACE_LEVELS]
     return "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl?" + "&".join(params)
 
 
