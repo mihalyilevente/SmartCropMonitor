@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libnetcdf-dev \
     libnetcdff-dev \
     netcdf-bin \
+    libhdf5-dev \
     libpng-dev \
     zlib1g-dev \
     libjpeg-dev \
@@ -50,6 +51,7 @@ COPY ./scripts /app/scripts
 
 RUN chmod +x /app/scripts/*.sh
 
+# Compile WRF — option 32: GNU serial, nesting 1: basic
 WORKDIR /app/WRF
 
 RUN printf "32\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
@@ -63,6 +65,7 @@ RUN if [ ! -f /app/WRF/main/real.exe ] || [ ! -f /app/WRF/main/wrf.exe ]; then \
         echo "WRF compile failed:"; tail -60 /app/compile_wrf.log; exit 1; \
     fi
 
+# Compile WPS — option 1: GNU serial
 WORKDIR /app/WPS
 
 RUN printf "1\n" | ./configure 2>&1 | tee /app/configure_wps.log
