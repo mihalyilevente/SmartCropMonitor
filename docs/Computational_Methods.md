@@ -183,22 +183,22 @@ The system is grounded in the following domains:
 
 Let:
 
-- ( NDVI = {x_i^{NDVI}}_{i=1}^{n} )
+- $NDVI = {x_i^{NDVI}}_{i=1}^{n}$
     
-- ( GNDVI = {x_i^{GNDVI}}_{i=1}^{n} )
+- $GNDVI = {x_i^{GNDVI}}_{i=1}^{n}$
     
-- ( NDRE = {x_i^{NDRE}}_{i=1}^{n} )
+- $NDRE = {x_i^{NDRE}}_{i=1}^{n}$
     
-- ( NDWI = {x_i^{NDWI}}_{i=1}^{n} )
+- $NDWI = {x_i^{NDWI}}_{i=1}^{n}$
     
 
 If raw spectral bands are available:
 
-- ( NIR = {n_i} )
+- $NIR = {n_i}$
     
-- ( RED = {r_i} )
+- $RED = {r_i}$
     
-- ( BLUE = {b_i} )
+- $BLUE = {b_i}$
     
 
 ---
@@ -207,15 +207,15 @@ If raw spectral bands are available:
 
 ### Mean
 
-[  
+$$
 \mu_X = \frac{1}{n} \sum_{i=1}^{n} x_i  
-]
+$$
 
 ### Standard Deviation (sample)
 
-[  
+$$
 \sigma_X = \sqrt{\frac{1}{n-1} \sum_{i=1}^{n} (x_i - \mu_X)^2}  
-]
+$$
 
 ---
 
@@ -223,9 +223,9 @@ If raw spectral bands are available:
 
 A 3-sigma rule is applied:
 
-[  
+$$
 x_i \in [\mu_X - 3\sigma_X,\ \mu_X + 3\sigma_X]  
-]
+$$
 
 Only values satisfying the condition are retained.
 
@@ -237,9 +237,9 @@ Only values satisfying the condition are retained.
 
 For each pixel:
 
-[  
+$$
 EVI = 2.5 \cdot \frac{NIR - RED}{NIR + 6 \cdot RED - 7.5 \cdot BLUE + 1}  
-]
+$$
 
 If denominator is near zero, value is set to 0.
 
@@ -249,25 +249,25 @@ If denominator is near zero, value is set to 0.
 
 If spectral bands are unavailable:
 
-[  
+$$
 EVI \approx 2.5 \cdot \frac{NDVI}{NDVI + 1.5}  
-]
+$$
 
 ---
 
 ### 5.3 MSI (Moisture Stress Index approximation)
 
-[  
+$$
 MSI = 1 - NDWI  
-]
+$$
 
 ---
 
 ### 5.4 CI (Chlorophyll Index approximation)
 
-[  
+$$
 CI = 5 \cdot NDRE  
-]
+$$
 
 ---
 
@@ -275,52 +275,52 @@ CI = 5 \cdot NDRE
 
 Above-ground biomass (t/ha) is computed as a linear empirical regression:
 
-[  
+$$
 B = a_0 + a_1 NDVI + a_2 EVI + a_3 CI - a_4 MSI  
-]
+$$
 
 Where coefficients are calibrated from literature:
 
-- ( a_0 = 0.50 )
+- $a_0 = 0.50$
     
-- ( a_1 = 3.20 )
+- $a_1 = 3.20$
     
-- ( a_2 = 2.10 )
+- $a_2 = 2.10$
     
-- ( a_3 = 0.45 )
+- $a_3 = 0.45$
     
-- ( a_4 = 1.80 )
+- $a_4 = 1.80$
     
 
 Final constraint:
 
-[  
+$$
 B = \max(0, B)  
-]
+$$
 
 ---
 
 ## 7. Aggregation Across Pixels
 
-Given pixel-level biomass ( B_i ):
+Given pixel-level biomass $B_i$:
 
 ### Mean biomass
 
-[  
+$$
 \bar{B} = \frac{1}{n} \sum_{i=1}^{n} B_i  
-]
+$$
 
 ### Min / Max
 
-[  
+$$
 B_{min} = \min(B_i), \quad B_{max} = \max(B_i)  
-]
+$$
 
 ### Standard deviation
 
-[  
+$$
 \sigma_B = \sqrt{\frac{1}{n-1} \sum (B_i - \bar{B})^2}  
-]
+$$
 
 ---
 
@@ -328,29 +328,29 @@ B_{min} = \min(B_i), \quad B_{max} = \max(B_i)
 
 Confidence depends on sample size and variance:
 
-[  
+$$
 C = S(n) \cdot V(\sigma_B)  
-]
+$$
 
 Where:
 
 ### Sample size factor
 
-[  
+$$
 S(n) = \min\left(1, \frac{n}{500}\right)  
-]
+$$
 
 ### Variance penalty
 
-[  
+$$
 V(\sigma_B) = \max\left(0, 1 - \frac{\sigma_B}{2}\right)  
-]
+$$
 
 Final:
 
-[  
+$$
 C = S(n) \cdot V(\sigma_B)  
-]
+$$
 
 ---
 
@@ -358,11 +358,11 @@ C = S(n) \cdot V(\sigma_B)
 
 Because input arrays may differ in length:
 
-[  
+$$
 n = \min(|NDVI|, |EVI|, |CI|, |MSI|)  
-]
+$$
 
-Only first ( n ) aligned elements are used for computation.
+Only first $n$ aligned elements are used for computation.
 
 ---
 
@@ -370,23 +370,23 @@ Only first ( n ) aligned elements are used for computation.
 
 The system outputs:
 
-- ( B_{mean} ) — mean biomass (t/ha)
+- $B_{mean}$ — mean biomass (t/ha)
     
-- ( B_{min}, B_{max} )
+- $B_{min}, B_{max}$
     
-- ( \sigma_B )
+- $\sigma_B$
     
-- ( EVI_{mean} )
+- $EVI_{mean}$
     
-- ( MSI_{mean} )
+- $MSI_{mean}$
     
-- ( CI_{mean} )
+- $CI_{mean}$
     
-- ( NDVI_{mean} )
+- $NDVI_{mean}$
     
-- ( C ) — confidence score
+- $C$ — confidence score
     
-- ( n ) — pixel count
+- $n$ — pixel count
     
 
 ---
@@ -447,15 +447,15 @@ The system is deterministic and threshold-driven, with optional probabilistic mo
 
 Observations are grouped by day:
 
-[  
+$$
 D_k = {WP_i : date(WP_i) = k}  
-]
+$$
 
 where:
 
-- ( WP ) — weather point observation
+- $WP$ — weather point observation
     
-- ( k ) — calendar day
+- $k$ — calendar day
     
 
 ---
@@ -464,26 +464,26 @@ where:
 
 ### Leaf Wetness Indicator
 
-[  
+$$
 LW(WP_i) =  
 \begin{cases}  
 1, & H_i \geq 90 \  
 0, & \text{otherwise}  
 \end{cases}  
-]
+$$
 
-where ( H_i ) is relative humidity.
+where $H_i$ is relative humidity.
 
 ---
 
 ### Mean temperature during wetness
 
-[  
+$$
 T_{LW} =  
 \frac{1}{|W|} \sum_{i \in W} T_i  
-]
+$$
 
-where ( W = {i : H_i \geq 90} )
+where $W = {i : H_i \geq 90}$
 
 ---
 
@@ -491,40 +491,40 @@ where ( W = {i : H_i \geq 90} )
 
 ### Hourly infection condition
 
-[  
+$$
 I_{bot}(t) =  
 \begin{cases}  
 1, & 90% \leq RH \land 15^\circ C \leq T \leq 25^\circ C \  
 0, & \text{otherwise}  
 \end{cases}  
-]
+$$
 
 ---
 
 ### Accumulated infection hours
 
-[  
+$$
 H_{bot} = \sum I_{bot}(t)  
-]
+$$
 
 ---
 
 ### Risk classification
 
-[  
+$$
 Risk =  
 \begin{cases}  
 High, & H_{bot} \geq 15 \  
 Moderate, & H_{bot} \geq 6 \  
 Low, & \text{otherwise}  
 \end{cases}  
-]
+$$
 
 Action trigger:
 
-[  
+$$
 Action = (H_{bot} \geq 15)  
-]
+$$
 
 ---
 
@@ -532,46 +532,46 @@ Action = (H_{bot} \geq 15)
 
 ### Disease Severity Value (DSV)
 
-[  
+$$
 DSV = f(T_{mean}, LW_{hours})  
-]
+$$
 
 Piecewise lookup function:
 
-- ( T < 13^\circ C \Rightarrow DSV = 0 )
+- $T < 13^\circ C \Rightarrow DSV = 0$
     
-- ( T > 29^\circ C \Rightarrow DSV = 0 )
+- $T > 29^\circ C \Rightarrow DSV = 0$
     
 
 Otherwise:
 
-[  
+$$
 DSV = \text{lookup}(T_{mean}, LW_{hours})  
-]
+$$
 
 ---
 
 ### Leaf wetness hours
 
-[  
+$$
 LW = \sum LW(t)  
-]
+$$
 
 ---
 
 ### Accumulated disease pressure
 
-[  
+$$
 DSV_{7d} = \sum_{k=1}^{7} DSV_k  
-]
+$$
 
 ---
 
 ### Action threshold
 
-[  
+$$
 Action = (DSV_{7d} \geq 20)  
-]
+$$
 
 ---
 
@@ -579,15 +579,15 @@ Action = (DSV_{7d} \geq 20)
 
 ### P-value function
 
-[  
+$$
 P = f(T_{mean}, LW_{hours})  
-]
+$$
 
 Piecewise lookup based on temperature regime:
 
-[  
+$$
 P \in {0,1,2,3,4}  
-]
+$$
 
 ---
 
@@ -595,29 +595,29 @@ P \in {0,1,2,3,4}
 
 Daily:
 
-[  
+$$
 P_{day}  
-]
+$$
 
 Weekly:
 
-[  
+$$
 P_{7d} = \sum P_{day}  
-]
+$$
 
 ---
 
 ### Combined disease pressure
 
-[  
+$$
 RiskScore = {P_{7d}, DSV_{7d}}  
-]
+$$
 
 ---
 
 ### Risk classification
 
-[  
+$$
 Risk =  
 \begin{cases}  
 High, & P_{7d} \geq 18 \lor DSV_{7d} \geq 20 \  
@@ -625,7 +625,7 @@ Moderate, & P_{7d} \geq 10 \
 Low, & P_{7d} \geq 1 \  
 NoRisk, & \text{otherwise}  
 \end{cases}  
-]
+$$
 
 ---
 
@@ -633,37 +633,37 @@ NoRisk, & \text{otherwise}
 
 ### Preconditions
 
-[  
+$$
 T \geq 10^\circ C  
-]
+$$
 
-[  
+$$
 Rain_{10d} \geq 10mm  
-]
+$$
 
-[  
+$$
 LW_{24h} \geq 24h  
-]
+$$
 
-[  
+$$
 BBCH \geq 12  
-]
+$$
 
 ---
 
 ### Rain accumulation
 
-[  
+$$
 R_{10d} = \sum_{i=1}^{10} rain_i  
-]
+$$
 
 ---
 
 ### Wetness accumulation
 
-[  
+$$
 LW_{24h} = \sum_{t=-24h}^{0} LW(t)  
-]
+$$
 
 ---
 
@@ -673,35 +673,35 @@ LW_{24h} = \sum_{t=-24h}^{0} LW(t)
 
 Temperature factor:
 
-[  
+$$
 f_T = \text{clamp}\left(0,1,\frac{T_{mean}-10}{20}\right)  
-]
+$$
 
 Rain factor:
 
-[  
+$$
 f_R = \text{clamp}\left(0,1,\frac{R}{30}\right)  
-]
+$$
 
 Wetness factor:
 
-[  
+$$
 f_W = \text{clamp}\left(0,1,\frac{LW}{48}\right)  
-]
+$$
 
 ---
 
 ### EPI
 
-[  
+$$
 EPI = f_T \cdot f_R \cdot f_W  
-]
+$$
 
 ---
 
 ### Risk classification
 
-[  
+$$
 Risk =  
 \begin{cases}  
 High, & EPI \geq 0.6 \  
@@ -709,19 +709,19 @@ Moderate, & EPI \geq 0.3 \
 Low, & rule_ok \  
 NoRisk, & \text{otherwise}  
 \end{cases}  
-]
+$$
 
 ---
 
 ## 12.9 Decision Logic (Plasmopara)
 
-[  
+$$
 RuleOk = T_{ok} \land R_{10d} \geq 10 \land LW_{24h} \geq 24 \land BBCH \geq 12  
-]
+$$
 
-[  
+$$
 Action = RuleOk \land (Risk \geq Moderate)  
-]
+$$
 
 ---
 
@@ -729,22 +729,22 @@ Action = RuleOk \land (Risk \geq Moderate)
 
 ### Individual disease engines
 
-- Botrytis: ( R_B )
+- Botrytis: $R_B$
     
-- TOMCAST: ( R_T )
+- TOMCAST: $R_T$
     
-- Blitecast: ( R_{BL} )
+- Blitecast: $R_{BL}$
     
-- Plasmopara: ( R_P )
+- Plasmopara: $R_P$
     
 
 ---
 
 ### Global action trigger
 
-[  
+$$
 Action_{global} = R_B \lor R_T \lor R_{BL} \lor R_P  
-]
+$$
 
 ---
 
@@ -793,21 +793,21 @@ The system outputs:
 
 Let:
 
-- ( ET_0 ) — reference evapotranspiration (mm/day)
+- $ET_0$ — reference evapotranspiration (mm/day)
     
-- ( K_c ) — crop coefficient
+- $K_c$ — crop coefficient
     
-- ( P ) — precipitation
+- $P$ — precipitation
     
-- ( WD_{7d} ) — 7-day water deficit
+- $WD_{7d}$ — 7-day water deficit
     
-- ( SM ) — volumetric soil moisture
+- $SM$ — volumetric soil moisture
     
-- ( NDVI, NDWI ) — vegetation stress indices
+- $NDVI, NDWI$ — vegetation stress indices
     
-- ( SPI ) — standardized precipitation index
+- $SPI$ — standardized precipitation index
     
-- ( VPD ) — vapor pressure deficit
+- $VPD$ — vapor pressure deficit
     
 
 ---
@@ -816,15 +816,15 @@ Let:
 
 ### Crop evapotranspiration
 
-[  
+$$
 ET_c = ET_0 \cdot K_c  
-]
+$$
 
 ### Weekly demand
 
-[  
+$$
 ET_{c,7d} = 7 \cdot ET_0 \cdot K_c  
-]
+$$
 
 ---
 
@@ -832,15 +832,15 @@ ET_{c,7d} = 7 \cdot ET_0 \cdot K_c
 
 ### Effective rainfall
 
-[  
+$$
 P_{eff} = 0.75 \cdot P_{7d}  
-]
+$$
 
 ### Net water deficit
 
-[  
+$$
 WD_{7d} = ET_{c,7d} - P_{eff}  
-]
+$$
 
 Only positive deficits are considered irrigation demand drivers.
 
@@ -850,13 +850,13 @@ Only positive deficits are considered irrigation demand drivers.
 
 Each crop is defined by:
 
-- ( K_c ) — canopy transpiration factor
+- $K_c$ — canopy transpiration factor
     
-- ( p ) — depletion fraction (RAW threshold)
+- $p$ — depletion fraction (RAW threshold)
     
-- ( D_{max} ) — maximum irrigation dose (mm)
+- $D_{max}$ — maximum irrigation dose (mm)
     
-- ( SM_{crit}, SM_{high} ) — soil moisture thresholds
+- $SM_{crit}, SM_{high}$ — soil moisture thresholds
     
 
 ---
@@ -865,14 +865,14 @@ Each crop is defined by:
 
 Field operational constraints modify irrigation response:
 
-[  
+$$
 Dose_{adj} =  
 \begin{cases}  
 0, & \text{water bodies / protected zones} \  
 0.6-0.8 \cdot Dose, & \text{pasture / nursery systems} \  
 Dose, & \text{standard agricultural fields}  
 \end{cases}  
-]
+$$
 
 ---
 
@@ -880,30 +880,30 @@ Dose, & \text{standard agricultural fields}
 
 The system constructs a linear additive risk score:
 
-[  
+$$
 S = \sum_i s_i  
-]
+$$
 
-where each ( s_i ) is an agronomic signal.
+where each $s_i$ is an agronomic signal.
 
 ---
 
 ### 13.7.1 Soil moisture stress
 
-[  
+$$
 s_{SM} =  
 \begin{cases}  
 4.0, & SM < SM_{crit} \  
 2.0, & SM < SM_{high} \  
 -1.0, & SM > 0.35  
 \end{cases}  
-]
+$$
 
 ---
 
 ### 13.7.2 Water deficit stress
 
-[  
+$$
 s_{WD} =  
 \begin{cases}  
 3.0, & WD_{7d} > 20 \  
@@ -911,60 +911,60 @@ s_{WD} =
 0.5, & WD_{7d} > 5 \  
 -2.0, & WD_{7d} < -10  
 \end{cases}  
-]
+$$
 
 ---
 
 ### 13.7.3 Evapotranspiration demand
 
-[  
+$$
 ET_c = ET_0 \cdot K_c  
-]
+$$
 
-[  
+$$
 s_{ET} =  
 \begin{cases}  
 2.0, & ET_c > 5 \  
 1.0, & ET_c > 3  
 \end{cases}  
-]
+$$
 
 ---
 
 ### 13.7.4 Precipitation signal
 
-[  
+$$
 s_P =  
 \begin{cases}  
 2.0, & P_{7d} < 5 \  
 1.0, & P_{7d} < 15 \  
 -2.0, & P_{7d} > 40  
 \end{cases}  
-]
+$$
 
 ---
 
 ### 13.7.5 Drought index (SPI)
 
-[  
+$$
 s_{SPI} =  
 \begin{cases}  
 2.0, & SPI < -1.5 \  
 1.0, & SPI < -1.0 \  
 -1.0, & SPI > 1.0  
 \end{cases}  
-]
+$$
 
 ---
 
 ### 13.7.6 Atmospheric demand (VPD)
 
-[  
+$$
 s_{VPD} =  
 \begin{cases}  
 1.0, & VPD > 2.0  
 \end{cases}  
-]
+$$
 
 ---
 
@@ -972,38 +972,38 @@ s_{VPD} =
 
 NDWI-based stress:
 
-[  
+$$
 s_{NDWI} =  
 \begin{cases}  
 2.0, & NDWI < -0.2 \  
 1.0, & NDWI < -0.1 \  
 -1.0, & NDWI > 0.1  
 \end{cases}  
-]
+$$
 
 NDVI-based canopy condition:
 
-[  
+$$
 s_{NDVI} =  
 \begin{cases}  
 1.0, & NDVI < 0.25 \  
 -0.5, & NDVI > 0.65  
 \end{cases}  
-]
+$$
 
 ---
 
 ## 13.8 Total Irrigation Score
 
-[  
+$$
 S_{total} = \sum s_i  
-]
+$$
 
 ---
 
 ## 13.9 Urgency Classification
 
-[  
+$$
 Urgency(S) =  
 \begin{cases}  
 CRITICAL, & S \geq 9 \  
@@ -1012,19 +1012,19 @@ MODERATE, & S \geq 3 \
 LOW, & S \geq 1 \  
 NONE, & S < 1  
 \end{cases}  
-]
+$$
 
 ---
 
 ## 13.10 Irrigation Decision Rule
 
-[  
+$$
 Irrigate =  
 \begin{cases}  
 1, & Urgency \in {CRITICAL, HIGH, MODERATE} \  
 0, & otherwise  
 \end{cases}  
-]
+$$
 
 ---
 
@@ -1032,40 +1032,40 @@ Irrigate =
 
 ### Primary formulation (water deficit driven)
 
-[  
+$$
 Dose = WD_{7d} \cdot p  
-]
+$$
 
 with:
 
-- ( p ) — depletion fraction (crop-dependent)
+- $p$ — depletion fraction (crop-dependent)
     
 
 CRITICAL adjustment:
 
-[  
+$$
 Dose_{CRITICAL} = 1.3 \cdot WD_{7d} \cdot p  
-]
+$$
 
 ---
 
 ### FAO fallback formulation
 
-[  
+$$
 Dose = ET_c \cdot 7 - 0.75 \cdot P_{7d}  
-]
+$$
 
 ---
 
 ### Constraints
 
-[  
+$$
 Dose = \min(Dose, D_{max})  
-]
+$$
 
-[  
+$$
 Dose = \max(Dose, 0)  
-]
+$$
 
 ---
 
@@ -1073,21 +1073,21 @@ Dose = \max(Dose, 0)
 
 ### Volume per hectare
 
-[  
+$$
 1 \text{ mm} = 10 \text{ m}^3/\text{ha}  
-]
+$$
 
-[  
+$$
 Dose_{m^3/ha} = 10 \cdot Dose_{mm}  
-]
+$$
 
 ---
 
 ### Field-level volume
 
-[  
+$$
 V = Dose_{m^3/ha} \cdot Area_{ha}  
-]
+$$
 
 ---
 
@@ -1095,11 +1095,11 @@ V = Dose_{m^3/ha} \cdot Area_{ha}
 
 For each field:
 
-- Urgency class ( U )
+- Urgency class $U$
     
-- Score ( S )
+- Score $S$
     
-- Irrigation decision ( I )
+- Irrigation decision $I$
     
 - Dose (mm)
     
@@ -1131,17 +1131,17 @@ Plus traceability signals:
 
 Fields are sorted by:
 
-[  
+$$
 Rank = f(Urgency)  
-]
+$$
 
 ---
 
 ### System-wide water demand
 
-[  
+$$
 V_{total} = \sum V_i  
-]
+$$
 
 ---
 
@@ -1197,24 +1197,24 @@ The model produces **time windows with aggregated suitability scores**.
 
 Each forecast point is defined as:
 
-[  
+$$
 F_i = (t_i, W_i, p_i)  
-]
+$$
 
 where:
 
-- ( t_i ) — timestamp
+- $t_i$ — timestamp
     
-- ( W_i ) — weather state vector
+- $W_i$ — weather state vector
     
-- ( p_i ) — probability/confidence of forecast
+- $p_i$ — probability/confidence of forecast
     
 
 Weather vector:
 
-[  
+$$
 W = (T, WS, RH, R, ET_0, VPD)  
-]
+$$
 
 ---
 
@@ -1222,27 +1222,27 @@ W = (T, WS, RH, R, ET_0, VPD)
 
 A forecast point is valid if:
 
-[  
+$$
 R \leq 0.05  
-]
+$$
 
-[  
+$$
 WS < 3.5  
-]
+$$
 
-[  
+$$
 5^\circ C < T < 28^\circ C  
-]
+$$
 
 Define feasibility indicator:
 
-[  
+$$
 \mathbb{I}(F_i) =  
 \begin{cases}  
 1, & \text{constraints satisfied} \  
 0, & \text{otherwise}  
 \end{cases}  
-]
+$$
 
 ---
 
@@ -1250,15 +1250,15 @@ Define feasibility indicator:
 
 To model delayed soil/leaf wetness effects, a decayed rainfall accumulation is used:
 
-[  
+$$
 RL_i = \sum_{j=1}^{k} R_{i-j} \cdot \lambda^j  
-]
+$$
 
 where:
 
-- ( \lambda = 0.6 ) (decay factor)
+- $\lambda = 0.6$ (decay factor)
     
-- lookback horizon ( k = 3 )
+- lookback horizon $k = 3$
     
 
 This introduces **memory of recent precipitation events**.
@@ -1269,13 +1269,13 @@ This introduces **memory of recent precipitation events**.
 
 Optimal VPD is centered around:
 
-[  
+$$
 VPD^* = 1.0  
-]
+$$
 
 Suitability function:
 
-s_{VPD}(x)=\exp\left(-1.5\cdot|x-1|^2\right)
+$$s_{VPD}(x)=\exp\left(-1.5\cdot|x-1|^2\right)$$
 
 This models nonlinear physiological sensitivity of spray deposition and evaporation losses.
 
@@ -1285,9 +1285,9 @@ This models nonlinear physiological sensitivity of spray deposition and evaporat
 
 Each forecast point is assigned a composite score:
 
-[  
+$$
 S_i = \mathbb{I}(F_i) \cdot P_i \cdot R_i \cdot B_i  
-]
+$$
 
 where:
 
@@ -1295,37 +1295,37 @@ where:
 
 Wind suitability:
 
-[  
+$$
 S_{wind} = \max\left(0, 1 - \frac{WS}{3.5}\right)  
-]
+$$
 
 Temperature suitability:
 
-[  
+$$
 S_{temp} =  
 \begin{cases}  
 1, & T \leq 20 \  
 \frac{28 - T}{8}, & T > 20  
 \end{cases}  
-]
+$$
 
 Humidity suitability:
 
-[  
+$$
 S_{hum} = 1 - \frac{|RH - 70|}{100}  
-]
+$$
 
 VPD suitability:
 
-[  
+$$
 S_{vpd} = s_{VPD}(VPD)  
-]
+$$
 
 ---
 
 ### 14.6.2 Base aggregation
 
-[  
+$$
 S_{base} =  
 0.3 S_{wind}
 
@@ -1341,18 +1341,18 @@ S_{base} =
 
 ### 14.6.3 Rain penalty (memory effect)
 
-[  
+$$
 P_{rain} = e^{-2 \cdot RL_i}  
-]
+$$
 
 ---
 
 ### 14.6.4 Final score
 
-[  
+$$
 S_i =  
 S_{base} \cdot P_{rain} \cdot p_i \cdot \mathbb{I}(F_i)  
-]
+$$
 
 ---
 
@@ -1360,11 +1360,11 @@ S_{base} \cdot P_{rain} \cdot p_i \cdot \mathbb{I}(F_i)
 
 To reduce high-frequency volatility in forecast scoring:
 
-S^{EMA}_t = \alpha S_t + (1-\alpha) S^{EMA}_{t-1}
+$$S^{EMA}_t = \alpha S_t + (1-\alpha) S^{EMA}_{t-1}$$
 
 where:
 
-- ( \alpha = 0.4 )
+- $\alpha = 0.4$
     
 
 This produces **smoothed operational readiness curve**.
@@ -1377,9 +1377,9 @@ This produces **smoothed operational readiness curve**.
 
 A point is “spraying-eligible” if:
 
-[  
+$$
 S_i \geq 0.7  
-]
+$$
 
 ---
 
@@ -1387,9 +1387,9 @@ S_i \geq 0.7
 
 Forecast points are partitioned into contiguous segments:
 
-[  
+$$
 G_k = {F_i : \mathbb{I}(S_i \geq 0.7)}  
-]
+$$
 
 with adjacency constraint in time ordering.
 
@@ -1399,15 +1399,15 @@ with adjacency constraint in time ordering.
 
 Each valid group defines a spraying window:
 
-[  
+$$
 W_k = (t_{start}, t_{end}, \bar{S})  
-]
+$$
 
 where:
 
-[  
+$$
 \bar{S} = \frac{1}{|G_k|} \sum_{i \in G_k} S_i  
-]
+$$
 
 ---
 
@@ -1415,9 +1415,9 @@ where:
 
 A window is accepted only if:
 
-[  
+$$
 |G_k| \geq 2  
-]
+$$
 
 This enforces **temporal stability of conditions** (avoids single-point spikes).
 
@@ -1427,11 +1427,11 @@ This enforces **temporal stability of conditions** (avoids single-point spikes).
 
 Each window contains:
 
-- start time ( t_{start} )
+- start time $t_{start}$
     
-- end time ( t_{end} )
+- end time $t_{end}$
     
-- mean suitability score ( \bar{S} )
+- mean suitability score $\bar{S}$
     
 
 ---
@@ -1520,25 +1520,25 @@ This is the **physical forcing layer** for all downstream agronomic decision sys
 
 Each weather observation is defined as:
 
-[  
+$$
 W_i = (T, RH, P, WS, WD, CC, R, S, t)  
-]
+$$
 
 Where:
 
-- ( T ) — air temperature (°C)
+- $T$ — air temperature (°C)
     
-- ( RH ) — relative humidity (%)
+- $RH$ — relative humidity (%)
     
-- ( P ) — atmospheric pressure (hPa)
+- $P$ — atmospheric pressure (hPa)
     
-- ( WS ) — wind speed (m/s)
+- $WS$ — wind speed (m/s)
     
-- ( CC ) — cloud cover (%)
+- $CC$ — cloud cover (%)
     
-- ( R ) — rainfall (mm)
+- $R$ — rainfall (mm)
     
-- ( S ) — snow water equivalent (mm)
+- $S$ — snow water equivalent (mm)
     
 
 ---
@@ -1547,25 +1547,25 @@ Where:
 
 ### Saturation pressure
 
-e_s(T)=0.6108\cdot\exp\left(\frac{17.27T}{T+237.3}\right)
+$$e_s(T)=0.6108\cdot\exp\left(\frac{17.27T}{T+237.3}\right)$$
 
 ---
 
 ### Mean saturation vapour pressure
 
-e_s=\frac{e_s(T_{min})+e_s(T_{max})}{2}
+$$e_s=\frac{e_s(T_{min})+e_s(T_{max})}{2}$$
 
 ---
 
 ### Actual vapour pressure (RH-based)
 
-e_a=\frac{RH}{100}\cdot e_s
+$$e_a=\frac{RH}{100}\cdot e_s$$
 
 ---
 
 ### Vapour pressure deficit
 
-VPD=e_s-e_a
+$$VPD=e_s-e_a$$
 
 ---
 
@@ -1573,21 +1573,20 @@ VPD=e_s-e_a
 
 ### Full formulation
 
-ET_0=\frac{0.408\Delta(R_n-G)+\gamma\cdot\frac{900}{T+273}\cdot u_2\cdot(e_s-e_a)}{\Delta+\gamma(1+0.34u_2)
-
+$$ET_0 = \frac{0.408\Delta(R_n-G) + \gamma \left( \frac{900}{T+273} \right) u_2(e_s-e_a)}{\Delta + \gamma(1 + 0.34u_2)}$$
 ---
 
 ### Components
 
 #### Slope of vapour pressure curve
 
-\Delta=\frac{4098\cdot e_s}{(T+237.3)^2}
+$$\Delta=\frac{4098\cdot e_s}{(T+237.3)^2}$$
 
 ---
 
 #### Psychrometric constant
 
-\gamma=0.000665\cdot P_{kPa}
+$$\gamma=0.000665\cdot P_{kPa}$$
 
 ---
 
@@ -1597,13 +1596,13 @@ ET_0=\frac{0.408\Delta(R_n-G)+\gamma\cdot\frac{900}{T+273}\cdot u_2\cdot(e_s-e_a
 
 Astronomical radiation at top of atmosphere:
 
-R_a=f(\varphi, J)
+$$R_a=f(\varphi, J)$$
 
 where:
 
-- ( \varphi ) = latitude
+- $\varphi$ = latitude
     
-- ( J ) = day of year
+- $J$ = day of year
     
 
 (standard FAO-56 solar geometry formulation)
@@ -1612,11 +1611,11 @@ where:
 
 ## 15.5.2 Angström solar radiation model
 
-R_s=(0.25+0.50\cdot n/N)\cdot R_a
+$$R_s=(0.25+0.50\cdot n/N)\cdot R_a$$
 
 where:
 
-- ( n/N = 1 - CC ) (cloud-adjusted sunshine fraction)
+- $n/N = 1 - CC$ (cloud-adjusted sunshine fraction)
     
 
 ---
@@ -1625,25 +1624,25 @@ where:
 
 ### Net shortwave radiation
 
-R_{ns}=(1-\alpha)R_s
+$$R_{ns}=(1-\alpha)R_s$$
 
 ---
 
 ### Net longwave radiation
 
-R_{nl}=\sigma\frac{(T_{max}+273)^4+(T_{min}+273)^4}{2}\cdot f(e_a)\cdot f(R_s/R_{so})
+$$R_{nl}=\sigma\frac{(T_{max}+273)^4+(T_{min}+273)^4}{2}\cdot f(e_a)\cdot f(R_s/R_{so})$$
 
 ---
 
 ### Net radiation balance
 
-R_n=R_{ns}-R_{nl}
+$$R_n=R_{ns}-R_{nl}$$
 
 ---
 
 ## 15.6 Thermal Accumulation (GDD)
 
-GDD=\sum \max\left(0,\frac{T_{max}+T_{min}}{2}-10\right)
+$$GDD=\sum \max\left(0,\frac{T_{max}+T_{min}}{2}-10\right)$$
 
 ---
 
@@ -1651,15 +1650,15 @@ GDD=\sum \max\left(0,\frac{T_{max}+T_{min}}{2}-10\right)
 
 ### Evapotranspiration vs precipitation deficit
 
-[  
+$$
 WD = \sum ET_0 - \sum P  
-]
+$$
 
 Interpretation:
 
-- ( WD > 0 ) → water stress
+- $WD > 0$ → water stress
     
-- ( WD < 0 ) → surplus
+- $WD < 0$ → surplus
     
 
 ---
@@ -1668,17 +1667,17 @@ Interpretation:
 
 Snow is treated as water equivalent:
 
-[  
+$$
 P_{total} = R + S  
-]
+$$
 
 ---
 
 ## 15.9 Soil Heat Flux Assumption
 
-[  
+$$
 G \approx 0  
-]
+$$
 
 (valid for daily timestep FAO-56 approximation)
 
@@ -1688,15 +1687,15 @@ G \approx 0
 
 ### Standardised anomaly
 
-[  
+$$
 SPI = \frac{x - \mu}{\sigma}  
-]
+$$
 
 where:
 
-- ( x ) = current precipitation total
+- $x$ = current precipitation total
     
-- ( \mu, \sigma ) = empirical climatology over window
+- $\mu, \sigma$ = empirical climatology over window
     
 
 ---
@@ -1705,19 +1704,19 @@ where:
 
 Hourly observations are grouped:
 
-[  
+$$
 D_k = {W_i : date(W_i)=k}  
-]
+$$
 
 Each day produces:
 
-- ( T_{min}, T_{max}, T_{mean} )
+- $T_{min}, T_{max}, T_{mean}$
     
-- ( RH_{mean} )
+- $RH_{mean}$
     
-- ( WS_{mean} )
+- $WS_{mean}$
     
-- ( P_{sum} )
+- $P_{sum}$
     
 
 ---
@@ -1726,13 +1725,13 @@ Each day produces:
 
 Daily ET₀ is computed via FAO-56, then aggregated:
 
-[  
+$$
 ET_{0,7d} = \sum_{i=1}^{7} ET_{0,i}  
-]
+$$
 
-[  
+$$
 ET_{0,30d} = \sum_{i=1}^{30} ET_{0,i}  
-]
+$$
 
 ---
 
@@ -1740,15 +1739,15 @@ ET_{0,30d} = \sum_{i=1}^{30} ET_{0,i}
 
 ### 7-day deficit
 
-[  
+$$
 WD_{7d} = ET_{0,7d} - P_{7d}  
-]
+$$
 
 ### 30-day deficit
 
-[  
+$$
 WD_{30d} = ET_{0,30d} - P_{30d}  
-]
+$$
 
 ---
 
@@ -1756,9 +1755,9 @@ WD_{30d} = ET_{0,30d} - P_{30d}
 
 ### Temperature statistics
 
-- ( T_{min,7d} )
+- $T_{min,7d}$
     
-- ( T_{max,7d} )
+- $T_{max,7d}$
     
 - night-adjusted extrema
     
@@ -1778,11 +1777,11 @@ WD_{30d} = ET_{0,30d} - P_{30d}
 
 ### Energy balance
 
-- ( R_a )
+- $R_a$
     
-- ( R_s )
+- $R_s$
     
-- ( ET_0 )
+- $ET_0$
     
 
 ---
