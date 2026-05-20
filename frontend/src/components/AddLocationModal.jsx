@@ -7,8 +7,9 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
   const [label, setLabel]   = useState('');
   const [lat,   setLat]     = useState('');
   const [lon,   setLon]     = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState(null);
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState(null);
+  const [gpsLoading,  setGpsLoading]  = useState(false);
 
   const validate = () => {
     if (!label.trim())          return t('err_name_required');
@@ -35,6 +36,26 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
       setError(e?.response?.data?.detail || t('err_save_failed'));
       setSaving(false);
     }
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) { setError(t('gps_unavailable')); return; }
+    setGpsLoading(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(6));
+        setLon(pos.coords.longitude.toFixed(6));
+        setGpsLoading(false);
+      },
+      (err) => {
+        if (err.code === 1)      setError(t('gps_denied'));
+        else if (err.code === 2) setError(t('gps_unavailable'));
+        else                     setError(t('gps_timeout'));
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleKey = (e) => {
@@ -79,6 +100,15 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
             </Field>
           </div>
 
+          <button
+            type="button"
+            onClick={handleUseMyLocation}
+            disabled={gpsLoading || saving}
+            style={{ ...s.gpsBtn, opacity: (gpsLoading || saving) ? 0.6 : 1 }}
+          >
+            {gpsLoading ? t('gps_locating') : `📍 ${t('gps_use_location')}`}
+          </button>
+
           <p style={s.hint}>{t('maps_hint')}</p>
           {error && <div style={s.error}>{error}</div>}
         </div>
@@ -116,6 +146,7 @@ const s = {
   row:        { display: 'flex', gap: 12 },
   fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 5, opacity: 0.7 },
   input:      { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--color-accent-soil, #c8a96e)', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' },
+  gpsBtn:     { width: '100%', padding: '8px 12px', marginBottom: 10, borderRadius: 8, border: '1px dashed var(--color-accent-soil, #c8a96e)', background: 'rgba(41,128,185,0.06)', color: '#1a5276', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textAlign: 'center', transition: 'opacity 0.15s' },
   hint:       { fontSize: 11, opacity: 0.5, margin: '0 0 12px' },
   error:      { marginTop: 4, marginBottom: 12, fontSize: 12, color: '#c0392b' },
   footer:     { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px 18px' },

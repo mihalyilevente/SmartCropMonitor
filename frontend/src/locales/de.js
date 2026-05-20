@@ -47,6 +47,11 @@ const de = {
   err_lat_invalid:       'Breitengrad muss zwischen -90 und 90 liegen.',
   err_lon_invalid:       'Längengrad muss zwischen -180 und 180 liegen.',
   err_save_failed:       'Standort konnte nicht erstellt werden.',
+  gps_use_location:      'Meinen Standort verwenden',
+  gps_locating:          'Standort wird ermittelt…',
+  gps_denied:            'Standortzugriff verweigert. Bitte Koordinaten manuell eingeben.',
+  gps_unavailable:       'Standort nicht verfügbar.',
+  gps_timeout:           'Standortanfrage hat das Zeitlimit überschritten.',
 
   // ── MorningBriefingPanel ───────────────────────────────────────────────────
   briefing_title:              'Morgenbericht',
@@ -429,6 +434,11 @@ const de = {
   fmp_ndre_desc:         'Rotkantenvegetation',
   fmp_ndwi_desc:         'Wasserindex',
   fmp_nmdi_desc:         'Feuchte-/Trockenheitsindex',
+  fmp_gps_track:         'Position verfolgen',
+  fmp_gps_stop:          'Verfolgung stoppen',
+  fmp_gps_denied:        'Standortzugriff verweigert',
+  fmp_gps_unavail:       'Standort nicht verfügbar',
+  fmp_gps_timeout:       'GPS-Anfrage hat Zeitlimit überschritten',
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Sensoren',

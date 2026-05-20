@@ -47,6 +47,11 @@ const fr = {
   err_lat_invalid:       'La latitude doit être entre -90 et 90.',
   err_lon_invalid:       'La longitude doit être entre -180 et 180.',
   err_save_failed:       'Impossible de créer le lieu.',
+  gps_use_location:      'Utiliser ma position',
+  gps_locating:          'Localisation…',
+  gps_denied:            'Accès à la localisation refusé. Veuillez saisir les coordonnées manuellement.',
+  gps_unavailable:       'Localisation indisponible.',
+  gps_timeout:           'La demande de localisation a expiré.',
 
   // ── MorningBriefingPanel ───────────────────────────────────────────────────
   briefing_title:              'Bilan matinal',
@@ -429,6 +434,11 @@ const fr = {
   fmp_ndre_desc:         'Végétation bord rouge',
   fmp_ndwi_desc:         'Indice d\'eau',
   fmp_nmdi_desc:         'Indice humidité / sécheresse',
+  fmp_gps_track:         'Suivre ma position',
+  fmp_gps_stop:          'Arrêter le suivi',
+  fmp_gps_denied:        'Accès à la localisation refusé',
+  fmp_gps_unavail:       'Localisation indisponible',
+  fmp_gps_timeout:       'Délai de la demande GPS dépassé',
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Capteurs',

@@ -124,6 +124,22 @@ html.large-fonts [style*="minWidth:130"] {
   50% { opacity: 0.7; }
 }
 
+@keyframes gps-ripple {
+  0%   { box-shadow: 0 0 0 2px rgba(41,128,185,0.9); }
+  70%  { box-shadow: 0 0 0 10px rgba(41,128,185,0); }
+  100% { box-shadow: 0 0 0 0   rgba(41,128,185,0); }
+}
+
+.gps-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2980b9;
+  border: 3px solid #fff;
+  cursor: default;
+  animation: gps-ripple 1.5s ease-out infinite;
+}
+
 @keyframes slideInUp {
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }

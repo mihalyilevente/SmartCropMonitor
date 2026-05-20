@@ -80,9 +80,11 @@ function removeContourLayers(map) {
 
 const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) => {
   const { t } = useLang();
-  const mapRef    = useRef(null);
-  const loadedRef = useRef(false);
-  const popupRef  = useRef(null);
+  const mapRef       = useRef(null);
+  const loadedRef    = useRef(false);
+  const popupRef     = useRef(null);
+  const watchIdRef   = useRef(null);
+  const gpsMarkerRef = useRef(null);
 
   const [open, setOpen]                   = useState(true);
   const [fields, setFields]               = useState(null);
@@ -97,6 +99,8 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
   const [contourLoading, setContourLoading] = useState(false);
   const [contourError, setContourError]   = useState(null);
   const [contourMeta, setContourMeta]     = useState(null);
+  const [gpsActive, setGpsActive]         = useState(false);
+  const [gpsError,  setGpsError]          = useState(null);
 
   useImperativeHandle(ref, () => ({
     refreshFields: () => {
@@ -110,8 +114,53 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     if (loadedRef.current) { fn(map); } else { map.once('load', () => fn(map)); }
   }, []);
 
+  const toggleGps = useCallback(() => {
+    if (gpsActive) {
+      if (watchIdRef.current != null) { navigator.geolocation.clearWatch(watchIdRef.current); watchIdRef.current = null; }
+      if (gpsMarkerRef.current) { gpsMarkerRef.current.remove(); gpsMarkerRef.current = null; }
+      setGpsActive(false);
+      setGpsError(null);
+      return;
+    }
+    if (!navigator.geolocation) { setGpsError(t('fmp_gps_unavail')); return; }
+    setGpsError(null);
+    setGpsActive(true);
+    let firstFix = true;
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        applyToMap((map) => {
+          if (!gpsMarkerRef.current) {
+            const el = document.createElement('div');
+            el.className = 'gps-dot';
+            gpsMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+              .setLngLat([longitude, latitude])
+              .addTo(map);
+          } else {
+            gpsMarkerRef.current.setLngLat([longitude, latitude]);
+          }
+          if (firstFix) {
+            firstFix = false;
+            map.flyTo({ center: [longitude, latitude], zoom: 16, duration: 1200, essential: true });
+          }
+        });
+      },
+      (err) => {
+        const msg = err.code === 1 ? t('fmp_gps_denied') : err.code === 2 ? t('fmp_gps_unavail') : t('fmp_gps_timeout');
+        setGpsError(msg);
+        setGpsActive(false);
+        if (watchIdRef.current != null) { navigator.geolocation.clearWatch(watchIdRef.current); watchIdRef.current = null; }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+  }, [gpsActive, applyToMap, t]); // eslint-disable-line
+
   const mapCallbackRef = useCallback((node) => {
-    if (!node) { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; loadedRef.current = false; } return; }
+    if (!node) {
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; loadedRef.current = false; }
+      gpsMarkerRef.current = null; // marker was part of the removed map
+      return;
+    }
     if (mapRef.current) return;
 
     const token = import.meta.env.VITE_MAPBOX_TOKEN || '';
@@ -231,6 +280,11 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     });
   }, [metricData, metric, open, applyToMap]);
 
+  useEffect(() => () => {
+    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+    if (gpsMarkerRef.current) gpsMarkerRef.current.remove();
+  }, []);
+
   const meta = METRIC_META[metric];
 
   const contourTitle = !locationId
@@ -281,8 +335,19 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
               </span>
             )}
 
+            <span style={styles.divider} />
+
+            <button
+              onClick={toggleGps}
+              title={gpsActive ? t('fmp_gps_stop') : t('fmp_gps_track')}
+              style={{ ...styles.metricBtn, ...(gpsActive ? styles.gpsBtnActive : {}), opacity: !navigator.geolocation ? 0.45 : 1 }}
+            >
+              {gpsActive ? `● ${t('fmp_gps_stop')}` : `📍 ${t('fmp_gps_track')}`}
+            </button>
+
             {metricError  && <span style={styles.errorNote}>{metricError}</span>}
             {contourError && <span style={styles.errorNote}>{contourError}</span>}
+            {gpsError     && <span style={styles.errorNote}>{gpsError}</span>}
           </div>
 
           <div style={styles.mapWrap}>
@@ -330,6 +395,7 @@ const styles = {
   metricBtn:   { padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: '1px solid var(--color-accent-soil)', background: 'transparent', cursor: 'pointer', color: 'inherit', transition: 'all 0.15s' },
   metricBtnActive:  { background: 'var(--color-accent-soil)', color: '#fff', borderColor: 'var(--color-accent-soil)' },
   contourBtnActive: { background: '#5a3e1b', color: '#fff', borderColor: '#5a3e1b' },
+  gpsBtnActive:     { background: '#1a5276', color: '#fff', borderColor: '#1a5276' },
   divider:     { display: 'inline-block', width: 1, height: 18, background: 'var(--color-accent-soil)', opacity: 0.35, margin: '0 4px' },
   elevBadge:   { fontSize: 11, fontWeight: 600, color: '#5a3e1b', background: 'rgba(90,62,27,0.1)', border: '1px solid rgba(90,62,27,0.25)', borderRadius: 20, padding: '2px 10px' },
   errorNote:   { fontSize: 12, color: '#c0392b', marginLeft: 8 },
