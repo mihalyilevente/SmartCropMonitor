@@ -86,12 +86,16 @@ RUN printf "3\n" | ./configure 2>&1 | tee /app/configure_wps.log \
            echo "=== WPS configure failed ==="; cat /app/configure_wps.log; exit 1; \
        fi
 
+RUN sed -i 's/-lnetcdf\b/-lnetcdff -lnetcdf/g' configure.wps
+
 RUN ./compile 2>&1 | tee /app/compile_wps.log
 
 RUN if [ ! -f /app/WPS/geogrid.exe ] || \
        [ ! -f /app/WPS/ungrib.exe  ] || \
        [ ! -f /app/WPS/metgrid.exe ]; then \
-        echo "=== WPS compile failed ==="; tail -60 /app/compile_wps.log; exit 1; \
+        echo "=== WPS compile failed ==="; \
+        grep -n "undefined reference\|Error\|error" /app/compile_wps.log | grep -v Warning | head -30; \
+        exit 1; \
     fi
 
 RUN cp /app/config/namelist.wps /app/WPS/namelist.wps
