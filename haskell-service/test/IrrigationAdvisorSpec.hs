@@ -313,6 +313,31 @@ spec = do
       let a = advise emptyWx { rainCum7d = Just 50.0 } cornField
       advScoreTotal a `shouldSatisfy` (<= -1.9)
 
+    it "rainy week with water surplus suppresses irrigation despite ET and canopy stress" $ do
+      let rainyWx = emptyWx
+            { et0Val         = Just 5.5
+            , waterDeficit7d = Just (-18.0)
+            , rainCum7d      = Just 65.0
+            , soilMoisture   = Just 0.32
+            , vpd            = Just 2.4
+            }
+          stressedCanopy = cornField { ndwiMean = Just (-0.30), ndviMean = Just 0.20 }
+          a = advise rainyWx stressedCanopy
+      advUrgency        a `shouldBe` "NONE"
+      advShouldIrrigate a `shouldBe` False
+      advRecommMm       a `shouldBe` 0.0
+
+    it "rainy week does not suppress irrigation when current soil moisture is still dry" $ do
+      let rainyButDryWx = emptyWx
+            { et0Val         = Just 5.5
+            , waterDeficit7d = Just 3.0
+            , rainCum7d      = Just 55.0
+            , soilMoisture   = Just 0.12
+            , spi1m          = Just (-1.8)
+            }
+          a = advise rainyButDryWx cornField
+      advShouldIrrigate a `shouldBe` True
+
   -- ---------------------------------------------------------------------------
   describe "SPI signal" $ do
 

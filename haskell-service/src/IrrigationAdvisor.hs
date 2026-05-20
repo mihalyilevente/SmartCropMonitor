@@ -345,6 +345,30 @@ urgencyFromScore s
 shouldIrrigate :: String -> Bool
 shouldIrrigate u = u `elem` ["CRITICAL", "HIGH", "MODERATE"]
 
+wetConditionsSuppress :: WeatherContext -> CropParams -> Maybe String
+wetConditionsSuppress wx cp =
+  let sm = soilMoisture wx
+      soilStillDry = case sm of
+        Just v  -> v < cpHighSM cp
+        Nothing -> False
+      wetReason label =
+        Just ("Irrigation suppressed: " ++ label ++ " and soil is not below crop threshold")
+  in if soilStillDry
+       then Nothing
+       else case (rainCum7d wx, waterDeficit7d wx) of
+         (Just r7, Just wd7)
+           | r7 >= 25.0 && wd7 <= 0.0 ->
+               wetReason ("recent rain " ++ show1 r7 ++ " mm with 7-day water surplus")
+           | r7 >= 40.0 && wd7 <= 5.0 ->
+               wetReason ("abundant recent rain " ++ show1 r7 ++ " mm")
+         (Just r7, Nothing)
+           | r7 >= 40.0 ->
+               wetReason ("abundant recent rain " ++ show1 r7 ++ " mm")
+         (Nothing, Just wd7)
+           | wd7 <= -10.0 ->
+               wetReason ("7-day water surplus " ++ show1 wd7 ++ " mm")
+         _ -> Nothing
+
 -- =============================================================================
 -- DOSE CALCULATION
 -- Primary: water_deficit_7d × depletion_fraction  (refill approach)
@@ -409,11 +433,18 @@ adviseField wx fi =
           wxSigs  = scoreWeather wx cp
           fldSigs = scoreField fi
           allSigs = wxSigs ++ fldSigs
-          score   = totalScore allSigs
-          urgency = urgencyFromScore score
+          rawScore = totalScore allSigs
+          wetStop = wetConditionsSuppress wx cp
+          score   = case wetStop of
+                      Just _  -> min 0.0 rawScore
+                      Nothing -> rawScore
+          urgency = case wetStop of
+                      Just _  -> "NONE"
+                      Nothing -> urgencyFromScore score
           dose    = computeDose wx cp urgency maxMm
           doseM3Ha= roundTo1 (dose * 10.0)
           totalM3 = roundTo1 (doseM3Ha * area)
+          reasons = map sigReason allSigs ++ maybe [] (:[]) wetStop
 
       in FieldAdvice
            { advFieldId        = fieldId fi
@@ -424,7 +455,7 @@ adviseField wx fi =
            , advRecommMm       = dose
            , advRecommM3Ha     = doseM3Ha
            , advTotalM3        = totalM3
-           , advReason         = map sigReason allSigs
+           , advReason         = reasons
            , advEt0            = et0Val wx
            , advWaterDef7d     = waterDeficit7d wx
            , advRainCum7d      = rainCum7d wx

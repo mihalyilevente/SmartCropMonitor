@@ -19,6 +19,27 @@ alert_service = AlertService(webhook_url=WEBHOOK_URL)
 OPEN_METEO_SOURCE = "open-meteo"
 
 
+def _liquid_precipitation_mm(weather_record: WeatherHistory) -> float:
+    liquid_parts = [
+        weather_record.rain,
+        weather_record.showers,
+    ]
+    if any(v is not None for v in liquid_parts):
+        return sum(max(0.0, float(v)) for v in liquid_parts if v is not None)
+
+    if weather_record.precipitation is None:
+        return 0.0
+
+    snowfall = weather_record.snowfall or 0.0
+    return max(0.0, float(weather_record.precipitation) - float(snowfall))
+
+
+def _total_precipitation_mm(weather_record: WeatherHistory) -> float:
+    if weather_record.precipitation is not None:
+        return max(0.0, float(weather_record.precipitation))
+    return _liquid_precipitation_mm(weather_record) + max(0.0, float(weather_record.snowfall or 0.0))
+
+
 def _http_session() -> requests.Session:
     """HTTP session with automatic retry on 5xx and connection errors."""
     session = requests.Session()
@@ -151,7 +172,7 @@ def _serialize_weather_point(weather_record):
         "ws":       weather_record.wind_speed,
         "wd":       weather_record.wind_deg,
         "cc":       weather_record.cloud_coverage,
-        "r":        weather_record.rain or 0.0,
+        "r":        _liquid_precipitation_mm(weather_record),
         "s":        weather_record.snowfall or 0.0,
         "dt":       weather_record.timestamp.isoformat(),
         "is_night": weather_record.is_night,
@@ -212,8 +233,8 @@ def weather_metrics(db: Session, location: UserLocation):
         temps       = [h.temp     for h in history_7d if h.temp     is not None]
         humidity_7d = [h.humidity for h in history_7d if h.humidity is not None]
 
-        rain_7d  = sum(h.rain or 0.0 for h in history_7d)
-        rain_30d = sum(h.rain or 0.0 for h in history_30d)
+        rain_7d  = sum(_total_precipitation_mm(h) for h in history_7d)
+        rain_30d = sum(_total_precipitation_mm(h) for h in history_30d)
 
         gdd_base_10    = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
         heat_days_7d   = sum(1 for h in history_7d  if h.temp and h.temp > 30)

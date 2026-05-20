@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 # HASKELL config = 8
 
+IRRIGATION_WINDOW_DAYS = 7
+SOIL_MOISTURE_MAX_AGE = datetime.timedelta(hours=36)
+FIELD_METRIC_MAX_AGE = datetime.timedelta(days=21)
+
 def _call_haskell_irrigation(payload: dict) -> Optional[dict]:
 
     try:
@@ -37,57 +41,152 @@ def _call_haskell_irrigation(payload: dict) -> Optional[dict]:
     return None
 
 
-def _latest_metrics(db: Session, location_id: int) -> Optional[WeatherMetrics]:
+def _latest_metrics(
+    db: Session,
+    location_id: int,
+    as_of: datetime.datetime,
+) -> Optional[WeatherMetrics]:
     return (
         db.query(WeatherMetrics)
-        .filter(WeatherMetrics.location_id == location_id)
+        .filter(
+            WeatherMetrics.location_id == location_id,
+            WeatherMetrics.window_end_date <= as_of,
+        )
         .order_by(WeatherMetrics.window_end_date.desc())
         .first()
     )
 
 
-def _latest_weather(db: Session, location_id: int) -> Optional[WeatherHistory]:
+def _latest_weather(
+    db: Session,
+    location_id: int,
+    as_of: datetime.datetime,
+) -> Optional[WeatherHistory]:
     return (
         db.query(WeatherHistory)
-        .filter(WeatherHistory.location_id == location_id)
+        .filter(
+            WeatherHistory.location_id == location_id,
+            WeatherHistory.timestamp <= as_of,
+        )
         .order_by(WeatherHistory.timestamp.desc())
         .first()
     )
 
 
-def _latest_field_metric(db: Session, field_id: int, metric: str) -> Optional[float]:
+def _latest_field_metric(
+    db: Session,
+    field_id: int,
+    metric: str,
+    as_of: datetime.datetime,
+) -> Optional[float]:
+    min_ts = as_of - FIELD_METRIC_MAX_AGE
     row = (
         db.query(FieldData)
-        .filter(FieldData.field_id == field_id, FieldData.metric_type == metric)
+        .filter(
+            FieldData.field_id == field_id,
+            FieldData.metric_type == metric,
+            FieldData.timestamp <= as_of,
+            FieldData.timestamp >= min_ts,
+        )
         .order_by(FieldData.timestamp.desc())
         .first()
     )
     return float(row.mean_metric) if row and row.mean_metric is not None else None
 
 
+def _precipitation_mm(record: WeatherHistory) -> float:
+    if record.precipitation is not None:
+        return max(0.0, float(record.precipitation))
+
+    components = (record.rain, record.showers, record.snowfall)
+    return sum(max(0.0, float(v)) for v in components if v is not None)
+
+
+def _recent_weather_window(
+    db: Session,
+    location_id: int,
+    end_date: datetime.datetime,
+    days: int = IRRIGATION_WINDOW_DAYS,
+) -> list[WeatherHistory]:
+    start_date = end_date - datetime.timedelta(days=days)
+    return (
+        db.query(WeatherHistory)
+        .filter(
+            WeatherHistory.location_id == location_id,
+            WeatherHistory.timestamp > start_date,
+            WeatherHistory.timestamp <= end_date,
+        )
+        .order_by(WeatherHistory.timestamp.asc())
+        .all()
+    )
+
+
+def _latest_fresh_soil_moisture(
+    weather_window: list[WeatherHistory],
+    as_of: datetime.datetime,
+) -> Optional[float]:
+    min_ts = as_of - SOIL_MOISTURE_MAX_AGE
+    for record in reversed(weather_window):
+        if record.timestamp < min_ts:
+            break
+        if record.soil_moisture_0_to_1cm is not None:
+            return float(record.soil_moisture_0_to_1cm)
+    return None
+
+
+def _recent_precipitation(weather_window: list[WeatherHistory]) -> Optional[float]:
+    if not weather_window:
+        return None
+    return round(sum(_precipitation_mm(record) for record in weather_window), 6)
+
+
+def _adjust_water_deficit_for_recent_precip(
+    metrics: WeatherMetrics,
+    rain_cum_7d: Optional[float],
+) -> Optional[float]:
+    if metrics.water_deficit_7d is None:
+        return None
+    if rain_cum_7d is None or metrics.rain_cum_7d is None:
+        return metrics.water_deficit_7d
+
+    extra_precip = max(0.0, rain_cum_7d - metrics.rain_cum_7d)
+    return round(metrics.water_deficit_7d - extra_precip, 6)
+
+
 def _build_weather_context(
     metrics: WeatherMetrics,
-    latest_weather: Optional[WeatherHistory],
+    weather_window: list[WeatherHistory],
+    as_of: datetime.datetime,
 ) -> dict:
     temp_mean_7d = None
     if metrics.temp_min_day_7d is not None and metrics.temp_max_day_7d is not None:
         temp_mean_7d = round((metrics.temp_min_day_7d + metrics.temp_max_day_7d) / 2.0, 2)
 
+    rain_cum_7d = _recent_precipitation(weather_window)
+    if rain_cum_7d is None:
+        rain_cum_7d = metrics.rain_cum_7d
+
+    latest_weather = weather_window[-1] if weather_window else None
+
     return {
         "et0":              metrics.et0,
-        "water_deficit_7d": metrics.water_deficit_7d,
+        "water_deficit_7d": _adjust_water_deficit_for_recent_precip(metrics, rain_cum_7d),
         "water_deficit_30d":metrics.water_deficit_30d,
-        "rain_cum_7d":      metrics.rain_cum_7d,
+        "rain_cum_7d":      rain_cum_7d,
         "rain_cum_30d":     metrics.rain_cum_30d,
         "spi_1m":           metrics.spi_1m,
-        "soil_moisture":    latest_weather.soil_moisture_0_to_1cm if latest_weather else None,
+        "soil_moisture":    _latest_fresh_soil_moisture(weather_window, as_of),
         "vpd":              latest_weather.vapour_pressure_deficit if latest_weather else None,
         "temp_mean_7d":     temp_mean_7d,
         "hum_mean_7d":      metrics.humidity_mean_7d,
     }
 
 
-def _build_field_inputs(db: Session, fields: list[FieldUnit]) -> list[dict]:
+def _build_field_inputs(
+    db: Session,
+    fields: list[FieldUnit],
+    as_of: datetime.datetime,
+) -> list[dict]:
     result = []
     for f in fields:
         result.append({
@@ -96,8 +195,8 @@ def _build_field_inputs(db: Session, fields: list[FieldUnit]) -> list[dict]:
             "field_type":  f.field_type.value if f.field_type else "other",
             "crop_type":   f.crop_type,
             "area_ha":     float(f.area_ha) if f.area_ha else None,
-            "ndwi_mean":   _latest_field_metric(db, f.id, "ndwi"),
-            "ndvi_mean":   _latest_field_metric(db, f.id, "ndvi"),
+            "ndwi_mean":   _latest_field_metric(db, f.id, "ndwi", as_of),
+            "ndvi_mean":   _latest_field_metric(db, f.id, "ndvi", as_of),
         })
     return result
 
@@ -158,16 +257,20 @@ def _upsert_recommendation(
 
 
 def run_irrigation_recommendations(db: Session) -> list[IrrigationRecommendation]:
+    as_of = datetime.datetime.utcnow()
     locations: list[UserLocation] = db.query(UserLocation).all()
     all_recs: list[IrrigationRecommendation] = []
 
     for loc in locations:
-        metrics = _latest_metrics(db, loc.id)
+        metrics = _latest_metrics(db, loc.id, as_of)
         if not metrics:
             logger.info("[IRRIGATION] No WeatherMetrics for loc=%d — skipping.", loc.id)
             continue
 
-        latest_weather = _latest_weather(db, loc.id)
+        weather_window = _recent_weather_window(db, loc.id, metrics.window_end_date)
+        if not weather_window:
+            latest_weather = _latest_weather(db, loc.id, as_of)
+            weather_window = [latest_weather] if latest_weather else []
 
         fields: list[FieldUnit] = (
             db.query(FieldUnit)
@@ -178,8 +281,8 @@ def run_irrigation_recommendations(db: Session) -> list[IrrigationRecommendation
             continue
 
         payload = {
-            "weather": _build_weather_context(metrics, latest_weather),
-            "fields":  _build_field_inputs(db, fields),
+            "weather": _build_weather_context(metrics, weather_window, as_of),
+            "fields":  _build_field_inputs(db, fields, as_of),
         }
 
         result = _call_haskell_irrigation(payload)
