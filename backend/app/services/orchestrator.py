@@ -1,4 +1,5 @@
 import os
+import subprocess
 import datetime
 import xarray as xr
 import rioxarray
@@ -26,6 +27,77 @@ from geoalchemy2.shape import to_shape
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 logger = logging.getLogger(__name__)
+
+# Path to docker-compose.yml on the host (mounted into backend container)
+COMPOSE_FILE = os.environ.get("COMPOSE_FILE", "/app/docker-compose.yml")
+DOCKER_SOCKET = "/var/run/docker.sock"
+
+
+def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
+    """
+    Run wrf-preprocessor + wrf-runner sequentially for one location.
+    Passes coordinates and location_id via environment variables.
+    Returns True on success, False on failure.
+    """
+    env = {
+        **os.environ,
+        "WRF_CENTER_LAT":  str(lat),
+        "WRF_CENTER_LON":  str(lon),
+        "WRF_LOCATION_ID": str(location_id),
+    }
+
+    logger.info(f"[wrf] Starting preprocessor for loc {location_id} ({lat}, {lon})")
+
+    # Step 1: preprocessor (GFS download + WPS)
+    result = subprocess.run(
+        ["docker", "compose", "-f", COMPOSE_FILE,
+         "run", "--rm",
+         "-e", f"WRF_CENTER_LAT={lat}",
+         "-e", f"WRF_CENTER_LON={lon}",
+         "-e", f"WRF_LOCATION_ID={location_id}",
+         "wrf-preprocessor"],
+        capture_output=True, text=True, env=env
+    )
+
+    if result.returncode != 0:
+        logger.error(f"[wrf] Preprocessor failed for loc {location_id}:\n{result.stderr}")
+        alert_service.send(
+            key=f"wrf_preprocessor_fail_{location_id}",
+            message=format_alert(
+                "WRF_PREPROCESSOR_FAILED",
+                f"WRF preprocessor failed for location {location_id}",
+                {"location_id": location_id, "stderr": result.stderr[-500:]}
+            )
+        )
+        return False
+
+    logger.info(f"[wrf] Preprocessor done for loc {location_id}. Starting runner...")
+
+    # Step 2: runner (real.exe + wrf.exe)
+    result = subprocess.run(
+        ["docker", "compose", "-f", COMPOSE_FILE,
+         "run", "--rm",
+         "-e", f"WRF_CENTER_LAT={lat}",
+         "-e", f"WRF_CENTER_LON={lon}",
+         "-e", f"WRF_LOCATION_ID={location_id}",
+         "wrf-runner"],
+        capture_output=True, text=True, env=env
+    )
+
+    if result.returncode != 0:
+        logger.error(f"[wrf] Runner failed for loc {location_id}:\n{result.stderr}")
+        alert_service.send(
+            key=f"wrf_runner_fail_{location_id}",
+            message=format_alert(
+                "WRF_RUNNER_FAILED",
+                f"WRF runner failed for location {location_id}",
+                {"location_id": location_id, "stderr": result.stderr[-500:]}
+            )
+        )
+        return False
+
+    logger.info(f"[wrf] Runner done for loc {location_id}")
+    return True
 
 
 def full_sync_process(db: Session):
@@ -59,13 +131,19 @@ def short_sync_process(db: Session):
         all_locations = db.query(UserLocation).all()
 
         for loc in all_locations:
-            logger.info(f"[sync] Processing location: {loc.label}")
+            point = to_shape(loc.location)
+            lat, lon = point.y, point.x
 
-            wrf_count = ingest_wrf_output(db, loc)
-            if wrf_count:
+            logger.info(f"[sync] Processing location: {loc.label} ({lat}, {lon})")
+
+            wrf_ok = _run_wrf_for_location(lat, lon, loc.id)
+
+            if not wrf_ok:
+                logger.warning(f"[sync] WRF failed for {loc.label} — falling back to Open-Meteo only")
+
+            if wrf_ok:
+                wrf_count = ingest_wrf_output(db, loc)
                 logger.info(f"[sync] WRF ingested {wrf_count} records for {loc.label}")
-            else:
-                logger.info(f"[sync] No WRF output for {loc.label} — will rely on Open-Meteo")
 
             fetch_and_save_weather(db, loc)
 
@@ -151,9 +229,8 @@ def download_sentinel_data(db: Session):
                     logger.debug(f"[sentinel] Skip existing {base_name}")
                     continue
 
-                # --- Spectral bands ---
-                datasets      = []
-                reference_da  = None
+                datasets     = []
+                reference_da = None
 
                 for band_name in REQUIRED_BANDS:
                     asset = item.assets.get(band_name)
@@ -190,7 +267,6 @@ def download_sentinel_data(db: Session):
 
                 ds.to_netcdf(nc_path)
 
-                # --- SCL ---
                 scl_asset = item.assets.get("scl")
                 if scl_asset:
                     try:
@@ -206,7 +282,6 @@ def download_sentinel_data(db: Session):
                     except Exception as e:
                         logger.warning(f"[sentinel] SCL failed: {e}")
 
-                # --- AOT / WVP ---
                 for layer, path in [("aot", aot_path), ("wvp", wvp_path)]:
                     asset = item.assets.get(layer)
                     if not asset:
@@ -224,7 +299,6 @@ def download_sentinel_data(db: Session):
                     except Exception as e:
                         logger.warning(f"[sentinel] {layer} failed: {e}")
 
-                # --- Visual ---
                 visual_asset = item.assets.get(VISUAL_ASSET)
                 if visual_asset:
                     try:
@@ -238,7 +312,6 @@ def download_sentinel_data(db: Session):
                     except Exception as e:
                         logger.warning(f"[sentinel] Visual failed: {e}")
 
-                # --- DB record ---
                 new_entry = FieldAnalysis(
                     location_id=loc.id,
                     nc_filename=os.path.basename(nc_path),

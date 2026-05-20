@@ -10,9 +10,12 @@ services:
       - SQLALCHEMY_DATABASE_URL=${SQLALCHEMY_DATABASE_URL}
       - WEBHOOK_URL=${WEBHOOK_URL}
       - WRF_OUTPUT_DIR=/app/shared/wrf_output
+      - COMPOSE_FILE=/app/docker-compose.yml
     volumes:
       - ./backend/data:/app/data
       - wrf_shared_exchange:/app/shared
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
     depends_on:
       - haskell-service
     restart: unless-stopped
@@ -40,17 +43,21 @@ services:
       context: ./wrf-preprocessor
       dockerfile: Dockerfile
     environment:
-      - WRF_CENTER_LAT=${WRF_CENTER_LAT}
-      - WRF_CENTER_LON=${WRF_CENTER_LON}
+      - WRF_CENTER_LAT=${WRF_CENTER_LAT:-0}
+      - WRF_CENTER_LON=${WRF_CENTER_LON:-0}
+      - WRF_LOCATION_ID=${WRF_LOCATION_ID:-0}
       - GFS_FORECAST_HOURS=48
       - GFS_INTERVAL_HOURS=3
       - GRIB_INPUT_DIR=/app/shared/grib_input
       - SHARED_DIR=/app/shared
       - NAMELIST_WPS_PATH=/app/WPS/namelist.wps
+      - WEBHOOK_URL=${WEBHOOK_URL}
     volumes:
-      - ./backend/data/storage/topo:/app/backend/data/storage/topo:ro
+      - /mnt/volume-nbg1-2/topo:/app/backend/data/storage/topo:ro
       - wrf_shared_exchange:/app/shared
     restart: "no"
+    profiles:
+      - wrf
 
   wrf-runner:
     build:
@@ -58,6 +65,8 @@ services:
       dockerfile: Dockerfile
     environment:
       - SHARED_DIR=/app/shared
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - WRF_LOCATION_ID=${WRF_LOCATION_ID:-0}
     deploy:
       resources:
         limits:
@@ -67,9 +76,9 @@ services:
     volumes:
       - wrf_shared_exchange:/app/shared
       - wrf_shared_exchange:/app/WRF/test/em_real/input_data
-    depends_on:
-      - wrf-preprocessor
     restart: "no"
+    profiles:
+      - wrf
 
 volumes:
   wrf_shared_exchange:
