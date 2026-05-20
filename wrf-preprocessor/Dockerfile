@@ -86,7 +86,11 @@ RUN printf "3\n" | ./configure 2>&1 | tee /app/configure_wps.log \
            echo "=== WPS configure failed ==="; cat /app/configure_wps.log; exit 1; \
        fi
 
-RUN sed -i 's/-lnetcdf\b/-lnetcdff -lnetcdf/g' configure.wps
+
+RUN sed -i \
+    -e 's/-lnetcdf\b/-lnetcdff -lnetcdf/g' \
+    -e 's|COMPRESSION_LIBS\s*=.*|COMPRESSION_LIBS = -L/usr/local/lib -ljasper -lpng -lz|' \
+    configure.wps
 
 RUN ./compile 2>&1 | tee /app/compile_wps.log
 
