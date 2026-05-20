@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 from pystac_client import Client
 
 import logging
-from app.core.config import DATA_DIR, MASK_DIR, VIS_DIR, REQUIRED_BANDS, AUX_LAYERS, VISUAL_ASSET,  STAC_API_URL
+from app.core.config import DATA_DIR, MASK_DIR, VIS_DIR, REQUIRED_BANDS, AUX_LAYERS, VISUAL_ASSET, STAC_API_URL
 from app.services.field_analysis import validate_pending_analyses
 from app.core.database import UserLocation, FieldAnalysis
 from app.services.ndvi_processor import sateline_metrics, run_per_field_metrics
 from app.services.weather_service import fetch_and_save_weather, weather_metrics
+from app.services.wrf_service import ingest_wrf_output
 from app.services.biomass_service import run_biomass_estimation
 from app.monitoring.alerting import format_alert, AlertService
 from app.services.anomaly_processor import find_all_anomaly
@@ -22,7 +23,6 @@ from app.services.dem_service import ensure_dem_for_all_locations
 from app.services.disease_service import disease_risk
 from app.core.config import WEBHOOK_URL
 from geoalchemy2.shape import to_shape
-
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 logger = logging.getLogger(__name__)
@@ -39,7 +39,6 @@ def full_sync_process(db: Session):
         find_all_anomaly(db)
         find_all_satellite_anomaly(db)
 
-
     except Exception as e:
         logger.error(f"Critical orchestrator failure: {e}", exc_info=True)
         try:
@@ -52,20 +51,31 @@ def full_sync_process(db: Session):
             )
         except Exception as alert_error:
             logger.critical(f"Failed to send alert: {alert_error}")
-        raise e
+        raise
 
 
 def short_sync_process(db: Session):
     try:
-
         all_locations = db.query(UserLocation).all()
+
         for loc in all_locations:
-            print(f"[PROCESS] Fetching weather for: {loc.label}")
+            logger.info(f"[sync] Processing location: {loc.label}")
+
+            wrf_count = ingest_wrf_output(db, loc)
+            if wrf_count:
+                logger.info(f"[sync] WRF ingested {wrf_count} records for {loc.label}")
+            else:
+                logger.info(f"[sync] No WRF output for {loc.label} — will rely on Open-Meteo")
+
             fetch_and_save_weather(db, loc)
+
             weather_metrics(db, loc)
+
             disease_risk(db, loc)
+
         run_irrigation_recommendations(db)
         run_all_alert_checks()
+
     except Exception as e:
         logger.error(f"Critical orchestrator failure: {e}", exc_info=True)
         try:
@@ -78,7 +88,7 @@ def short_sync_process(db: Session):
             )
         except Exception as alert_error:
             logger.critical(f"Failed to send alert: {alert_error}")
-        raise e
+        raise
 
 
 def download_sentinel_data(db: Session):
@@ -86,16 +96,18 @@ def download_sentinel_data(db: Session):
     client = Client.open(STAC_API_URL)
     locations = db.query(UserLocation).all()
 
-    end_date = datetime.datetime.now(datetime.UTC)
+    end_date   = datetime.datetime.now(datetime.UTC)
     start_date = end_date - datetime.timedelta(days=60)
-
-    date_range = f"{start_date.strftime('%Y-%m-%dT%H:%M:%SZ')}/{end_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    date_range = (
+        f"{start_date.strftime('%Y-%m-%dT%H:%M:%SZ')}/"
+        f"{end_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    )
 
     for loc in locations:
         try:
-            point = to_shape(loc.location)
+            point    = to_shape(loc.location)
             lon, lat = point.x, point.y
-            print(f"[DEBUG] Processing location_id={loc.id} at ({lat}, {lon})")
+            logger.debug(f"[sentinel] location_id={loc.id} at ({lat}, {lon})")
 
             search = client.search(
                 collections=["sentinel-2-l2a"],
@@ -108,12 +120,14 @@ def download_sentinel_data(db: Session):
             items = list(search.items())
 
             if not items:
-                print(f"[DEBUG] No items for loc={loc.id}")
+                logger.warning(f"[sentinel] No items for loc={loc.id}")
                 alert_service.send(
                     key=f"no_data_{loc.id}",
-                    message=format_alert("DATA_MISSING",
-                                         f"No items for {loc.label}",
-                                         {"location_id": loc.id, "coords": f"{lat}, {lon}"})
+                    message=format_alert(
+                        "DATA_MISSING",
+                        f"No Sentinel items for {loc.label}",
+                        {"location_id": loc.id, "coords": f"{lat}, {lon}"}
+                    )
                 )
                 continue
 
@@ -125,56 +139,47 @@ def download_sentinel_data(db: Session):
 
             for item in items:
                 timestamp = item.datetime
-
                 base_name = f"user_{loc.user_id}_loc_{loc.id}_{timestamp.strftime('%Y%m%dT%H%M%S')}"
 
-                nc_path = os.path.join(DATA_DIR, f"{base_name}.nc")
-                scl_path = os.path.join(MASK_DIR, f"scl_{base_name}.nc")
-                aot_path = os.path.join(MASK_DIR, f"aot_{base_name}.nc")
-                wvp_path = os.path.join(MASK_DIR, f"wvp_{base_name}.nc")
-                vis_path = os.path.join(VIS_DIR, f"vis_{base_name}.tif")
+                nc_path  = os.path.join(DATA_DIR,  f"{base_name}.nc")
+                scl_path = os.path.join(MASK_DIR,  f"scl_{base_name}.nc")
+                aot_path = os.path.join(MASK_DIR,  f"aot_{base_name}.nc")
+                wvp_path = os.path.join(MASK_DIR,  f"wvp_{base_name}.nc")
+                vis_path = os.path.join(VIS_DIR,   f"vis_{base_name}.tif")
 
                 if os.path.exists(nc_path):
-                    print(f"[DEBUG] Skip existing {base_name}")
+                    logger.debug(f"[sentinel] Skip existing {base_name}")
                     continue
 
-                # ---------------------------
-                # 1. Spectral bands (10)
-                # ---------------------------
-                datasets = []
-                reference_da = None
+                # --- Spectral bands ---
+                datasets      = []
+                reference_da  = None
 
                 for band_name in REQUIRED_BANDS:
                     asset = item.assets.get(band_name)
                     if not asset:
-                        print(f"[WARN] Missing band: {band_name}")
+                        logger.warning(f"[sentinel] Missing band: {band_name}")
                         continue
 
                     da = rioxarray.open_rasterio(asset.href, chunks=True)
-
                     clipped = da.rio.clip_box(
-                        minx=lon - 0.05,
-                        miny=lat - 0.05,
-                        maxx=lon + 0.05,
-                        maxy=lat + 0.05,
+                        minx=lon - 0.05, miny=lat - 0.05,
+                        maxx=lon + 0.05, maxy=lat + 0.05,
                         crs="EPSG:4326",
-                        allow_one_dimensional_raster=True
+                        allow_one_dimensional_raster=True,
                     )
 
                     if reference_da is None:
                         reference_da = clipped
-                        final_da = clipped
+                        final_da     = clipped
                     else:
                         final_da = clipped.rio.reproject_match(reference_da)
 
-                    final_da = final_da.squeeze().drop_vars(
-                        ["band", "spatial_ref"], errors="ignore"
-                    )
-
+                    final_da = final_da.squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
                     datasets.append(final_da)
 
                 if len(datasets) != len(REQUIRED_BANDS):
-                    print(f"[DEBUG] Incomplete spectral set: {len(datasets)}/10")
+                    logger.warning(f"[sentinel] Incomplete bands {len(datasets)}/{len(REQUIRED_BANDS)} for {base_name}")
                     continue
 
                 ds = xr.concat(datasets, dim="band")
@@ -185,105 +190,68 @@ def download_sentinel_data(db: Session):
 
                 ds.to_netcdf(nc_path)
 
-                # ---------------------------
-                # 2. SCL
-                # ---------------------------
+                # --- SCL ---
                 scl_asset = item.assets.get("scl")
                 if scl_asset:
                     try:
-                        da = rioxarray.open_rasterio(scl_asset.href, chunks=True)
-
+                        da      = rioxarray.open_rasterio(scl_asset.href, chunks=True)
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.05,
-                            miny=lat - 0.05,
-                            maxx=lon + 0.05,
-                            maxy=lat + 0.05,
-                            crs="EPSG:4326",
-                            allow_one_dimensional_raster=True
+                            minx=lon - 0.05, miny=lat - 0.05,
+                            maxx=lon + 0.05, maxy=lat + 0.05,
+                            crs="EPSG:4326", allow_one_dimensional_raster=True,
                         )
-
                         scl_da = clipped.rio.reproject_match(reference_da)
-
-                        scl_da = scl_da.squeeze().drop_vars(
-                            ["band", "spatial_ref"], errors="ignore"
-                        )
-
+                        scl_da = scl_da.squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
                         scl_da.to_netcdf(scl_path)
-
                     except Exception as e:
-                        print(f"[WARN] SCL failed: {e}")
+                        logger.warning(f"[sentinel] SCL failed: {e}")
 
-                # ---------------------------
-                # 3. AOT / WVP
-                # ---------------------------
+                # --- AOT / WVP ---
                 for layer, path in [("aot", aot_path), ("wvp", wvp_path)]:
                     asset = item.assets.get(layer)
                     if not asset:
                         continue
-
                     try:
-                        da = rioxarray.open_rasterio(asset.href, chunks=True)
-
+                        da      = rioxarray.open_rasterio(asset.href, chunks=True)
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.05,
-                            miny=lat - 0.05,
-                            maxx=lon + 0.05,
-                            maxy=lat + 0.05,
-                            crs="EPSG:4326",
-                            allow_one_dimensional_raster=True
+                            minx=lon - 0.05, miny=lat - 0.05,
+                            maxx=lon + 0.05, maxy=lat + 0.05,
+                            crs="EPSG:4326", allow_one_dimensional_raster=True,
                         )
-
                         final_da = clipped.rio.reproject_match(reference_da)
-
-                        final_da = final_da.squeeze().drop_vars(
-                            ["band", "spatial_ref"], errors="ignore"
-                        )
-
+                        final_da = final_da.squeeze().drop_vars(["band", "spatial_ref"], errors="ignore")
                         final_da.to_netcdf(path)
-
                     except Exception as e:
-                        print(f"[WARN] {layer} failed: {e}")
+                        logger.warning(f"[sentinel] {layer} failed: {e}")
 
-                # ---------------------------
-                # 4. Visual
-                # ---------------------------
+                # --- Visual ---
                 visual_asset = item.assets.get(VISUAL_ASSET)
-
                 if visual_asset:
                     try:
-                        da = rioxarray.open_rasterio(visual_asset.href)
-
+                        da      = rioxarray.open_rasterio(visual_asset.href)
                         clipped = da.rio.clip_box(
-                            minx=lon - 0.05,
-                            miny=lat - 0.05,
-                            maxx=lon + 0.05,
-                            maxy=lat + 0.05,
-                            crs="EPSG:4326",
-                            allow_one_dimensional_raster=True
+                            minx=lon - 0.05, miny=lat - 0.05,
+                            maxx=lon + 0.05, maxy=lat + 0.05,
+                            crs="EPSG:4326", allow_one_dimensional_raster=True,
                         )
-
                         clipped.rio.to_raster(vis_path)
-
                     except Exception as e:
-                        print(f"[WARN] Visual failed: {e}")
+                        logger.warning(f"[sentinel] Visual failed: {e}")
 
-                # ---------------------------
-                # 5. DB
-                # ---------------------------
+                # --- DB record ---
                 new_entry = FieldAnalysis(
                     location_id=loc.id,
                     nc_filename=os.path.basename(nc_path),
                     mask_filename=os.path.basename(scl_path) if os.path.exists(scl_path) else None,
-                    last_data_request_date=timestamp
+                    last_data_request_date=timestamp,
                 )
-
                 db.add(new_entry)
                 db.commit()
 
-                print(f"[INFO] Saved: {base_name}")
+                logger.info(f"[sentinel] Saved: {base_name}")
 
         except Exception as e:
-            print(f"[CRITICAL] Failed loc {loc.id}: {e}")
+            logger.error(f"[sentinel] Failed loc {loc.id}: {e}", exc_info=True)
             alert_service.send(
                 key=f"loc_err_{loc.id}",
                 message=format_alert(

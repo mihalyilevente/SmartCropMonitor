@@ -1,4 +1,5 @@
 services:
+
   backend:
     build: ./backend
     ports:
@@ -8,16 +9,19 @@ services:
       - HASKELL_SERVICE_URL=http://haskell-service:8081/field-stats
       - SQLALCHEMY_DATABASE_URL=${SQLALCHEMY_DATABASE_URL}
       - WEBHOOK_URL=${WEBHOOK_URL}
+      - WRF_OUTPUT_DIR=/app/shared/wrf_output
     volumes:
       - ./backend/data:/app/data
-
+      - wrf_shared_exchange:/app/shared
     depends_on:
       - haskell-service
+    restart: unless-stopped
 
   haskell-service:
     build: ./haskell-service
     ports:
       - "8081:8081"
+    restart: unless-stopped
 
   frontend:
     build:
@@ -30,3 +34,42 @@ services:
     ports:
       - "3000:80"
     restart: unless-stopped
+
+  wrf-preprocessor:
+    build:
+      context: ./wrf-preprocessor
+      dockerfile: Dockerfile
+    environment:
+      - WRF_CENTER_LAT=${WRF_CENTER_LAT}
+      - WRF_CENTER_LON=${WRF_CENTER_LON}
+      - GFS_FORECAST_HOURS=48
+      - GFS_INTERVAL_HOURS=3
+      - GRIB_INPUT_DIR=/app/shared/grib_input
+      - SHARED_DIR=/app/shared
+      - NAMELIST_WPS_PATH=/app/WPS/namelist.wps
+    volumes:
+      - ./backend/data/storage/topo:/app/backend/data/storage/topo:ro
+      - wrf_shared_exchange:/app/shared
+    restart: "no"
+
+  wrf-runner:
+    build:
+      context: ./wrf-runner
+      dockerfile: Dockerfile
+    environment:
+      - SHARED_DIR=/app/shared
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 3G
+    volumes:
+      - wrf_shared_exchange:/app/shared
+      - wrf_shared_exchange:/app/WRF/test/em_real/input_data
+    depends_on:
+      - wrf-preprocessor
+    restart: "no"
+
+volumes:
+  wrf_shared_exchange:
