@@ -28,72 +28,126 @@ from geoalchemy2.shape import to_shape
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 logger = logging.getLogger(__name__)
 
-COMPOSE_FILE = os.environ.get("COMPOSE_FILE_HOST", "/root/SmartCropMonitor/docker-compose.yml")
-PROJECT_NAME = os.environ.get("COMPOSE_PROJECT_NAME", "smartcropmonitor")
+PROJECT_NAME         = os.environ.get("COMPOSE_PROJECT_NAME", "smartcropmonitor")
+PREPROCESSOR_IMAGE   = os.environ.get("WRF_PREPROCESSOR_IMAGE", f"{PROJECT_NAME}-wrf-preprocessor")
+RUNNER_IMAGE         = os.environ.get("WRF_RUNNER_IMAGE",        f"{PROJECT_NAME}-wrf-runner")
+WRF_SHARED_VOLUME    = os.environ.get("WRF_SHARED_VOLUME",       f"{PROJECT_NAME}_wrf_shared_exchange")
+TOPO_HOST_PATH       = os.environ.get("TOPO_HOST_PATH",          "/mnt/volume-nbg1-2/topo")
+
+
+def _run_container(image: str, env: dict, volumes: list[str], name_suffix: str) -> bool:
+    """
+    Run a pre-built Docker image as a one-shot container.
+    Streams stdout/stderr line-by-line. Returns True on success.
+    """
+    cmd = ["docker", "run", "--rm", f"--name={name_suffix}"]
+
+    for k, v in env.items():
+        cmd += ["-e", f"{k}={v}"]
+
+    for v in volumes:
+        cmd += ["-v", v]
+
+    cmd.append(image)
+
+    logger.info(f"[wrf] docker run {image} (env={list(env.keys())})")
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    output_tail = []
+    for line in proc.stdout:
+        line = line.rstrip()
+        logger.info(f"[{name_suffix}] {line}")
+        output_tail.append(line)
+        if len(output_tail) > 50:
+            output_tail.pop(0)
+
+    proc.wait()
+    return proc.returncode == 0, "\n".join(output_tail[-20:])
 
 
 def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
     """
-    Run wrf-preprocessor + wrf-runner sequentially for one location.
-    Streams stdout/stderr line-by-line — avoids buffering WRF's large logs.
+    Run wrf-preprocessor + wrf-runner using pre-built images via docker run.
+    No docker compose involved — avoids context/build path issues.
     """
-    base_cmd = [
-        "docker", "compose",
-        "-f", COMPOSE_FILE,
-        "-p", PROJECT_NAME,
-        "--profile", "wrf",
-        "run", "--rm",
-        "-e", f"WRF_CENTER_LAT={lat}",
-        "-e", f"WRF_CENTER_LON={lon}",
-        "-e", f"WRF_LOCATION_ID={location_id}",
-    ]
-
-    env = {
-        **os.environ,
+    wrf_env = {
         "WRF_CENTER_LAT":  str(lat),
         "WRF_CENTER_LON":  str(lon),
         "WRF_LOCATION_ID": str(location_id),
+        "WEBHOOK_URL":     os.environ.get("WEBHOOK_URL", ""),
+        "GFS_FORECAST_HOURS": "48",
+        "GFS_INTERVAL_HOURS": "3",
+        "GRIB_INPUT_DIR":  "/app/shared/grib_input",
+        "SHARED_DIR":      "/app/shared",
+        "NAMELIST_WPS_PATH": "/app/WPS/namelist.wps",
     }
 
-    for service in ("wrf-preprocessor", "wrf-runner"):
-        logger.info(f"[wrf] Starting {service} for loc {location_id} ({lat}, {lon})")
+    shared_volumes = [
+        f"{WRF_SHARED_VOLUME}:/app/shared",
+        f"{TOPO_HOST_PATH}:/app/backend/data/storage/topo:ro",
+    ]
 
-        proc = subprocess.Popen(
-            base_cmd + [service],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            env=env,
-            # No cwd — docker CLI runs fine from any directory when given
-            # an absolute path via -f. Setting cwd to a host path would
-            # fail because that path doesn't exist inside the container.
-        )
+    runner_volumes = [
+        f"{WRF_SHARED_VOLUME}:/app/shared",
+        f"{WRF_SHARED_VOLUME}:/app/WRF/test/em_real/input_data",
+    ]
 
-        output_tail = []
-        for line in proc.stdout:
-            line = line.rstrip()
-            logger.info(f"[{service}|{location_id}] {line}")
-            output_tail.append(line)
-            if len(output_tail) > 50:
-                output_tail.pop(0)
+    # Step 1: preprocessor
+    logger.info(f"[wrf] Starting preprocessor for loc {location_id} ({lat}, {lon})")
+    ok, tail = _run_container(
+        image=PREPROCESSOR_IMAGE,
+        env=wrf_env,
+        volumes=shared_volumes,
+        name_suffix=f"wrf-pre-loc{location_id}",
+    )
 
-        proc.wait()
-
-        if proc.returncode != 0:
-            tail = "\n".join(output_tail[-20:])
-            logger.error(f"[wrf] {service} failed for loc {location_id}")
-            alert_service.send(
-                key=f"wrf_{service}_fail_{location_id}",
-                message=format_alert(
-                    f"WRF_{service.upper().replace('-', '_')}_FAILED",
-                    f"{service} failed for location {location_id}",
-                    {"location_id": location_id, "tail": tail}
-                )
+    if not ok:
+        logger.error(f"[wrf] Preprocessor failed for loc {location_id}")
+        alert_service.send(
+            key=f"wrf_preprocessor_fail_{location_id}",
+            message=format_alert(
+                "WRF_PREPROCESSOR_FAILED",
+                f"wrf-preprocessor failed for location {location_id}",
+                {"location_id": location_id, "tail": tail}
             )
-            return False
+        )
+        return False
 
-        logger.info(f"[wrf] {service} complete for loc {location_id}")
+    logger.info(f"[wrf] Preprocessor done for loc {location_id}. Starting runner...")
 
+    # Step 2: runner
+    runner_env = {
+        "WRF_LOCATION_ID": str(location_id),
+        "SHARED_DIR":      "/app/shared",
+        "WEBHOOK_URL":     os.environ.get("WEBHOOK_URL", ""),
+    }
+
+    ok, tail = _run_container(
+        image=RUNNER_IMAGE,
+        env=runner_env,
+        volumes=runner_volumes,
+        name_suffix=f"wrf-run-loc{location_id}",
+    )
+
+    if not ok:
+        logger.error(f"[wrf] Runner failed for loc {location_id}")
+        alert_service.send(
+            key=f"wrf_runner_fail_{location_id}",
+            message=format_alert(
+                "WRF_RUNNER_FAILED",
+                f"wrf-runner failed for location {location_id}",
+                {"location_id": location_id, "tail": tail}
+            )
+        )
+        return False
+
+    logger.info(f"[wrf] Runner done for loc {location_id}")
     return True
 
 
