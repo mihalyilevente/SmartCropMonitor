@@ -9,7 +9,7 @@ GRIB_DIR="${SHARED_DIR}/grib_input"
 notify() { bash "${SCRIPTS_DIR}/slack_notify.sh" "$1" "$2" || true; }
 
 echo "=== WPS PRE-PROCESSING PIPELINE START ==="
-notify "info" ":rocket: WPS pipeline started"
+notify "info" ":rocket: WPS pipeline started for loc *${WRF_LOCATION_ID:-0}*"
 
 echo "[pipeline] Copying namelist.wps..."
 if [ ! -f "${SHARED_DIR}/namelist.wps" ]; then
@@ -17,6 +17,10 @@ if [ ! -f "${SHARED_DIR}/namelist.wps" ]; then
     exit 1
 fi
 cp "${SHARED_DIR}/namelist.wps" "${WPS_DIR}/namelist.wps"
+
+# Clean stale GRIB files from previous location run
+echo "[pipeline] Cleaning stale GRIB files from previous run..."
+rm -f "${GRIB_DIR}"/*.grib2 "${GRIB_DIR}"/gfs_run_info.txt 2>/dev/null || true
 
 echo "[pipeline] Step 1/4 — Downloading GFS GRIB2 from NOMADS..."
 if python3 "${SCRIPTS_DIR}/gfs_fetcher.py"; then
@@ -28,7 +32,7 @@ else
 fi
 
 if [ -f "${SHARED_DIR}/gfs_run_info.txt" ]; then
-    echo "[pipeline] Patching namelist dates..."
+    echo "[pipeline] Patching namelist dates and coordinates..."
     bash "${SCRIPTS_DIR}/update_namelists.sh"
     RUN_INFO=$(cat "${SHARED_DIR}/gfs_run_info.txt" | tr '\n' ' ')
     notify "info" ":calendar: Namelists patched — \`${RUN_INFO}\`"
@@ -62,5 +66,5 @@ fi
 echo "[pipeline] Exporting met_em to shared volume..."
 cp "${WPS_DIR}"/met_em.d01.* "${SHARED_DIR}/"
 
-notify "success" ":white_check_mark: *WPS pipeline complete* — met_em files ready for WRF runner"
+notify "success" ":white_check_mark: *WPS pipeline complete* loc *${WRF_LOCATION_ID:-0}* — met_em ready"
 echo "=== WPS PRE-PROCESSING PIPELINE COMPLETE ==="

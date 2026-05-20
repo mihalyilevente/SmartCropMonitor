@@ -28,15 +28,13 @@ from geoalchemy2.shape import to_shape
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 logger = logging.getLogger(__name__)
 
-# Path to docker-compose.yml on the host (mounted into backend container)
-COMPOSE_FILE = os.environ.get("COMPOSE_FILE", "/app/docker-compose.yml")
-DOCKER_SOCKET = "/var/run/docker.sock"
+COMPOSE_FILE  = os.environ.get("COMPOSE_FILE", "/app/docker-compose.yml")
 
 
 def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
     """
     Run wrf-preprocessor + wrf-runner sequentially for one location.
-    Passes coordinates and location_id via environment variables.
+    Uses subprocess with streaming output to avoid blocking on large WRF logs.
     Returns True on success, False on failure.
     """
     env = {
@@ -46,57 +44,50 @@ def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
         "WRF_LOCATION_ID": str(location_id),
     }
 
-    logger.info(f"[wrf] Starting preprocessor for loc {location_id} ({lat}, {lon})")
+    base_cmd = [
+        "docker", "compose", "-f", COMPOSE_FILE, "run", "--rm",
+        "-e", f"WRF_CENTER_LAT={lat}",
+        "-e", f"WRF_CENTER_LON={lon}",
+        "-e", f"WRF_LOCATION_ID={location_id}",
+    ]
 
-    # Step 1: preprocessor (GFS download + WPS)
-    result = subprocess.run(
-        ["docker", "compose", "-f", COMPOSE_FILE,
-         "run", "--rm",
-         "-e", f"WRF_CENTER_LAT={lat}",
-         "-e", f"WRF_CENTER_LON={lon}",
-         "-e", f"WRF_LOCATION_ID={location_id}",
-         "wrf-preprocessor"],
-        capture_output=True, text=True, env=env
-    )
+    for service in ("wrf-preprocessor", "wrf-runner"):
+        logger.info(f"[wrf] Starting {service} for loc {location_id} ({lat}, {lon})")
 
-    if result.returncode != 0:
-        logger.error(f"[wrf] Preprocessor failed for loc {location_id}:\n{result.stderr}")
-        alert_service.send(
-            key=f"wrf_preprocessor_fail_{location_id}",
-            message=format_alert(
-                "WRF_PREPROCESSOR_FAILED",
-                f"WRF preprocessor failed for location {location_id}",
-                {"location_id": location_id, "stderr": result.stderr[-500:]}
-            )
+        # Stream output line-by-line — avoids blocking on WRF's large stdout
+        proc = subprocess.Popen(
+            base_cmd + [service],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=env,
         )
-        return False
 
-    logger.info(f"[wrf] Preprocessor done for loc {location_id}. Starting runner...")
+        output_tail = []
+        for line in proc.stdout:
+            line = line.rstrip()
+            logger.info(f"[{service}|{location_id}] {line}")
+            output_tail.append(line)
+            if len(output_tail) > 50:
+                output_tail.pop(0)
 
-    # Step 2: runner (real.exe + wrf.exe)
-    result = subprocess.run(
-        ["docker", "compose", "-f", COMPOSE_FILE,
-         "run", "--rm",
-         "-e", f"WRF_CENTER_LAT={lat}",
-         "-e", f"WRF_CENTER_LON={lon}",
-         "-e", f"WRF_LOCATION_ID={location_id}",
-         "wrf-runner"],
-        capture_output=True, text=True, env=env
-    )
+        proc.wait()
 
-    if result.returncode != 0:
-        logger.error(f"[wrf] Runner failed for loc {location_id}:\n{result.stderr}")
-        alert_service.send(
-            key=f"wrf_runner_fail_{location_id}",
-            message=format_alert(
-                "WRF_RUNNER_FAILED",
-                f"WRF runner failed for location {location_id}",
-                {"location_id": location_id, "stderr": result.stderr[-500:]}
+        if proc.returncode != 0:
+            tail = "\n".join(output_tail[-20:])
+            logger.error(f"[wrf] {service} failed for loc {location_id}")
+            alert_service.send(
+                key=f"wrf_{service}_fail_{location_id}",
+                message=format_alert(
+                    f"WRF_{service.upper().replace('-','_')}_FAILED",
+                    f"{service} failed for location {location_id}",
+                    {"location_id": location_id, "tail": tail}
+                )
             )
-        )
-        return False
+            return False
 
-    logger.info(f"[wrf] Runner done for loc {location_id}")
+        logger.info(f"[wrf] {service} complete for loc {location_id}")
+
     return True
 
 
@@ -116,10 +107,7 @@ def full_sync_process(db: Session):
         try:
             alert_service.send(
                 key="orchestrator_failure",
-                message=format_alert(
-                    "ORCHESTRATOR_CRITICAL",
-                    f"Full sync process failed: {str(e)}"
-                )
+                message=format_alert("ORCHESTRATOR_CRITICAL", f"Full sync failed: {str(e)}")
             )
         except Exception as alert_error:
             logger.critical(f"Failed to send alert: {alert_error}")
@@ -146,9 +134,7 @@ def short_sync_process(db: Session):
                 logger.info(f"[sync] WRF ingested {wrf_count} records for {loc.label}")
 
             fetch_and_save_weather(db, loc)
-
             weather_metrics(db, loc)
-
             disease_risk(db, loc)
 
         run_irrigation_recommendations(db)
@@ -159,10 +145,7 @@ def short_sync_process(db: Session):
         try:
             alert_service.send(
                 key="orchestrator_failure",
-                message=format_alert(
-                    "ORCHESTRATOR_CRITICAL",
-                    f"Short sync process failed: {str(e)}"
-                )
+                message=format_alert("ORCHESTRATOR_CRITICAL", f"Short sync failed: {str(e)}")
             )
         except Exception as alert_error:
             logger.critical(f"Failed to send alert: {alert_error}")
@@ -242,8 +225,7 @@ def download_sentinel_data(db: Session):
                     clipped = da.rio.clip_box(
                         minx=lon - 0.05, miny=lat - 0.05,
                         maxx=lon + 0.05, maxy=lat + 0.05,
-                        crs="EPSG:4326",
-                        allow_one_dimensional_raster=True,
+                        crs="EPSG:4326", allow_one_dimensional_raster=True,
                     )
 
                     if reference_da is None:
@@ -320,7 +302,6 @@ def download_sentinel_data(db: Session):
                 )
                 db.add(new_entry)
                 db.commit()
-
                 logger.info(f"[sentinel] Saved: {base_name}")
 
         except Exception as e:
