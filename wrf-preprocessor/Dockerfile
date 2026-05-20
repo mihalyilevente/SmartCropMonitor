@@ -23,15 +23,18 @@ RUN apt-get update && apt-get install -y \
     openmpi-bin \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/version-4.2.4/jasper-4.2.4.tar.gz \
+# Jasper 2.0.33 — последняя версия совместимая с WPS 4.5
+# Jasper 4.x переименовал jpc_decode и сломал совместимость с WPS
+RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/version-2.0.33/jasper-2.0.33.tar.gz \
     | tar -xz -C /tmp \
-    && cmake -S /tmp/jasper-4.2.4 -B /tmp/jasper-build \
+    && cmake -S /tmp/jasper-2.0.33 -B /tmp/jasper-build \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DJAS_ENABLE_SHARED=ON \
         -DJAS_ENABLE_PROGRAMS=OFF \
+        -DJAS_ENABLE_OPENGL=OFF \
     && cmake --build /tmp/jasper-build --parallel $(nproc) \
     && cmake --install /tmp/jasper-build \
-    && rm -rf /tmp/jasper-4.2.4 /tmp/jasper-build \
+    && rm -rf /tmp/jasper-2.0.33 /tmp/jasper-build \
     && ldconfig
 
 RUN pip3 install --no-cache-dir requests
@@ -64,6 +67,7 @@ COPY ./scripts /app/scripts
 
 RUN chmod +x /app/scripts/*.sh
 
+# --- Компиляция WRF ---
 WORKDIR /app/WRF
 
 RUN printf "32\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
