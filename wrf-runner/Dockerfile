@@ -15,7 +15,14 @@ RUN apt-get update && apt-get install -y \
     csh \
     && rm -rf /var/lib/apt/lists/*
 
-ENV NETCDF=/usr
+RUN mkdir -p /usr/local/netcdf/lib && \
+    mkdir -p /usr/local/netcdf/include && \
+    ln -s /usr/include/netcdf.mod /usr/local/netcdf/include/netcdf.mod && \
+    ln -s /usr/include/netcdf.h /usr/local/netcdf/include/netcdf.h && \
+    ln -s /usr/lib/x86_64-linux-gnu/libnetcdf.so /usr/local/netcdf/lib/libnetcdf.so && \
+    ln -s /usr/lib/x86_64-linux-gnu/libnetcdff.so /usr/local/netcdf/lib/libnetcdff.so
+
+ENV NETCDF=/usr/local/netcdf
 ENV NETCDF_classic=1
 ENV WRFIO_NCD_LARGE_FILE_SUPPORT=1
 
@@ -28,16 +35,12 @@ COPY ./slack_notify.sh /app/scripts/slack_notify.sh
 
 RUN chmod +x /app/scripts/run_wrf.sh /app/scripts/slack_notify.sh
 
-# Option 32: GNU serial, nesting 1: basic
-# J=1 disables parallel make to prevent .mod file ordering issues
 WORKDIR /app/WRF
 
 RUN printf "32\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
     && if [ ! -f configure.wrf ]; then \
            echo "WRF configure failed:"; cat /app/configure_wrf.log; exit 1; \
-       fi \
-    && sed -i 's/^DM_FC\s*=.*/DM_FC = gfortran/' configure.wrf \
-    && sed -i 's/^DM_CC\s*=.*/DM_CC = gcc/' configure.wrf
+       fi
 
 RUN ./compile -j 1 em_real 2>&1 | tee /app/compile_wrf.log
 
