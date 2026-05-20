@@ -7,15 +7,35 @@ RUN apt-get update && apt-get install -y \
     gfortran \
     m4 \
     curl \
+    python3 \
+    python3-pip \
     libnetcdf-dev \
     libnetcdff-dev \
     netcdf-bin \
     libhdf5-dev \
+    libpng-dev \
+    zlib1g-dev \
+    libjpeg-dev \
     tcsh \
     csh \
+    cmake \
     libopenmpi-dev \
     openmpi-bin \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/version-2.0.33/jasper-2.0.33.tar.gz \
+    | tar -xz -C /tmp \
+    && cmake -S /tmp/jasper-2.0.33 -B /tmp/jasper-build \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DJAS_ENABLE_SHARED=ON \
+        -DJAS_ENABLE_PROGRAMS=OFF \
+        -DJAS_ENABLE_OPENGL=OFF \
+    && cmake --build /tmp/jasper-build --parallel $(nproc) \
+    && cmake --install /tmp/jasper-build \
+    && rm -rf /tmp/jasper-2.0.33 /tmp/jasper-build \
+    && ldconfig
+
+RUN pip3 install --no-cache-dir requests
 
 RUN mkdir -p /usr/local/netcdf/lib && \
     mkdir -p /usr/local/netcdf/include && \
@@ -26,19 +46,24 @@ RUN mkdir -p /usr/local/netcdf/lib && \
     ln -sf /usr/lib/x86_64-linux-gnu/libnetcdff.so /usr/local/netcdf/lib/libnetcdff.so
 
 ENV NETCDF=/usr/local/netcdf
-ENV NETCDF_classic=1
+ENV JASPERLIB=/usr/local/lib
+ENV JASPERINC=/usr/local/include
+ENV WRF_DIR=/app/WRF
 ENV WRFIO_NCD_LARGE_FILE_SUPPORT=1
+ENV NETCDF_classic=1
+ENV COMPRESSION_LIBS="-ljasper -lpng -lz"
+ENV COMPRESSION_INC="-I/usr/local/include"
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 WORKDIR /app
 
-COPY ./WRF             /app/WRF
-COPY ./namelist.input  /app/namelist.input
-COPY ./run_wrf.sh      /app/scripts/run_wrf.sh
-COPY ./slack_notify.sh /app/scripts/slack_notify.sh
+COPY ./WRF     /app/WRF
+COPY ./WPS     /app/WPS
+COPY ./config  /app/config
+COPY ./scripts /app/scripts
 
-RUN chmod +x /app/scripts/run_wrf.sh /app/scripts/slack_notify.sh
+RUN chmod +x /app/scripts/*.sh
 
 WORKDIR /app/WRF
 
@@ -55,10 +80,29 @@ RUN if [ ! -f /app/WRF/main/real.exe ] || [ ! -f /app/WRF/main/wrf.exe ]; then \
         exit 1; \
     fi
 
-WORKDIR /app/WRF/test/em_real
+WORKDIR /app/WPS
 
-RUN ln -sf /app/WRF/main/real.exe . \
- && ln -sf /app/WRF/main/wrf.exe  . \
- && cp /app/namelist.input .
+RUN printf "3\n" | ./configure 2>&1 | tee /app/configure_wps.log \
+    && if [ ! -f configure.wps ]; then \
+           echo "=== WPS configure failed ==="; cat /app/configure_wps.log; exit 1; \
+       fi
 
-ENTRYPOINT ["/bin/bash", "/app/scripts/run_wrf.sh"]
+RUN sed -i \
+    -e 's/-lnetcdf\b/-lnetcdff -lnetcdf/g' \
+    -e 's|COMPRESSION_LIBS\s*=.*|COMPRESSION_LIBS = -L/usr/local/lib -ljasper -lpng -lz|' \
+    configure.wps
+
+RUN ./compile 2>&1 | tee /app/compile_wps.log
+
+RUN if [ ! -f /app/WPS/geogrid.exe ] || \
+       [ ! -f /app/WPS/ungrib.exe  ] || \
+       [ ! -f /app/WPS/metgrid.exe ]; then \
+        echo "=== WPS compile failed ==="; \
+        grep -n "undefined reference\|Error\|error" /app/compile_wps.log | grep -v Warning | head -30; \
+        exit 1; \
+    fi
+
+RUN cp /app/config/namelist.wps /app/WPS/namelist.wps
+
+WORKDIR /app
+ENTRYPOINT ["/bin/bash", "/app/scripts/run_pipeline.sh"]
