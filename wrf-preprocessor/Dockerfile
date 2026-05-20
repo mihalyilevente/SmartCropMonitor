@@ -20,6 +20,13 @@ RUN apt-get update && apt-get install -y \
     cmake \
     && rm -rf /var/lib/apt/lists/*
 
+# Create FC/CC wrappers so WRF's 'which FC' / 'which CC' checks pass
+RUN ln -sf /usr/bin/gfortran /usr/local/bin/FC \
+ && ln -sf /usr/bin/gcc      /usr/local/bin/CC \
+ && ln -sf /usr/bin/g++      /usr/local/bin/CXX \
+ && ln -sf /usr/bin/gfortran /usr/local/bin/F77 \
+ && ln -sf /usr/bin/gfortran /usr/local/bin/F90
+
 # Build jasper from source (removed from Ubuntu 22.04 repos)
 RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/version-4.2.4/jasper-4.2.4.tar.gz \
     | tar -xz -C /tmp \
@@ -34,7 +41,6 @@ RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/versi
 
 RUN pip3 install --no-cache-dir requests
 
-# Compiler env vars — must be set before WRF configure
 ENV FC=gfortran
 ENV CC=gcc
 ENV CXX=g++
@@ -57,7 +63,9 @@ COPY ./scripts /app/scripts
 
 RUN chmod +x /app/scripts/*.sh
 
-
+# -----------------------------------------------------------------------
+# Compile WRF — option 34: GNU gfortran/gcc serial, nesting 1: basic
+# -----------------------------------------------------------------------
 WORKDIR /app/WRF
 
 RUN printf "34\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
@@ -71,7 +79,9 @@ RUN if [ ! -f /app/WRF/main/real.exe ] || [ ! -f /app/WRF/main/wrf.exe ]; then \
         echo "WRF compile failed:"; tail -60 /app/compile_wrf.log; exit 1; \
     fi
 
-
+# -----------------------------------------------------------------------
+# Compile WPS — option 1: GNU gfortran/gcc serial
+# -----------------------------------------------------------------------
 WORKDIR /app/WPS
 
 RUN printf "1\n" | ./configure 2>&1 | tee /app/configure_wps.log
