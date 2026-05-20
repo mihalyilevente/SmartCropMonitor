@@ -5,6 +5,8 @@ env/
 smartcrop-venv/
 backend/.venv/
 
+backend/data/storage/topo/gmted2010_7.5s/
+
 # Python generated files and tooling caches
 __pycache__/
 *.py[cod]
