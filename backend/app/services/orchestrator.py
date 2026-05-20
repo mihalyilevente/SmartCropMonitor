@@ -34,6 +34,8 @@ RUNNER_IMAGE         = os.environ.get("WRF_RUNNER_IMAGE",        f"{PROJECT_NAME
 WRF_SHARED_VOLUME    = os.environ.get("WRF_SHARED_VOLUME",       f"{PROJECT_NAME}_wrf_shared_exchange")
 TOPO_HOST_PATH       = os.environ.get("TOPO_HOST_PATH",          "/mnt/volume-nbg1-2/topo")
 
+NAMELIST_WPS_TEMPLATE = "/app/data/namelist.wps"
+
 
 def _run_container(image: str, env: dict, volumes: list[str], name_suffix: str) -> bool:
     """
@@ -71,20 +73,65 @@ def _run_container(image: str, env: dict, volumes: list[str], name_suffix: str) 
     return proc.returncode == 0, "\n".join(output_tail[-20:])
 
 
+def _write_namelist_to_shared(lat: float, lon: float) -> bool:
+    template_path = NAMELIST_WPS_TEMPLATE
+    if not os.path.exists(template_path):
+        logger.error(f"[wrf] namelist.wps template not found at {template_path}")
+        return False
+
+    try:
+        with open(template_path, "r") as f:
+            content = f.read()
+
+        truelat1 = round(lat - 5, 1)
+        truelat2 = round(lat + 5, 1)
+
+        content = content.replace("REF_LAT",   str(lat))
+        content = content.replace("REF_LON",   str(lon))
+        content = content.replace("TRUELAT1",  str(truelat1))
+        content = content.replace("TRUELAT2",  str(truelat2))
+        content = content.replace("STAND_LON", str(lon))
+
+        # Пишем в shared volume который примонтирован в /app/shared
+        shared_nml = "/app/shared/namelist.wps"
+        os.makedirs(os.path.dirname(shared_nml), exist_ok=True)
+        with open(shared_nml, "w") as f:
+            f.write(content)
+
+        logger.info(f"[wrf] namelist.wps written to {shared_nml} (lat={lat}, lon={lon})")
+        return True
+
+    except Exception as e:
+        logger.error(f"[wrf] Failed to write namelist.wps: {e}")
+        return False
+
+
 def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
     """
     Run wrf-preprocessor + wrf-runner using pre-built images via docker run.
     No docker compose involved — avoids context/build path issues.
     """
+
+    if not _write_namelist_to_shared(lat, lon):
+        alert_service.send(
+            key=f"wrf_namelist_fail_{location_id}",
+            message=format_alert(
+                "WRF_PREPROCESSOR_FAILED",
+                f"Failed to write namelist.wps for location {location_id}",
+                {"location_id": location_id}
+            )
+        )
+        return False
+
     wrf_env = {
-        "WRF_CENTER_LAT":  str(lat),
-        "WRF_CENTER_LON":  str(lon),
-        "WRF_LOCATION_ID": str(location_id),
-        "WEBHOOK_URL":     os.environ.get("WEBHOOK_URL", ""),
+        "WRF_CENTER_LAT":    str(lat),
+        "WRF_CENTER_LON":    str(lon),
+        "WRF_LOCATION_ID":   str(location_id),
+        "WEBHOOK_URL":       os.environ.get("WEBHOOK_URL", ""),
         "GFS_FORECAST_HOURS": "48",
         "GFS_INTERVAL_HOURS": "3",
-        "GRIB_INPUT_DIR":  "/app/shared/grib_input",
-        "SHARED_DIR":      "/app/shared",
+        "GRIB_INPUT_DIR":    "/app/shared/grib_input",
+        "SHARED_DIR":        "/app/shared",
         "NAMELIST_WPS_PATH": "/app/WPS/namelist.wps",
     }
 
