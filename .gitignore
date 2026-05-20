@@ -34,6 +34,8 @@ haskell-service/.stack-work/
 *.o
 *.a
 *.exe
+*.msi
+*.iso
 
 # Jupyter generated files
 .ipynb_checkpoints/
