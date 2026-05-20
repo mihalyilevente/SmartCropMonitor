@@ -10,12 +10,13 @@ services:
       - SQLALCHEMY_DATABASE_URL=${SQLALCHEMY_DATABASE_URL}
       - WEBHOOK_URL=${WEBHOOK_URL}
       - WRF_OUTPUT_DIR=/app/shared/wrf_output
-      - COMPOSE_FILE_HOST=${COMPOSE_FILE_HOST:-/root/SmartCropMonitor/docker-compose.yml}
+      - COMPOSE_FILE_HOST=/root/SmartCropMonitor/docker-compose.yml
       - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-smartcropmonitor}
     volumes:
       - ./backend/data:/app/data
       - wrf_shared_exchange:/app/shared
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/root/SmartCropMonitor/docker-compose.yml:ro
     depends_on:
       - haskell-service
     restart: unless-stopped
