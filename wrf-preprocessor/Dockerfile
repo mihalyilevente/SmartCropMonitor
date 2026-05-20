@@ -34,12 +34,18 @@ RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/versi
 
 RUN pip3 install --no-cache-dir requests
 
+# Compiler env vars — must be set before WRF configure
+ENV FC=gfortran
+ENV CC=gcc
+ENV CXX=g++
+ENV F77=gfortran
+ENV F90=gfortran
+
 ENV NETCDF=/usr
 ENV JASPERLIB=/usr/local/lib
 ENV JASPERINC=/usr/local/include/jasper
 ENV WRF_DIR=/app/WRF
 ENV WRFIO_NCD_LARGE_FILE_SUPPORT=1
-# Ubuntu 22.04 ships NetCDF without HDF5/NetCDF4 support — use classic mode
 ENV NETCDF_classic=1
 
 WORKDIR /app
@@ -51,30 +57,21 @@ COPY ./scripts /app/scripts
 
 RUN chmod +x /app/scripts/*.sh
 
-# -----------------------------------------------------------------------
-# Compile WRF — option 34: GNU gfortran/gcc serial (no MPI)
-#               nesting 1: basic
-# -----------------------------------------------------------------------
+
 WORKDIR /app/WRF
 
 RUN printf "34\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
     && if [ ! -f configure.wrf ]; then \
-           echo "WRF configure failed:"; \
-           cat /app/configure_wrf.log; \
-           exit 1; \
+           echo "WRF configure failed:"; cat /app/configure_wrf.log; exit 1; \
        fi
 
 RUN ./compile em_real 2>&1 | tee /app/compile_wrf.log
 
 RUN if [ ! -f /app/WRF/main/real.exe ] || [ ! -f /app/WRF/main/wrf.exe ]; then \
-        echo "WRF compile failed:"; \
-        tail -60 /app/compile_wrf.log; \
-        exit 1; \
+        echo "WRF compile failed:"; tail -60 /app/compile_wrf.log; exit 1; \
     fi
 
-# -----------------------------------------------------------------------
-# Compile WPS — option 1: GNU gfortran/gcc serial
-# -----------------------------------------------------------------------
+
 WORKDIR /app/WPS
 
 RUN printf "1\n" | ./configure 2>&1 | tee /app/configure_wps.log
@@ -84,9 +81,7 @@ RUN ./compile 2>&1 | tee /app/compile_wps.log
 RUN if [ ! -f /app/WPS/geogrid.exe ] || \
        [ ! -f /app/WPS/ungrib.exe  ] || \
        [ ! -f /app/WPS/metgrid.exe ]; then \
-        echo "WPS compile failed:"; \
-        tail -60 /app/compile_wps.log; \
-        exit 1; \
+        echo "WPS compile failed:"; tail -60 /app/compile_wps.log; exit 1; \
     fi
 
 RUN cp /app/config/namelist.wps /app/WPS/namelist.wps
