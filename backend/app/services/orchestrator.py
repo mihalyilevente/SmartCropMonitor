@@ -18,7 +18,6 @@ from app.services.biomass_service import run_biomass_estimation
 from app.monitoring.alerting import format_alert, AlertService
 from app.services.anomaly_processor import find_all_anomaly
 from app.services.spot_anomaly_processor import find_all_satellite_anomaly
-from app.services.irrigation_service import run_irrigation_recommendations
 from app.events.alerts_orchestrator import run_all_alert_checks
 from app.services.dem_service import ensure_dem_for_all_locations
 from app.services.disease_service import disease_risk
@@ -196,7 +195,6 @@ def short_sync_process(db: Session):
             weather_metrics(db, loc)
             disease_risk(db, loc)
 
-        run_irrigation_recommendations(db)
         run_all_alert_checks()
 
     except Exception as e:
