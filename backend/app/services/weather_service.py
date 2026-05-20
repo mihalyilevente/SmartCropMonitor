@@ -1,4 +1,6 @@
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from time import sleep
 import datetime
 from datetime import datetime, timedelta
@@ -17,6 +19,22 @@ alert_service = AlertService(webhook_url=WEBHOOK_URL)
 OPEN_METEO_SOURCE = "open-meteo"
 
 
+def _http_session() -> requests.Session:
+    """HTTP session with automatic retry on 5xx and connection errors."""
+    session = requests.Session()
+    retry = Retry(
+        total=4,
+        backoff_factor=2,          # 2s, 4s, 8s, 16s
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET", "POST"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
 def fetch_and_save_weather(db: Session, location: UserLocation):
     point = to_shape(location.location)
     lon, lat = point.x, point.y
@@ -32,7 +50,8 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
     )
 
     try:
-        response = requests.get(url, timeout=30)
+        session  = _http_session()
+        response = session.get(url, timeout=30)
         response.raise_for_status()
         data   = response.json()
         hourly = data["hourly"]
@@ -216,7 +235,6 @@ def weather_metrics(db: Session, location: UserLocation):
 
         result = perform_haskell_weather_metrics(location_data)
 
-        # base_kwargs — общие поля без gdd_base_10 (он ниже зависит от result)
         base_kwargs = dict(
             location_id=location.id,
             reference_weather_id=weather_record.id,
@@ -273,7 +291,8 @@ def weather_metrics(db: Session, location: UserLocation):
 
 def perform_haskell_weather_metrics(location_data):
     try:
-        response = requests.post(
+        session  = _http_session()
+        response = session.post(
             HASKELL_SERVICE_URL,
             json={"raw_data": location_data, "config": 3},
             timeout=10,
@@ -297,7 +316,8 @@ def current_weather_request(location: UserLocation):
     )
 
     try:
-        response = requests.get(url)
+        session  = _http_session()
+        response = session.get(url, timeout=15)
         response.raise_for_status()
         data = response.json()
         return {
