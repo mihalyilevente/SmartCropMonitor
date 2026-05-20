@@ -28,15 +28,14 @@ from geoalchemy2.shape import to_shape
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 logger = logging.getLogger(__name__)
 
-COMPOSE_FILE     = os.environ.get("COMPOSE_FILE_HOST", "/root/SmartCropMonitor/docker-compose.yml")
-PROJECT_DIR      = os.environ.get("PROJECT_DIR",       "/root/SmartCropMonitor")
-PROJECT_NAME     = os.environ.get("COMPOSE_PROJECT_NAME", "smartcropmonitor")
+COMPOSE_FILE = os.environ.get("COMPOSE_FILE_HOST", "/root/SmartCropMonitor/docker-compose.yml")
+PROJECT_NAME = os.environ.get("COMPOSE_PROJECT_NAME", "smartcropmonitor")
 
 
 def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
     """
     Run wrf-preprocessor + wrf-runner sequentially for one location.
-    Streams output line-by-line to avoid buffering WRF's large logs in RAM.
+    Streams stdout/stderr line-by-line — avoids buffering WRF's large logs.
     """
     base_cmd = [
         "docker", "compose",
@@ -65,7 +64,9 @@ def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
             stderr=subprocess.STDOUT,
             text=True,
             env=env,
-            cwd=PROJECT_DIR,
+            # No cwd — docker CLI runs fine from any directory when given
+            # an absolute path via -f. Setting cwd to a host path would
+            # fail because that path doesn't exist inside the container.
         )
 
         output_tail = []
@@ -84,7 +85,7 @@ def _run_wrf_for_location(lat: float, lon: float, location_id: int) -> bool:
             alert_service.send(
                 key=f"wrf_{service}_fail_{location_id}",
                 message=format_alert(
-                    f"WRF_{service.upper().replace('-','_')}_FAILED",
+                    f"WRF_{service.upper().replace('-', '_')}_FAILED",
                     f"{service} failed for location {location_id}",
                     {"location_id": location_id, "tail": tail}
                 )
