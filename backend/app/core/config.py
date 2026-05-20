@@ -10,6 +10,7 @@ GRID_DIR = os.path.join(STORAGE_PATH, "grid")
 VIS_DIR = os.path.join(STORAGE_PATH, "visual")
 NDVI_DIR = os.path.join(STORAGE_PATH, "ndvi")
 TOPO_DIR = os.path.join(STORAGE_PATH, "topo")
+WEATHER_DIR = os.path.join(STORAGE_PATH, "weather")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
@@ -18,6 +19,7 @@ os.makedirs(GRID_DIR, exist_ok=True)
 os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
 os.makedirs(TOPO_DIR, exist_ok=True)
+os.makedirs(WEATHER_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
 API_VERSION = "0.1.11"

@@ -12,12 +12,17 @@ from geoalchemy2.shape import to_shape
 from app.monitoring.alerting import AlertService, format_alert
 from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL, WEBHOOK_URL, WEATHER_API_KEY
 from app.services.dem_service import get_elevation_for_location
+from app.services.wrf_service import wrf_covered_timestamps
 
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
+
+OPEN_METEO_SOURCE = "open-meteo"
+
 
 def fetch_and_save_weather(db: Session, location: UserLocation):
     point = to_shape(location.location)
     lon, lat = point.x, point.y
+
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}"
@@ -42,92 +47,82 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
     )
 
     try:
-
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        data = response.json()
-        hourly = data["hourly"]
-        times = hourly["time"]
-        daily = data.get("daily", {})
+        data    = response.json()
+        hourly  = data["hourly"]
+        times   = hourly["time"]
+        daily   = data.get("daily", {})
 
         sun_map = {
             daily["time"][i]: (daily["sunrise"][i], daily["sunset"][i])
             for i in range(len(daily.get("time", [])))
         }
 
+
+        wrf_covered = wrf_covered_timestamps(db, location.id)
+
+        skipped = 0
+        inserted = 0
+
         for i, ts in enumerate(times):
             timestamp = datetime.fromisoformat(ts)
-            date_key = ts.split("T")[0]  # Get YYYY-MM-DD
 
+            # WRF data takes priority
+            if timestamp in wrf_covered:
+                skipped += 1
+                continue
+
+            date_key = ts.split("T")[0]
             sunrise_str, sunset_str = sun_map.get(date_key, (None, None))
             sunrise_dt = datetime.fromisoformat(sunrise_str) if sunrise_str else None
-            sunset_dt = datetime.fromisoformat(sunset_str) if sunset_str else None
+            sunset_dt  = datetime.fromisoformat(sunset_str)  if sunset_str  else None
 
             is_night = True
             if sunrise_dt and sunset_dt:
                 is_night = not (sunrise_dt <= timestamp <= sunset_dt)
 
             insert_data = {
-                "location_id": location.id,
-                "timestamp": timestamp,
-                "temp": hourly["temperature_2m"][i],
-                "humidity": hourly["relative_humidity_2m"][i],
-                "dew_point": hourly["dew_point_2m"][i],
+                "location_id":             location.id,
+                "timestamp":               timestamp,
+                "temp":                    hourly["temperature_2m"][i],
+                "humidity":                hourly["relative_humidity_2m"][i],
+                "dew_point":               hourly["dew_point_2m"][i],
                 "vapour_pressure_deficit": hourly["vapour_pressure_deficit"][i],
-                "precipitation": hourly["precipitation"][i],
-                "rain": hourly["rain"][i],
-                "showers": hourly["showers"][i],
-                "snowfall": hourly["snowfall"][i],
-                "soil_temperature_0cm": hourly["soil_temperature_0cm"][i],
-                "soil_moisture_0_to_1cm": hourly["soil_moisture_0_to_1cm"][i],
-                "pressure": hourly["surface_pressure"][i],
-                "cloud_coverage": hourly["cloud_cover"][i],
-                "wind_speed": hourly["wind_speed_10m"][i],
-                "wind_deg": hourly["wind_direction_10m"][i],
-                "sunrise": sunrise_dt,
-                "sunset": sunset_dt,
-                "is_night": is_night,
-                "metrics_status": False
+                "precipitation":           hourly["precipitation"][i],
+                "rain":                    hourly["rain"][i],
+                "showers":                 hourly["showers"][i],
+                "snowfall":                hourly["snowfall"][i],
+                "soil_temperature_0cm":    hourly["soil_temperature_0cm"][i],
+                "soil_moisture_0_to_1cm":  hourly["soil_moisture_0_to_1cm"][i],
+                "pressure":                hourly["surface_pressure"][i],
+                "cloud_coverage":          hourly["cloud_cover"][i],
+                "wind_speed":              hourly["wind_speed_10m"][i],
+                "wind_deg":                hourly["wind_direction_10m"][i],
+                "sunrise":                 sunrise_dt,
+                "sunset":                  sunset_dt,
+                "is_night":                is_night,
+                "data_source":             OPEN_METEO_SOURCE,
+                "metrics_status":          False,
             }
 
             stmt = insert(WeatherHistory).values(insert_data)
-
             stmt = stmt.on_conflict_do_update(
                 constraint="uq_weather_location_timestamp",
-                set_={
-                    "temp": stmt.excluded.temp,
-                    "humidity": stmt.excluded.humidity,
-                    "dew_point": stmt.excluded.dew_point,
-                    "vapour_pressure_deficit": stmt.excluded.vapour_pressure_deficit,
-                    "precipitation": stmt.excluded.precipitation,
-                    "rain": stmt.excluded.rain,
-                    "showers": stmt.excluded.showers,
-                    "snowfall": stmt.excluded.snowfall,
-                    "soil_temperature_0cm": stmt.excluded.soil_temperature_0cm,
-                    "soil_moisture_0_to_1cm": stmt.excluded.soil_moisture_0_to_1cm,
-                    "pressure": stmt.excluded.pressure,
-                    "cloud_coverage": stmt.excluded.cloud_coverage,
-                    "wind_speed": stmt.excluded.wind_speed,
-                    "wind_deg": stmt.excluded.wind_deg,
-                    "sunrise": stmt.excluded.sunrise,
-                    "sunset": stmt.excluded.sunset,
-                    "is_night": stmt.excluded.is_night,
-                    "metrics_status": stmt.excluded.metrics_status
-                }
+                set_={k: getattr(stmt.excluded, k) for k in insert_data if k not in ("location_id", "timestamp")},
             )
 
             db.execute(stmt)
+            inserted += 1
 
         db.commit()
 
         print(
-            f"[INFO] Saved {len(times)} hourly records "
-            f"for {location.label}"
+            f"[INFO] Open-Meteo: {inserted} records saved, "
+            f"{skipped} skipped (WRF coverage) for {location.label}"
         )
 
-
     except Exception as e:
-
         db.rollback()
         alert_service.send(
             key=f"weather_fetch_error_{location.id}",
@@ -135,7 +130,6 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
                 "WEATHER_SYNC_FAILURE",
                 f"Could not fetch weather for {location.label}: {str(e)}",
                 {"location_id": location.id, "url": url}
-
             )
         )
         print(f"[ERROR] Weather fetch failed for loc {location.id}: {e}")
@@ -147,11 +141,9 @@ def request_elevation(lat, lon, retries=3):
 
     for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, timeout=10)
-            r.raise_for_status()
-
-            return float(r.json()["results"][0]["elevation"])
-
+            resp = requests.get(url, params=params, timeout=10)
+            resp.raise_for_status()
+            return float(resp.json()["results"][0]["elevation"])
         except Exception:
             sleep(1.5 * (attempt + 1))
 
@@ -159,26 +151,32 @@ def request_elevation(lat, lon, retries=3):
 
 
 def _serialize_weather_point(weather_record):
-    """Convert weather record to JSON-compatible dict, excluding None values."""
+    """Convert a WeatherHistory ORM row to a JSON-compatible dict."""
     return {
-        "t": weather_record.temp,
-        "h": weather_record.humidity,
-        "p": weather_record.pressure,
-        "ws": weather_record.wind_speed,
-        "wd": weather_record.wind_deg,
-        "cc": weather_record.cloud_coverage,
-        "r": weather_record.rain or 0.0,
-        "s": weather_record.snowfall or 0.0,
-        "dt": weather_record.timestamp.isoformat(),
-        "is_night": weather_record.is_night
+        "t":       weather_record.temp,
+        "h":       weather_record.humidity,
+        "p":       weather_record.pressure,
+        "ws":      weather_record.wind_speed,
+        "wd":      weather_record.wind_deg,
+        "cc":      weather_record.cloud_coverage,
+        "r":       weather_record.rain or 0.0,
+        "s":       weather_record.snowfall or 0.0,
+        "dt":      weather_record.timestamp.isoformat(),
+        "is_night": weather_record.is_night,
+        "source":  weather_record.data_source,
     }
 
 
 def weather_metrics(db: Session, location: UserLocation):
-    pending_list = db.query(WeatherHistory).filter(
-        WeatherHistory.location_id == location.id,
-        WeatherHistory.metrics_status == False
-    ).order_by(WeatherHistory.timestamp.asc()).all()
+    pending_list = (
+        db.query(WeatherHistory)
+        .filter(
+            WeatherHistory.location_id  == location.id,
+            WeatherHistory.metrics_status == False,
+        )
+        .order_by(WeatherHistory.timestamp.asc())
+        .all()
+    )
 
     if not pending_list:
         return
@@ -193,123 +191,100 @@ def weather_metrics(db: Session, location: UserLocation):
 
     for weather_record in pending_list:
 
-        end_date = weather_record.timestamp
-        start_7d = end_date - timedelta(days=7)
-        start_30d = end_date - timedelta(days=30)
+        end_date   = weather_record.timestamp
+        start_7d   = end_date - timedelta(days=7)
+        start_30d  = end_date - timedelta(days=30)
 
         day_of_year = weather_record.timestamp.timetuple().tm_yday
 
-        history_7d = db.query(WeatherHistory).filter(
-            WeatherHistory.location_id == location.id,
-            WeatherHistory.timestamp.between(start_7d, end_date)
-        ).order_by(WeatherHistory.timestamp.asc()).all()
+        history_7d = (
+            db.query(WeatherHistory)
+            .filter(
+                WeatherHistory.location_id == location.id,
+                WeatherHistory.timestamp.between(start_7d, end_date),
+            )
+            .order_by(WeatherHistory.timestamp.asc())
+            .all()
+        )
 
-        history_30d = db.query(WeatherHistory).filter(
-            WeatherHistory.location_id == location.id,
-            WeatherHistory.timestamp.between(start_30d, end_date)
-        ).order_by(WeatherHistory.timestamp.asc()).all()
+        history_30d = (
+            db.query(WeatherHistory)
+            .filter(
+                WeatherHistory.location_id == location.id,
+                WeatherHistory.timestamp.between(start_30d, end_date),
+            )
+            .order_by(WeatherHistory.timestamp.asc())
+            .all()
+        )
 
-        # -----------------------------
-        # DERIVED BASIC FEATURES
-        # -----------------------------
+        temps        = [h.temp     for h in history_7d  if h.temp     is not None]
+        humidity_7d  = [h.humidity for h in history_7d  if h.humidity is not None]
 
-        temps = [h.temp for h in history_7d if h.temp is not None]
-
-        rain_7d = sum(h.rain or 0.0 for h in history_7d)
+        rain_7d  = sum(h.rain or 0.0 for h in history_7d)
         rain_30d = sum(h.rain or 0.0 for h in history_30d)
 
-        humidity_7d = [h.humidity for h in history_7d if h.humidity is not None]
-
-        gdd_base_10 = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
-
-        heat_days_7d = sum(1 for h in history_7d if h.temp and h.temp > 30)
-        frost_days_7d = sum(1 for h in history_7d if h.temp is not None and h.temp < 0)
-
+        gdd_base_10   = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
+        heat_days_7d  = sum(1 for h in history_7d  if h.temp and h.temp > 30)
+        frost_days_7d = sum(1 for h in history_7d  if h.temp is not None and h.temp < 0)
         heat_days_30d = sum(1 for h in history_30d if h.temp and h.temp > 30)
         frost_days_30d = sum(1 for h in history_30d if h.temp is not None and h.temp < 0)
 
-        # -----------------------------
-        # INPUT FOR HASKELL MODULE
-        # -----------------------------
-
         location_data = {
             "metadata": {
-                "lat": safe_float(lat),
-                "lon": safe_float(lon),
-                "elevation": safe_float(elevation),
-                "day_of_year": day_of_year
+                "lat":         safe_float(lat),
+                "lon":         safe_float(lon),
+                "elevation":   safe_float(elevation),
+                "day_of_year": day_of_year,
             },
-            "current": _serialize_weather_point(weather_record),
-            "history_7d": [_serialize_weather_point(h) for h in history_7d],
-            "history_30d": [_serialize_weather_point(h) for h in history_30d]
+            "current":    _serialize_weather_point(weather_record),
+            "history_7d":  [_serialize_weather_point(h) for h in history_7d],
+            "history_30d": [_serialize_weather_point(h) for h in history_30d],
         }
 
         result = perform_haskell_weather_metrics(location_data)
 
+        base_kwargs = dict(
+            location_id=location.id,
+            reference_weather_id=weather_record.id,
+            window_end_date=end_date,
+            gdd_base_10=r(gdd_base_10),
+            rain_cum_7d=r(rain_7d),
+            rain_cum_30d=r(rain_30d),
+            heat_days_count_7d=heat_days_7d,
+            frost_days_count_7d=frost_days_7d,
+            heat_days_count_30d=heat_days_30d,
+            frost_days_count_30d=frost_days_30d,
+        )
+
         if (not result) or len(history_7d) < MIN_RECORDS_7D:
-
             metrics_entry = WeatherMetrics(
-                location_id=location.id,
-                reference_weather_id=weather_record.id,
-                window_end_date=end_date,
-
+                **base_kwargs,
                 temp_min_day_7d=min(temps) if temps else None,
                 temp_max_day_7d=max(temps) if temps else None,
-
-                gdd_base_10=r(gdd_base_10),
-
-                rain_cum_7d=r(rain_7d),
-                rain_cum_30d=r(rain_30d),
-
-                humidity_mean_7d=r(sum(humidity_7d)/len(humidity_7d)) if humidity_7d else None,
-
-                heat_days_count_7d=heat_days_7d,
-                frost_days_count_7d=frost_days_7d,
-                heat_days_count_30d=heat_days_30d,
-                frost_days_count_30d=frost_days_30d,
-
+                humidity_mean_7d=r(sum(humidity_7d) / len(humidity_7d)) if humidity_7d else None,
                 et0=None,
                 water_deficit_7d=None,
                 water_deficit_30d=None,
                 spi_1m=None,
-
                 ra_mj_m2_day=None,
-                rs_mj_m2_day=None
+                rs_mj_m2_day=None,
             )
-
         else:
-
             metrics_entry = WeatherMetrics(
-                location_id=location.id,
-                reference_weather_id=weather_record.id,
-                window_end_date=end_date,
-
+                **base_kwargs,
                 temp_min_day_7d=result.get("temp_min_7d"),
                 temp_max_day_7d=result.get("temp_max_7d"),
                 temp_min_night_7d=result.get("temp_min_night_7d"),
                 temp_max_night_7d=result.get("temp_max_night_7d"),
-
                 gdd_base_10=r(result.get("gdd")),
-
-                rain_cum_7d=r(rain_7d),
-                rain_cum_30d=r(rain_30d),
-
                 humidity_mean_7d=r(result.get("hum_mean_7d")),
                 humidity_mean_30d=r(result.get("hum_mean_30d")),
-
-                heat_days_count_7d=heat_days_7d,
-                frost_days_count_7d=frost_days_7d,
-                heat_days_count_30d=heat_days_30d,
-                frost_days_count_30d=frost_days_30d,
-
                 et0=r(result.get("et0")),
                 water_deficit_7d=r(result.get("water_deficit_7d")),
                 water_deficit_30d=r(result.get("water_deficit_30d")),
-
                 spi_1m=r(result.get("spi1m")),
-
                 ra_mj_m2_day=r(result.get("ra")),
-                rs_mj_m2_day=r(result.get("rs"))
+                rs_mj_m2_day=r(result.get("rs")),
             )
 
         db.add(metrics_entry)
@@ -324,21 +299,14 @@ def weather_metrics(db: Session, location: UserLocation):
 
 def perform_haskell_weather_metrics(location_data):
     try:
-        payload = {
-            "raw_data": location_data,
-            "config": 3
-        }
-
         response = requests.post(
             HASKELL_SERVICE_URL,
-            json=payload,
-            timeout=10
+            json={"raw_data": location_data, "config": 3},
+            timeout=10,
         )
-
         if response.status_code == 200:
             return response.json()
-        else:
-            print(f"[ERROR] Haskell service returned status {response.status_code}: {response.text}")
+        print(f"[ERROR] Haskell service returned {response.status_code}: {response.text}")
         return None
     except Exception as e:
         print(f"[ERROR] Haskell service communication error: {e}")
@@ -357,24 +325,20 @@ def current_weather_request(location: UserLocation):
     try:
         response = requests.get(url)
         response.raise_for_status()
-
         data = response.json()
 
-        weather_current = {
-            "timestamp": datetime.fromtimestamp(data.get("dt")).isoformat(),
-            "temp": data["main"]["temp"],
-            "pressure": data["main"]["pressure"],
-            "humidity": data["main"]["humidity"],
-            "wind_speed": data.get("wind", {}).get("speed"),
-            "wind_deg": data.get("wind", {}).get("deg"),
-            "cloud_coverage": data.get("clouds", {}).get("all"),
-            "weather_main": data["weather"][0]["main"],
+        return {
+            "timestamp":           datetime.fromtimestamp(data.get("dt")).isoformat(),
+            "temp":                data["main"]["temp"],
+            "pressure":            data["main"]["pressure"],
+            "humidity":            data["main"]["humidity"],
+            "wind_speed":          data.get("wind", {}).get("speed"),
+            "wind_deg":            data.get("wind", {}).get("deg"),
+            "cloud_coverage":      data.get("clouds", {}).get("all"),
+            "weather_main":        data["weather"][0]["main"],
             "weather_description": data["weather"][0]["description"],
         }
 
-        print(f"[INFO] Weather received for {location.label}")
-
-        return weather_current
     except Exception as e:
         alert_service.send(
             key=f"weather_err_{location.id}",
