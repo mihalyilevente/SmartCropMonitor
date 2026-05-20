@@ -36,17 +36,28 @@ RUN pip3 install --no-cache-dir requests
 ENV NETCDF=/usr
 ENV JASPERLIB=/usr/local/lib
 ENV JASPERINC=/usr/local/include/jasper
+ENV WRF_DIR=/app/WRF
 
 WORKDIR /app
 
-COPY ./WPS     /app/WPS
+COPY ./WRF /app/WRF
+COPY ./WPS /app/WPS
 COPY ./config  /app/config
 COPY ./scripts /app/scripts
 
 RUN chmod +x /app/scripts/*.sh
 
+WORKDIR /app/WRF
+RUN echo -e "34\n1" | ./configure 2>&1 | tee /app/compile_wrf_configure.log
+RUN ./compile em_real 2>&1 | tee /app/compile_wrf.log
+
+RUN if [ ! -f /app/WRF/main/real.exe ]; then \
+        echo "WRF compilation failed. Check /app/compile_wrf.log"; exit 1; \
+    fi
+
 WORKDIR /app/WPS
-RUN echo 1 | ./configure && ./compile 2>&1 | tee /app/compile_wps.log
+RUN echo 1 | ./configure 2>&1 | tee /app/compile_wps_configure.log
+RUN ./compile 2>&1 | tee /app/compile_wps.log
 
 RUN if [ ! -f /app/WPS/geogrid.exe ] || \
        [ ! -f /app/WPS/ungrib.exe  ] || \
