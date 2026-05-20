@@ -12,18 +12,30 @@ RUN apt-get update && apt-get install -y \
     libnetcdf-dev \
     libnetcdff-dev \
     netcdf-bin \
-    libjasper-dev \
     libpng-dev \
     zlib1g-dev \
+    libjpeg-dev \
     tcsh \
     csh \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://github.com/jasper-software/jasper/releases/download/version-4.2.4/jasper-4.2.4.tar.gz \
+    | tar -xz -C /tmp \
+    && cmake -S /tmp/jasper-4.2.4 -B /tmp/jasper-build \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DJAS_ENABLE_SHARED=ON \
+        -DJAS_ENABLE_PROGRAMS=OFF \
+    && cmake --build /tmp/jasper-build --parallel $(nproc) \
+    && cmake --install /tmp/jasper-build \
+    && rm -rf /tmp/jasper-4.2.4 /tmp/jasper-build \
+    && ldconfig
 
 RUN pip3 install --no-cache-dir requests
 
 ENV NETCDF=/usr
-ENV JASPERLIB=/usr/lib/x86_64-linux-gnu
-ENV JASPERINC=/usr/include
+ENV JASPERLIB=/usr/local/lib
+ENV JASPERINC=/usr/local/include/jasper
 
 WORKDIR /app
 
