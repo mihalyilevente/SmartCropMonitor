@@ -52,17 +52,22 @@ COPY ./scripts /app/scripts
 RUN chmod +x /app/scripts/*.sh
 
 # Compile WRF — option 32: GNU serial, nesting 1: basic
+# J=1 disables parallel make to prevent .mod file ordering issues
 WORKDIR /app/WRF
 
 RUN printf "32\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
     && if [ ! -f configure.wrf ]; then \
            echo "WRF configure failed:"; cat /app/configure_wrf.log; exit 1; \
-       fi
+       fi \
+    && sed -i 's/^DM_FC\s*=.*/DM_FC = gfortran/' configure.wrf \
+    && sed -i 's/^DM_CC\s*=.*/DM_CC = gcc/' configure.wrf
 
-RUN ./compile em_real 2>&1 | tee /app/compile_wrf.log
+RUN ./compile -j 1 em_real 2>&1 | tee /app/compile_wrf.log
 
 RUN if [ ! -f /app/WRF/main/real.exe ] || [ ! -f /app/WRF/main/wrf.exe ]; then \
-        echo "WRF compile failed:"; tail -60 /app/compile_wrf.log; exit 1; \
+        echo "WRF compile failed:"; \
+        grep -E 'Fatal Error|error:|ld returned' /app/compile_wrf.log | tail -20; \
+        exit 1; \
     fi
 
 # Compile WPS — option 1: GNU serial
