@@ -2,12 +2,10 @@ import requests
 from time import sleep
 import datetime
 from datetime import datetime, timedelta
-import math
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
 from app.utils.general import safe_float, safe_int, r
-from sqlalchemy import desc
 from geoalchemy2.shape import to_shape
 from app.monitoring.alerting import AlertService, format_alert
 from app.core.config import MIN_RECORDS_7D, HASKELL_SERVICE_URL, WEBHOOK_URL, WEATHER_API_KEY
@@ -25,50 +23,33 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
 
     url = (
         "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}"
-        f"&longitude={lon}"
-        "&hourly="
-        "temperature_2m,"
-        "relative_humidity_2m,"
-        "dew_point_2m,"
-        "vapour_pressure_deficit,"
-        "precipitation,"
-        "rain,"
-        "showers,"
-        "snowfall,"
-        "soil_temperature_0cm,"
-        "soil_moisture_0_to_1cm,"
-        "surface_pressure,"
-        "cloud_cover,"
-        "wind_speed_10m,"
-        "wind_direction_10m"
-        "&daily=sunrise,sunset"
-        "&timezone=UTC"
+        f"?latitude={lat}&longitude={lon}"
+        "&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,"
+        "vapour_pressure_deficit,precipitation,rain,showers,snowfall,"
+        "soil_temperature_0cm,soil_moisture_0_to_1cm,surface_pressure,"
+        "cloud_cover,wind_speed_10m,wind_direction_10m"
+        "&daily=sunrise,sunset&timezone=UTC"
     )
 
     try:
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        data    = response.json()
-        hourly  = data["hourly"]
-        times   = hourly["time"]
-        daily   = data.get("daily", {})
+        data   = response.json()
+        hourly = data["hourly"]
+        times  = hourly["time"]
+        daily  = data.get("daily", {})
 
         sun_map = {
             daily["time"][i]: (daily["sunrise"][i], daily["sunset"][i])
             for i in range(len(daily.get("time", [])))
         }
 
-
         wrf_covered = wrf_covered_timestamps(db, location.id)
-
-        skipped = 0
-        inserted = 0
+        skipped = inserted = 0
 
         for i, ts in enumerate(times):
             timestamp = datetime.fromisoformat(ts)
 
-            # WRF data takes priority
             if timestamp in wrf_covered:
                 skipped += 1
                 continue
@@ -111,16 +92,11 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
                 constraint="uq_weather_location_timestamp",
                 set_={k: getattr(stmt.excluded, k) for k in insert_data if k not in ("location_id", "timestamp")},
             )
-
             db.execute(stmt)
             inserted += 1
 
         db.commit()
-
-        print(
-            f"[INFO] Open-Meteo: {inserted} records saved, "
-            f"{skipped} skipped (WRF coverage) for {location.label}"
-        )
+        print(f"[INFO] Open-Meteo: {inserted} saved, {skipped} skipped (WRF) for {location.label}")
 
     except Exception as e:
         db.rollback()
@@ -138,7 +114,6 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
 def request_elevation(lat, lon, retries=3):
     url = "https://api.open-elevation.com/api/v1/lookup"
     params = {"locations": f"{lat},{lon}"}
-
     for attempt in range(retries):
         try:
             resp = requests.get(url, params=params, timeout=10)
@@ -146,24 +121,22 @@ def request_elevation(lat, lon, retries=3):
             return float(resp.json()["results"][0]["elevation"])
         except Exception:
             sleep(1.5 * (attempt + 1))
-
     return None
 
 
 def _serialize_weather_point(weather_record):
-    """Convert a WeatherHistory ORM row to a JSON-compatible dict."""
     return {
-        "t":       weather_record.temp,
-        "h":       weather_record.humidity,
-        "p":       weather_record.pressure,
-        "ws":      weather_record.wind_speed,
-        "wd":      weather_record.wind_deg,
-        "cc":      weather_record.cloud_coverage,
-        "r":       weather_record.rain or 0.0,
-        "s":       weather_record.snowfall or 0.0,
-        "dt":      weather_record.timestamp.isoformat(),
+        "t":        weather_record.temp,
+        "h":        weather_record.humidity,
+        "p":        weather_record.pressure,
+        "ws":       weather_record.wind_speed,
+        "wd":       weather_record.wind_deg,
+        "cc":       weather_record.cloud_coverage,
+        "r":        weather_record.rain or 0.0,
+        "s":        weather_record.snowfall or 0.0,
+        "dt":       weather_record.timestamp.isoformat(),
         "is_night": weather_record.is_night,
-        "source":  weather_record.data_source,
+        "source":   weather_record.data_source,
     }
 
 
@@ -171,7 +144,7 @@ def weather_metrics(db: Session, location: UserLocation):
     pending_list = (
         db.query(WeatherHistory)
         .filter(
-            WeatherHistory.location_id  == location.id,
+            WeatherHistory.location_id    == location.id,
             WeatherHistory.metrics_status == False,
         )
         .order_by(WeatherHistory.timestamp.asc())
@@ -191,9 +164,9 @@ def weather_metrics(db: Session, location: UserLocation):
 
     for weather_record in pending_list:
 
-        end_date   = weather_record.timestamp
-        start_7d   = end_date - timedelta(days=7)
-        start_30d  = end_date - timedelta(days=30)
+        end_date  = weather_record.timestamp
+        start_7d  = end_date - timedelta(days=7)
+        start_30d = end_date - timedelta(days=30)
 
         day_of_year = weather_record.timestamp.timetuple().tm_yday
 
@@ -217,16 +190,16 @@ def weather_metrics(db: Session, location: UserLocation):
             .all()
         )
 
-        temps        = [h.temp     for h in history_7d  if h.temp     is not None]
-        humidity_7d  = [h.humidity for h in history_7d  if h.humidity is not None]
+        temps       = [h.temp     for h in history_7d if h.temp     is not None]
+        humidity_7d = [h.humidity for h in history_7d if h.humidity is not None]
 
         rain_7d  = sum(h.rain or 0.0 for h in history_7d)
         rain_30d = sum(h.rain or 0.0 for h in history_30d)
 
-        gdd_base_10   = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
-        heat_days_7d  = sum(1 for h in history_7d  if h.temp and h.temp > 30)
-        frost_days_7d = sum(1 for h in history_7d  if h.temp is not None and h.temp < 0)
-        heat_days_30d = sum(1 for h in history_30d if h.temp and h.temp > 30)
+        gdd_base_10    = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
+        heat_days_7d   = sum(1 for h in history_7d  if h.temp and h.temp > 30)
+        frost_days_7d  = sum(1 for h in history_7d  if h.temp is not None and h.temp < 0)
+        heat_days_30d  = sum(1 for h in history_30d if h.temp and h.temp > 30)
         frost_days_30d = sum(1 for h in history_30d if h.temp is not None and h.temp < 0)
 
         location_data = {
@@ -243,11 +216,11 @@ def weather_metrics(db: Session, location: UserLocation):
 
         result = perform_haskell_weather_metrics(location_data)
 
+        # base_kwargs — общие поля без gdd_base_10 (он ниже зависит от result)
         base_kwargs = dict(
             location_id=location.id,
             reference_weather_id=weather_record.id,
             window_end_date=end_date,
-            gdd_base_10=r(gdd_base_10),
             rain_cum_7d=r(rain_7d),
             rain_cum_30d=r(rain_30d),
             heat_days_count_7d=heat_days_7d,
@@ -259,6 +232,7 @@ def weather_metrics(db: Session, location: UserLocation):
         if (not result) or len(history_7d) < MIN_RECORDS_7D:
             metrics_entry = WeatherMetrics(
                 **base_kwargs,
+                gdd_base_10=r(gdd_base_10),
                 temp_min_day_7d=min(temps) if temps else None,
                 temp_max_day_7d=max(temps) if temps else None,
                 humidity_mean_7d=r(sum(humidity_7d) / len(humidity_7d)) if humidity_7d else None,
@@ -272,11 +246,11 @@ def weather_metrics(db: Session, location: UserLocation):
         else:
             metrics_entry = WeatherMetrics(
                 **base_kwargs,
+                gdd_base_10=r(result.get("gdd")),
                 temp_min_day_7d=result.get("temp_min_7d"),
                 temp_max_day_7d=result.get("temp_max_7d"),
                 temp_min_night_7d=result.get("temp_min_night_7d"),
                 temp_max_night_7d=result.get("temp_max_night_7d"),
-                gdd_base_10=r(result.get("gdd")),
                 humidity_mean_7d=r(result.get("hum_mean_7d")),
                 humidity_mean_30d=r(result.get("hum_mean_30d")),
                 et0=r(result.get("et0")),
@@ -326,7 +300,6 @@ def current_weather_request(location: UserLocation):
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
-
         return {
             "timestamp":           datetime.fromtimestamp(data.get("dt")).isoformat(),
             "temp":                data["main"]["temp"],
@@ -338,7 +311,6 @@ def current_weather_request(location: UserLocation):
             "weather_main":        data["weather"][0]["main"],
             "weather_description": data["weather"][0]["description"],
         }
-
     except Exception as e:
         alert_service.send(
             key=f"weather_err_{location.id}",
