@@ -13,11 +13,23 @@ RUN apt-get update && apt-get install -y \
     libhdf5-dev \
     tcsh \
     csh \
+    libopenmpi-dev \
+    openmpi-bin \
     && rm -rf /var/lib/apt/lists/*
 
-ENV NETCDF=/usr
+RUN mkdir -p /usr/local/netcdf/lib && \
+    mkdir -p /usr/local/netcdf/include && \
+    ln -sf /usr/include/netcdf.mod      /usr/local/netcdf/include/netcdf.mod  && \
+    ln -sf /usr/include/netcdf.h        /usr/local/netcdf/include/netcdf.h    && \
+    ln -sf /usr/include/netcdf.inc      /usr/local/netcdf/include/netcdf.inc  && \
+    ln -sf /usr/lib/x86_64-linux-gnu/libnetcdf.so  /usr/local/netcdf/lib/libnetcdf.so  && \
+    ln -sf /usr/lib/x86_64-linux-gnu/libnetcdff.so /usr/local/netcdf/lib/libnetcdff.so
+
+ENV NETCDF=/usr/local/netcdf
 ENV NETCDF_classic=1
 ENV WRFIO_NCD_LARGE_FILE_SUPPORT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 WORKDIR /app
 
@@ -28,18 +40,19 @@ COPY ./slack_notify.sh /app/scripts/slack_notify.sh
 
 RUN chmod +x /app/scripts/run_wrf.sh /app/scripts/slack_notify.sh
 
-# Option 32: GNU gfortran/gcc serial, nesting 1: basic
 WORKDIR /app/WRF
 
 RUN printf "32\n1\n" | ./configure 2>&1 | tee /app/configure_wrf.log \
     && if [ ! -f configure.wrf ]; then \
-           echo "WRF configure failed:"; cat /app/configure_wrf.log; exit 1; \
+           echo "=== WRF configure failed ==="; cat /app/configure_wrf.log; exit 1; \
        fi
 
-RUN ./compile em_real 2>&1 | tee /app/compile_wrf.log
+RUN J=$(nproc) ./compile em_real 2>&1 | tee /app/compile_wrf.log
 
 RUN if [ ! -f /app/WRF/main/real.exe ] || [ ! -f /app/WRF/main/wrf.exe ]; then \
-        echo "WRF compile failed:"; tail -60 /app/compile_wrf.log; exit 1; \
+        echo "=== WRF compile failed ==="; \
+        grep -E 'Fatal Error|error:|ld returned' /app/compile_wrf.log | tail -30; \
+        exit 1; \
     fi
 
 WORKDIR /app/WRF/test/em_real
