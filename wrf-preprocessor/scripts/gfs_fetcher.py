@@ -31,7 +31,7 @@ NOMADS_BASE = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 REQUIRED_VARS = [
     "var_HGT", "var_TMP", "var_UGRD", "var_VGRD",
     "var_RH", "var_SPFH", "var_PRES", "var_PRMSL",
-    "var_PWAT", "var_LAND", "var_SOILW", "var_TSOIL",
+    "var_PWAT", "var_LAND", "var_SOILW", "var_TSOIL", "var_MSLET",
 ]
 
 PRESSURE_LEVELS = [
