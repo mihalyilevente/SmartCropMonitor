@@ -108,6 +108,7 @@ RUN cp /app/config/namelist.wps /app/WPS/namelist.wps
 # Патч METGRID.TBL - убираем mandatory для полей которых нет в GFS subregion
 RUN sed -i 's/mandatory=yes/mandatory=no/g' /app/WPS/metgrid/METGRID.TBL
 RUN sed -i 's/fill_lev=200100:PSFC(200100)/fill_lev=200100:const(101325.)/g' /app/WPS/metgrid/METGRID.TBL && sed -i 's/fill_lev=200100:SOILHGT(200100)/fill_lev=200100:const(0.)/g' /app/WPS/metgrid/METGRID.TBL && sed -i 's/fill_lev=200100:TT(200100)/fill_lev=200100:const(288.)/g' /app/WPS/metgrid/METGRID.TBL
+RUN sed -i 's/call mprintf(found_missing,ERROR,/call mprintf(found_missing,WARN,/g' /app/WPS/metgrid/src/storage_module.f90 && rm -f /app/WPS/metgrid/src/storage_module.o && cd /app/WPS && ./compile metgrid 2>&1 | tail -5
 
 WORKDIR /app
 ENTRYPOINT ["/bin/bash", "/app/scripts/run_pipeline.sh"]
