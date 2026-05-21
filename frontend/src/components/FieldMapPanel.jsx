@@ -83,8 +83,9 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
   const mapRef       = useRef(null);
   const loadedRef    = useRef(false);
   const popupRef     = useRef(null);
-  const watchIdRef   = useRef(null);
-  const gpsMarkerRef = useRef(null);
+  const watchIdRef    = useRef(null);
+  const gpsMarkerRef  = useRef(null);
+  const gpsPositionRef = useRef(null);
 
   const [open, setOpen]                   = useState(true);
   const [fields, setFields]               = useState(null);
@@ -129,6 +130,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
+        gpsPositionRef.current = [longitude, latitude];
         applyToMap((map) => {
           if (!gpsMarkerRef.current) {
             const el = document.createElement('div');
@@ -357,6 +359,16 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
               <div ref={mapCallbackRef} style={{ position: 'absolute', inset: 0 }} />
             )}
 
+            {gpsActive && (
+              <button
+                onClick={() => applyToMap(map => gpsPositionRef.current && map.flyTo({ center: gpsPositionRef.current, zoom: 16, duration: 800, essential: true }))}
+                title={t('fmp_gps_track')}
+                style={styles.locateBtn}
+              >
+                ⊕
+              </button>
+            )}
+
             <div style={styles.legend}>
               <div style={styles.legendTitle}>
                 {meta.label} <span style={styles.legendDesc}>{t(meta.descKey)}</span>
@@ -396,6 +408,7 @@ const styles = {
   metricBtnActive:  { background: 'var(--color-accent-soil)', color: '#fff', borderColor: 'var(--color-accent-soil)' },
   contourBtnActive: { background: '#5a3e1b', color: '#fff', borderColor: '#5a3e1b' },
   gpsBtnActive:     { background: '#1a5276', color: '#fff', borderColor: '#1a5276' },
+  locateBtn:        { position: 'absolute', top: 100, right: 10, zIndex: 10, width: 30, height: 30, borderRadius: 4, border: '1px solid rgba(0,0,0,0.25)', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: 18, lineHeight: '28px', textAlign: 'center', padding: 0, color: '#2980b9', fontWeight: 700 },
   divider:     { display: 'inline-block', width: 1, height: 18, background: 'var(--color-accent-soil)', opacity: 0.35, margin: '0 4px' },
   elevBadge:   { fontSize: 11, fontWeight: 600, color: '#5a3e1b', background: 'rgba(90,62,27,0.1)', border: '1px solid rgba(90,62,27,0.25)', borderRadius: 20, padding: '2px 10px' },
   errorNote:   { fontSize: 12, color: '#c0392b', marginLeft: 8 },
