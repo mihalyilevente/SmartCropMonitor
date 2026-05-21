@@ -104,5 +104,9 @@ RUN if [ ! -f /app/WPS/geogrid.exe ] || \
 
 RUN cp /app/config/namelist.wps /app/WPS/namelist.wps
 
+
+# Патч METGRID.TBL - убираем mandatory для полей которых нет в GFS subregion
+RUN sed -i 's/mandatory=yes/mandatory=no/g' /app/WPS/metgrid/METGRID.TBL
+
 WORKDIR /app
 ENTRYPOINT ["/bin/bash", "/app/scripts/run_pipeline.sh"]
