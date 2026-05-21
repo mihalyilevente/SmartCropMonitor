@@ -30,17 +30,13 @@ NOMADS_BASE = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 
 REQUIRED_VARS = [
     "var_HGT", "var_TMP", "var_UGRD", "var_VGRD",
-    "var_RH", "var_SPFH", "var_PRES", "var_PRMSL",
-    "var_PWAT", "var_LAND", "var_ICEC", "var_SKINTEMP",
-    "var_SOILW", "var_TSOIL", "var_WEASD",
+    "var_RH", "var_PRES", "var_PRMSL", "var_PWAT", "var_LAND",
 ]
 
 PRESSURE_LEVELS = [
-    "lev_1000_mb", "lev_975_mb", "lev_950_mb", "lev_925_mb",
-    "lev_900_mb",  "lev_850_mb", "lev_800_mb", "lev_750_mb",
-    "lev_700_mb",  "lev_600_mb", "lev_500_mb", "lev_400_mb",
-    "lev_300_mb",  "lev_250_mb", "lev_200_mb", "lev_150_mb",
-    "lev_100_mb",  "lev_50_mb",
+    "lev_1000_mb", "lev_925_mb", "lev_850_mb",
+    "lev_700_mb",  "lev_500_mb", "lev_300_mb",
+    "lev_200_mb",  "lev_100_mb",
 ]
 
 SURFACE_LEVELS = [
@@ -48,7 +44,6 @@ SURFACE_LEVELS = [
     "lev_mean_sea_level",
     "lev_2_m_above_ground",
     "lev_10_m_above_ground",
-    "lev_entire_atmosphere_%28considered_as_a_single_layer%29",
 ]
 
 
