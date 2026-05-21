@@ -84,15 +84,11 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
             for i in range(len(daily.get("time", [])))
         }
 
-        wrf_covered = wrf_covered_timestamps(db, location.id)
         skipped = inserted = 0
 
         for i, ts in enumerate(times):
             timestamp = datetime.fromisoformat(ts)
 
-            if timestamp in wrf_covered:
-                skipped += 1
-                continue
 
             date_key = ts.split("T")[0]
             sunrise_str, sunset_str = sun_map.get(date_key, (None, None))
@@ -184,8 +180,9 @@ def weather_metrics(db: Session, location: UserLocation):
     pending_list = (
         db.query(WeatherHistory)
         .filter(
-            WeatherHistory.location_id    == location.id,
+            WeatherHistory.location_id == location.id,
             WeatherHistory.metrics_status == False,
+            WeatherHistory.data_source == "open-meteo",
         )
         .order_by(WeatherHistory.timestamp.asc())
         .all()
@@ -215,6 +212,7 @@ def weather_metrics(db: Session, location: UserLocation):
             .filter(
                 WeatherHistory.location_id == location.id,
                 WeatherHistory.timestamp.between(start_7d, end_date),
+                WeatherHistory.data_source == "open-meteo",
             )
             .order_by(WeatherHistory.timestamp.asc())
             .all()
@@ -225,6 +223,7 @@ def weather_metrics(db: Session, location: UserLocation):
             .filter(
                 WeatherHistory.location_id == location.id,
                 WeatherHistory.timestamp.between(start_30d, end_date),
+                WeatherHistory.data_source == "open-meteo",
             )
             .order_by(WeatherHistory.timestamp.asc())
             .all()

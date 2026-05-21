@@ -243,7 +243,7 @@ def _ingest_file(db: Session, location: UserLocation, lat: float, lon: float, fp
             return 0
 
         stmt = insert(WeatherHistory).values(rows)
-        stmt = stmt.on_conflict_do_update(
+        stmt = stmt.on_conflict_do_nothing(
             constraint="uq_weather_location_timestamp",
             set_={
                 # Only overwrite if existing record is NOT also from WRF
