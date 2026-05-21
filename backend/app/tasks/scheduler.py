@@ -47,7 +47,7 @@ scheduler.add_job(
 scheduler.add_job(
     scheduled_update_short,
     "cron",
-    hour="*",
+    hour="0,4,8,12,16,20",
     minute=15,
     id="hourly_sync_job",
     replace_existing=True
