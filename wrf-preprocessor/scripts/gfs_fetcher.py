@@ -30,7 +30,8 @@ NOMADS_BASE = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 
 REQUIRED_VARS = [
     "var_HGT", "var_TMP", "var_UGRD", "var_VGRD",
-    "var_RH", "var_PRES", "var_PRMSL", "var_PWAT", "var_LAND",
+    "var_RH", "var_SPFH", "var_PRES", "var_PRMSL",
+    "var_PWAT", "var_LAND", "var_SOILW", "var_TSOIL",
 ]
 
 PRESSURE_LEVELS = [
@@ -44,11 +45,14 @@ SURFACE_LEVELS = [
     "lev_mean_sea_level",
     "lev_2_m_above_ground",
     "lev_10_m_above_ground",
+    "lev_0-0.1_m_below_ground",
+    "lev_0.1-0.4_m_below_ground",
+    "lev_0.4-1_m_below_ground",
+    "lev_1-2_m_below_ground",
 ]
 
 
 def _parse_nml(text, key):
-    """Extract numeric value from namelist text. Returns None if placeholder."""
     m = re.search(rf"{key}\s*=\s*([\-0-9.]+)", text)
     if m:
         return float(m.group(1))
@@ -62,7 +66,7 @@ def _domain_bbox():
     wps = Path(NAMELIST_WPS)
     if wps.exists():
         text = wps.read_text()
-        center_lat = _parse_nml(text, "ref_lat")   # None if still REF_LAT placeholder
+        center_lat = _parse_nml(text, "ref_lat")
         center_lon = _parse_nml(text, "ref_lon")
         e_we = _parse_nml(text, "e_we")
         e_sn = _parse_nml(text, "e_sn")
@@ -73,14 +77,11 @@ def _domain_bbox():
         if e_sn and dy:
             half_lat = (e_sn * dy / 2) / 111_320
 
-    # Fallback to env vars (always set in docker-compose)
     center_lat = center_lat or float(os.environ.get("WRF_CENTER_LAT", 0))
     center_lon = center_lon or float(os.environ.get("WRF_CENTER_LON", 0))
 
     if center_lat == 0 and center_lon == 0:
-        raise RuntimeError(
-            "Domain center unknown. Set WRF_CENTER_LAT / WRF_CENTER_LON env vars."
-        )
+        raise RuntimeError("Domain center unknown. Set WRF_CENTER_LAT / WRF_CENTER_LON env vars.")
 
     p = BBOX_PADDING_DEG
     lat_min = max(round(center_lat - half_lat - p, 2), -90.0)
@@ -178,7 +179,6 @@ def fetch_gfs_for_wrf(
     if failed:
         raise RuntimeError(f"GFS download incomplete. Failed: {failed}")
 
-    # Write run info — MUST be named gfs_run_info.txt (read by run_pipeline.sh + update_namelists.sh)
     run_end   = run_dt + datetime.timedelta(hours=forecast_hours)
     info_path = Path(SHARED_DIR) / "gfs_run_info.txt"
     info_path.parent.mkdir(parents=True, exist_ok=True)
