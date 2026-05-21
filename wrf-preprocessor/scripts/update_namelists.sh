@@ -28,8 +28,8 @@ echo "[update_namelists] start=${START_DATE}  end=${END_DATE}"
 
 LAT="${WRF_CENTER_LAT:-51.5}"
 LON="${WRF_CENTER_LON:-61.0}"
-TRUELAT1=$(echo "${LAT} - 5" | bc)
-TRUELAT2=$(echo "${LAT} + 5" | bc)
+TRUELAT1=$(python3 -c "print(round(float("${LAT}") - 5, 1))")
+TRUELAT2=$(python3 -c "print(round(float("${LAT}") + 5, 1))")
 
 echo "[update_namelists] center lat=${LAT} lon=${LON}"
 
