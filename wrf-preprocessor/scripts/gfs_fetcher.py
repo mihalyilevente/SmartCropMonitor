@@ -48,7 +48,7 @@ SURFACE_LEVELS = [
     "lev_mean_sea_level",
     "lev_2_m_above_ground",
     "lev_10_m_above_ground",
-    "lev_entire_atmosphere_%5C%28considered_as_a_single_layer%5C%29",
+    "lev_entire_atmosphere_%28considered_as_a_single_layer%29",
 ]
 
 
