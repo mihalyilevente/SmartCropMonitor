@@ -128,7 +128,7 @@ const EntryRow = ({ entry, onUpdated }) => {
   const advance = async (newStatus) => {
     setBusy(true); setErr(null);
     try {
-      await api.patch(`/api/v1/fields/rotation/entry/${entry.id}`, { status: newStatus });
+      await api.patch(`/api/v1/rotation/entry/${entry.id}`, { status: newStatus });
       onUpdated();
     } catch (e) {
       setErr(e?.response?.data?.detail ?? t('rot_err_update'));
@@ -229,7 +229,7 @@ const RotationCard = ({ rotation, userId, onDeleted, onRefresh }) => {
     if (!window.confirm(`${t('rot_delete_confirm')} "${rotation.name}"?`)) return;
     setDeleting(true);
     try {
-      await api.delete(`/api/v1/fields/rotation/${rotation.id}`, { params: { user_id: userId } });
+      await api.delete(`/api/v1/rotation/${rotation.id}`, { params: { user_id: userId } });
       onDeleted();
     } catch { setDeleting(false); }
   };
@@ -320,7 +320,7 @@ const NewPlanForm = ({ locationId, userId, onCreated, onCancel }) => {
     if (!startDate)   { setError(t('rot_err_date_required')); return; }
     setLoading(true); setError(null);
     try {
-      await api.post('/api/v1/fields/rotation/plan', {
+      await api.post('/api/v1/rotation/plan', {
         user_id:          userId,
         location_id:      locationId,
         name:             name.trim(),
@@ -395,7 +395,7 @@ export const RotationSection = ({ locationId, userId }) => {
   const load = useCallback(() => {
     if (!locationId) return;
     setLoading(true);
-    api.get(`/api/v1/fields/rotation/${locationId}`)
+    api.get(`/api/v1/rotation/location/${locationId}`)
       .then(r  => setRotations(r.data))
       .catch(() => setRotations([]))
       .finally(() => setLoading(false));
