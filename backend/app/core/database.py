@@ -38,15 +38,29 @@ Base = declarative_base()
 # =========================
 # Models
 # =========================
+
 class UserDB(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
+    id              = Column(Integer, primary_key=True, index=True)
+    username        = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+
+    email        = Column(String, nullable=True, unique=True, index=True)
+    first_name   = Column(String(100), nullable=True)
+    last_name    = Column(String(100), nullable=True)
+    phone        = Column(String(30),  nullable=True)
+
+    country      = Column(String(100), nullable=True)
+    city         = Column(String(100), nullable=True)
+
+    farm_name    = Column(String(200), nullable=True)
+    farm_size_ha = Column(Numeric(10, 2), nullable=True)
+
+    created_at   = Column(DateTime, default=datetime.datetime.utcnow, nullable=True)
 
     locations = relationship("UserLocation", back_populates="owner")
-    sensors = relationship("SensorsDB", back_populates="owner")
+    sensors   = relationship("SensorsDB",    back_populates="owner")
 
 
 class UserLocation(Base):

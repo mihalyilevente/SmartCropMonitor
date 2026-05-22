@@ -699,6 +699,23 @@ const hu = {
   fw_status_verified:    'ELLENŐRZÖTT',
   fw_status_cancelled:   'MEGSZAKÍTVA',
   fw_status_failed:      'SIKERTELEN',
+
+  // ── Auth registration & Briefing dismiss ──────────────────────────────────
+  briefing_dismiss:        'Elrejtés ✕',
+  briefing_dismiss_title:  'Elrejtés holnapig',
+  reg_section_account:     'Fiók',
+  reg_section_contact:     'Kapcsolattartás',
+  reg_section_location:    'Helyszín',
+  reg_section_farm:        'Gazdaság',
+  email_placeholder:       'E-mail',
+  first_name_placeholder:  'Keresztnév',
+  last_name_placeholder:   'Vezetéknév',
+  phone_placeholder:       'Telefon',
+  country_placeholder:     'Ország',
+  city_placeholder:        'Város',
+  farm_name_placeholder:   'Gazdaság neve',
+  farm_size_placeholder:   'Terület (ha)',
+
 };
 
 export default hu;

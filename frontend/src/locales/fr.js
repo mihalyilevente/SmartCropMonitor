@@ -715,6 +715,23 @@ const fr = {
   fp_err_add:            'Erreur d\'ajout',
   fp_sync_started:       'Synchronisation démarrée',
   fp_err_sync:           'Erreur de synchronisation',
+
+  // ── Auth registration & Briefing dismiss ──────────────────────────────────
+  briefing_dismiss:        'Masquer ✕',
+  briefing_dismiss_title:  'Masquer jusqu\'à demain',
+  reg_section_account:     'Compte',
+  reg_section_contact:     'Contact',
+  reg_section_location:    'Localisation',
+  reg_section_farm:        'Exploitation',
+  email_placeholder:       'E-mail',
+  first_name_placeholder:  'Prénom',
+  last_name_placeholder:   'Nom',
+  phone_placeholder:       'Téléphone',
+  country_placeholder:     'Pays',
+  city_placeholder:        'Ville',
+  farm_name_placeholder:   'Nom de l\'exploitation',
+  farm_size_placeholder:   'Surface (ha)',
+
 };
 
 export default fr;

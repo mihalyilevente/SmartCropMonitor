@@ -696,6 +696,23 @@ const en = {
   fw_status_verified:    'VERIFIED',
   fw_status_cancelled:   'CANCELLED',
   fw_status_failed:      'FAILED',
+
+  // ── Auth registration & Briefing dismiss ──────────────────────────────────
+  briefing_dismiss:        'Dismiss ✕',
+  briefing_dismiss_title:  'Hide until tomorrow',
+  reg_section_account:     'Account',
+  reg_section_contact:     'Contact',
+  reg_section_location:    'Location',
+  reg_section_farm:        'Farm',
+  email_placeholder:       'Email',
+  first_name_placeholder:  'First name',
+  last_name_placeholder:   'Last name',
+  phone_placeholder:       'Phone',
+  country_placeholder:     'Country',
+  city_placeholder:        'City',
+  farm_name_placeholder:   'Farm name',
+  farm_size_placeholder:   'Area (ha)',
+
 };
 
 export default en;

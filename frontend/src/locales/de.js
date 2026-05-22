@@ -715,6 +715,23 @@ const de = {
   fp_err_add:            'Fehler beim Hinzufügen',
   fp_sync_started:       'Synchronisierung gestartet',
   fp_err_sync:           'Synchronisierungsfehler',
+
+  // ── Auth registration & Briefing dismiss ──────────────────────────────────
+  briefing_dismiss:        'Schließen ✕',
+  briefing_dismiss_title:  'Bis morgen ausblenden',
+  reg_section_account:     'Konto',
+  reg_section_contact:     'Kontakt',
+  reg_section_location:    'Standort',
+  reg_section_farm:        'Betrieb',
+  email_placeholder:       'E-Mail',
+  first_name_placeholder:  'Vorname',
+  last_name_placeholder:   'Nachname',
+  phone_placeholder:       'Telefon',
+  country_placeholder:     'Land',
+  city_placeholder:        'Stadt',
+  farm_name_placeholder:   'Betriebsname',
+  farm_size_placeholder:   'Fläche (ha)',
+
 };
 
 export default de;

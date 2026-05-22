@@ -59,7 +59,7 @@ if [ -f "${WRF_NML}" ]; then
 
     echo "[update_namelists] namelist.input patched (dates)"
 fi
-# Копируем обновлённый namelist.input в shared volume для wrf-runner
+
 if [ -f "${WRF_NML}" ]; then
     cp "${WRF_NML}" /app/shared/namelist.input
     echo "[update_namelists] namelist.input copied to shared volume"
