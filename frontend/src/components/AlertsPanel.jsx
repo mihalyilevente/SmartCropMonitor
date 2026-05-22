@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/client';
 import { useLang } from '../context/LanguageContext';
 
-const BASE_EVENTS = '../api/v1/events';
+const BASE_EVENTS = '/api/v1/events';
 const POLL_INTERVAL_MS = 30_000;
 
 const SEV_COLOR = {
@@ -535,7 +535,7 @@ const AlertsPanel = ({ userId, locationId }) => {
   const [events, setEvents]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [rulesVer, setRulesVer] = useState(0);
-  const [filter, setFilter]   = useState({ status: 'ALL', severity: 'ALL' });
+  const [filter, setFilter]   = useState({ status: 'ACTIVE', severity: 'ALL' });
   const [lastPoll, setLastPoll] = useState(null);
 
   const loadEvents = useCallback(() => {
