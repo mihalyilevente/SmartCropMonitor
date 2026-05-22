@@ -589,6 +589,59 @@ const hu = {
   wm_solar_rs:           'Napsugárzás (Rs)',
   wm_extra_rad:          'Extraterr. sugárzás',
 
+  // ── RotationPanel ───────────────────────────────────────────────────────────
+  rot_section_title:        'Legeltetési rotációs tervek',
+  rot_new_btn:              'Új terv',
+  rot_new_plan_title:       'Rotációs terv generálása',
+  rot_loading:              'Rotációs tervek betöltése…',
+  rot_empty:                'Még nincs rotációs terv.',
+  rot_empty_hint:           'Kattintson az „+ Új terv" gombra az aktuális biomassza-adatokból való automatikus ütemezés létrehozásához.',
+  rot_default_name_prefix:  'Rotáció',
+
+  // form
+  rot_form_name:            'Terv neve',
+  rot_form_name_ph:         'pl. 2025 tavaszi rotáció',
+  rot_form_start:           'Kezdő dátum',
+  rot_form_aum:             'AUM cél / hó',
+  rot_form_notes:           'Megjegyzés',
+  rot_form_optional:        'opcionális',
+  rot_form_hint:            'A táblák növekedési fázis szerint vannak rendezve (Csúcs → Aktív → Korai), és automatikusan kapnak legeltetési / pihenő időablakot.',
+
+  // actions
+  rot_generate_btn:         'Terv generálása',
+  rot_generating:           'Generálás',
+  rot_cancel:               'Mégse',
+  rot_delete:               'Terv törlése',
+  rot_deleting:             'Törlés',
+  rot_delete_confirm:       'Rotációs terv törlése',
+
+  // card / entry
+  rot_timeline:             'Ütemterv',
+  rot_schedule:             'Parcellák sorrendje',
+  rot_paddocks:             'parcella',
+  rot_target:               'cél',
+  rot_no_entries:           'Nincs bejegyzés ebben a tervben.',
+  rot_currently_grazing:    'Jelenleg legeltet',
+  rot_graze:                'Legeltetés',
+  rot_rest:                 'Pihenő',
+  rot_days_abbr:            'n',
+  rot_planned:              'tervezett',
+  rot_actual:               'tényleges',
+  rot_bio_start:            'Biomassza',
+
+  // statuses
+  rot_status_PLANNED:       'Tervezett',
+  rot_status_GRAZING:       'Legeltetés',
+  rot_status_RESTING:       'Pihenő',
+  rot_status_COMPLETED:     'Befejezett',
+  rot_status_SKIPPED:       'Kihagyott',
+
+  // errors
+  rot_err_name_required:    'A terv neve kötelező.',
+  rot_err_date_required:    'A kezdő dátum kötelező.',
+  rot_err_generate:         'Nem sikerült a terv generálása.',
+  rot_err_update:           'Nem sikerült frissíteni a bejegyzést.',
+
   // (already defined in previous partials but repeated for completeness)
   tpl_group_weather:     '🌡️ Időjárás',
   tpl_group_sensor:      '📡 Szenzor',

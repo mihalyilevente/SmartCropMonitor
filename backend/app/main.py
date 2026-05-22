@@ -14,6 +14,7 @@ from app.api.endpoints.sensor_router import router as sensor_router
 from app.api.endpoints.utils_router import router as utils_router
 from app.api.endpoints.events_router import router as events_router
 from app.api.endpoints.fieldwork_router import router as fieldwork_router
+from app.api.endpoints.rotation_router import router as rotation_router
 from app.tasks.scheduler import scheduler
 
 # =========================
@@ -58,14 +59,16 @@ def stop_tasks():
 # =========================
 # Routers
 # =========================
-app.include_router(field_router,    prefix="/api/v1",       tags=["Field Analysis"])
-app.include_router(data_router,     prefix="/api/v1",       tags=["Data & Visualization"])
-app.include_router(auth_router,     prefix="/api/v1/auth",  tags=["Authentication"])
+
+app.include_router(field_router,    prefix="/api/v1",         tags=["Field Analysis"])
+app.include_router(data_router,     prefix="/api/v1",         tags=["Data & Visualization"])
+app.include_router(auth_router,     prefix="/api/v1/auth",    tags=["Authentication"])
 app.include_router(weather_router,  prefix="/api/v1/weather", tags=["Weather"])
 app.include_router(sensor_router,   prefix="/api/v1/sensors", tags=["Sensors"])
-app.include_router(utils_router,    prefix="/api/v1/utils", tags=["Utils"])
-app.include_router(events_router,   prefix="/api/v1",       tags=["Alerts & Tasks"])
-app.include_router(fieldwork_router,prefix="/api/v1",       tags=["Field Work"])
+app.include_router(utils_router,    prefix="/api/v1/utils",   tags=["Utils"])
+app.include_router(events_router,   prefix="/api/v1",         tags=["Alerts & Tasks"])
+app.include_router(fieldwork_router,prefix="/api/v1",         tags=["Field Work"])
+app.include_router(rotation_router, prefix="/api/v1/rotation",tags=["Pasture Rotation"])
 
 # =========================
 # Health Check

@@ -632,6 +632,59 @@ const en = {
   alert_sev_warning:  'WARNING',
   alert_sev_info:     'INFO',
 
+  // ── RotationPanel ───────────────────────────────────────────────────────────
+  rot_section_title:        'Grazing Rotation Plans',
+  rot_new_btn:              'New Plan',
+  rot_new_plan_title:       'Generate Rotation Plan',
+  rot_loading:              'Loading rotation plans…',
+  rot_empty:                'No rotation plans yet.',
+  rot_empty_hint:           'Click "+ New Plan" to auto-generate a schedule from current biomass data.',
+  rot_default_name_prefix:  'Rotation',
+
+  // form
+  rot_form_name:            'Plan name',
+  rot_form_name_ph:         'e.g. Spring 2025 rotation',
+  rot_form_start:           'Start date',
+  rot_form_aum:             'AUM target / month',
+  rot_form_notes:           'Notes',
+  rot_form_optional:        'optional',
+  rot_form_hint:            'Fields are sorted by growth-stage readiness (Peak → Active → Early) and assigned sequential graze / rest windows automatically.',
+
+  // actions
+  rot_generate_btn:         'Generate plan',
+  rot_generating:           'Generating',
+  rot_cancel:               'Cancel',
+  rot_delete:               'Delete plan',
+  rot_deleting:             'Deleting',
+  rot_delete_confirm:       'Delete rotation plan',
+
+  // card / entry
+  rot_timeline:             'Timeline',
+  rot_schedule:             'Paddock schedule',
+  rot_paddocks:             'paddocks',
+  rot_target:               'target',
+  rot_no_entries:           'No entries in this plan.',
+  rot_currently_grazing:    'Now grazing',
+  rot_graze:                'Graze',
+  rot_rest:                 'Rest',
+  rot_days_abbr:            'd',
+  rot_planned:              'planned',
+  rot_actual:               'actual',
+  rot_bio_start:            'Biomass',
+
+  // statuses
+  rot_status_PLANNED:       'Planned',
+  rot_status_GRAZING:       'Grazing',
+  rot_status_RESTING:       'Resting',
+  rot_status_COMPLETED:     'Completed',
+  rot_status_SKIPPED:       'Skipped',
+
+  // errors
+  rot_err_name_required:    'Plan name is required.',
+  rot_err_date_required:    'Start date is required.',
+  rot_err_generate:         'Failed to generate plan.',
+  rot_err_update:           'Failed to update entry.',
+
   // ── FieldWork statuses (filter + "Change status" buttons) ──────────────────
   fw_status_all:         'ALL',
   fw_status_draft:       'DRAFT',

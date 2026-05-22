@@ -37,6 +37,11 @@ html.large-fonts {
   font-size: 20px !important;   /* escalates all rem values app-wide */
 }
 
+/* zoom scales EVERYTHING including inline px styles — no component changes needed */
+html.large-fonts #root {
+  zoom: 1.25;
+}
+
 html {
   font-size: var(--base-font-size);
 }
