@@ -56,6 +56,10 @@ const TwoColumnLayout = ({ left, mapProps }) => (
         userId={mapProps.userId}
         locationId={mapProps.locationId}
         locationCenter={mapProps.locationCenter}
+        onAddLocation={mapProps.onAddLocation}
+        onDrawField={mapProps.onDrawField}
+        onSegment={mapProps.onSegment}
+        segmentationStatus={mapProps.segmentationStatus}
       />
     </div>
   </div>
@@ -85,6 +89,10 @@ const Dashboard = ({ userId, onLogout }) => {
     userId,
     locationId,
     locationCenter,
+    onAddLocation:   () => setShowAddLocation(true),
+    onDrawField:     () => setShowManualField(true),
+    onSegment:       () => setShowSegmentation(true),
+    segmentationStatus,
   };
 
   // ── data fetching ──────────────────────────────────────────────────────────
@@ -225,7 +233,7 @@ const Dashboard = ({ userId, onLogout }) => {
           </h1>
         </div>
 
-        {/* Location selector + action buttons */}
+        {/* Location selector only – action buttons moved to FieldMapPanel */}
         <div style={styles.locationRow}>
           {locations.length > 0 ? (
             <div style={styles.locationSelector}>
@@ -244,26 +252,6 @@ const Dashboard = ({ userId, onLogout }) => {
             </div>
           ) : (
             <div style={{ color: 'red', fontSize: 13 }}>{t('no_locations')}</div>
-          )}
-
-          <button onClick={() => setShowAddLocation(true)} style={styles.addLocationBtn} title={t('add_location')}>
-            + {t('add_location')}
-          </button>
-
-          {locationId && (
-            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title={t('draw_field')}>
-              ✏️ {t('draw_field')}
-            </button>
-          )}
-
-          {locationId && (
-            <button
-              onClick={() => setShowSegmentation(true)}
-              style={{ ...styles.segmentBtn, ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}) }}
-              title={t('segment_fields')}
-            >
-              {segmentationStatus === 'done' ? `✔ ${t('fields_updated')}` : `🛰 ${t('segment_fields')}`}
-            </button>
           )}
         </div>
 
@@ -415,27 +403,10 @@ const styles = {
     fontSize: 13,
     background: 'transparent',
   },
-  addLocationBtn: {
-    background: 'var(--color-accent-soil)',
-    color: '#fff', border: 'none', padding: '6px 12px',
-    borderRadius: 7, cursor: 'pointer', fontWeight: 600, fontSize: 12,
-    whiteSpace: 'nowrap',
-  },
-  manualFieldBtn: {
-    background: 'linear-gradient(135deg, #2471a3, #1a5276)',
-    color: '#fff', border: 'none', padding: '6px 12px',
-    borderRadius: 7, cursor: 'pointer', fontWeight: 700, fontSize: 12,
-    whiteSpace: 'nowrap',
-  },
-  segmentBtn: {
-    background: 'linear-gradient(135deg, #2c7a4b, #1a5c38)',
-    color: '#fff', border: 'none', padding: '6px 12px',
-    borderRadius: 7, cursor: 'pointer', fontWeight: 700, fontSize: 12,
-    whiteSpace: 'nowrap', transition: 'background 0.3s',
-  },
-  segmentBtnDone: {
-    background: 'linear-gradient(135deg, #27ae60, #1e8449)',
-  },
+  addLocationBtn: {},
+  manualFieldBtn: {},
+  segmentBtn: {},
+  segmentBtnDone: {},
 
   // ── Weather badge (inline in header) ──
   weatherBadge: {
