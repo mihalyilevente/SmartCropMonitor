@@ -1,9 +1,15 @@
 /**
- * PasturePanel.jsx — локализованная версия (EN / HU)
+ * PasturePanel.jsx — Pasture Management + Grazing Rotation
+ * Accepts userId prop (passed from Dashboard) to forward to RotationSection
  */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
 import { useLang } from '../context/LanguageContext';
+import { RotationSection } from './RotationPanel';
+
+// ─────────────────────────────────────────────────────────────
+// Stage display config
+// ─────────────────────────────────────────────────────────────
 
 const STAGE_CFG = {
   dormant: { bg: '#f5f5f5', text: '#757575', border: '#e0e0e0' },
@@ -12,6 +18,10 @@ const STAGE_CFG = {
   peak:    { bg: '#e8f5e9', text: '#1b5e20', border: '#43a047' },
   over:    { bg: '#fff8e1', text: '#827717', border: '#ffd54f' },
 };
+
+// ─────────────────────────────────────────────────────────────
+// Shared sub-components
+// ─────────────────────────────────────────────────────────────
 
 const AumBar = ({ value, max }) => {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
@@ -55,8 +65,10 @@ const Sparkline = ({ data, field = 'biomass_tha', color = '#43a047' }) => {
   );
 };
 
-// ── History modal ─────────────────────────────────────────────────────────────
-// Shared helper — used by both HistoryModal and PastureCard
+// ─────────────────────────────────────────────────────────────
+// Stage translator hook
+// ─────────────────────────────────────────────────────────────
+
 const useStageTranslator = () => {
   const { t } = useLang();
   return (stage) => {
@@ -66,6 +78,10 @@ const useStageTranslator = () => {
     return translated === key ? stage : translated;
   };
 };
+
+// ─────────────────────────────────────────────────────────────
+// HistoryModal
+// ─────────────────────────────────────────────────────────────
 
 const HistoryModal = ({ fieldId, label, onClose }) => {
   const { t } = useLang();
@@ -121,7 +137,9 @@ const HistoryModal = ({ fieldId, label, onClose }) => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#f8f4f0' }}>
-                    {cols.map(h => <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#aaa', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '2px solid #f0ebe3' }}>{h}</th>)}
+                    {cols.map(h => (
+                      <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700, color: '#aaa', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '2px solid #f0ebe3' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -129,7 +147,7 @@ const HistoryModal = ({ fieldId, label, onClose }) => {
                     const sc = STAGE_CFG[row.growth_stage?.code] ?? STAGE_CFG.dormant;
                     return (
                       <tr key={row.id ?? i} style={{ borderBottom: '1px solid #f5f0ea' }}>
-                        <td style={{ padding: '7px 10px', color: '#555', whiteSpace: 'nowrap' }}>{row.analysis_date ? new Date(row.analysis_date).toLocaleDateString('hu-HU', { dateStyle: 'medium' }) : '—'}</td>
+                        <td style={{ padding: '7px 10px', color: '#555', whiteSpace: 'nowrap' }}>{row.analysis_date ? new Date(row.analysis_date).toLocaleDateString(undefined, { dateStyle: 'medium' }) : '—'}</td>
                         <td style={{ padding: '7px 10px', fontWeight: 700, color: '#2e7d32' }}>{row.biomass_tha?.toFixed(2) ?? '—'}</td>
                         <td style={{ padding: '7px 10px', color: '#0288d1' }}>{row.evi?.toFixed(3) ?? '—'}</td>
                         <td style={{ padding: '7px 10px', color: '#555' }}>{row.msi?.toFixed(3) ?? '—'}</td>
@@ -157,22 +175,25 @@ const HistoryModal = ({ fieldId, label, onClose }) => {
   );
 };
 
-// ── PastureCard ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// PastureCard
+// ─────────────────────────────────────────────────────────────
+
 const PastureCard = ({ field, maxAum }) => {
   const { t } = useLang();
-  const translateStage = useStageTranslator();
-  const [expanded, setExpanded]     = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const translateStage  = useStageTranslator();
+  const [expanded,     setExpanded]     = useState(false);
+  const [showHistory,  setShowHistory]  = useState(false);
+
   const s  = field.growth_stage  ?? {};
   const r  = field.recommendation ?? {};
   const sc = STAGE_CFG[s.code]   ?? STAGE_CFG.dormant;
   const stageColor = s.color ?? '#bdbdbd';
 
   const lastAnalysis = field.analysis_date
-    ? t('pasture_last_analysis', new Date(field.analysis_date).toLocaleDateString('hu-HU', { dateStyle: 'medium' }))
+    ? t('pasture_last_analysis', new Date(field.analysis_date).toLocaleDateString(undefined, { dateStyle: 'medium' }))
     : t('pasture_no_analysis');
 
-  // Translate recommendation action
   const translateAction = (action) => {
     if (!action) return '—';
     const key = `rec_${action.toLowerCase().replace(/\s+/g, '_')}`;
@@ -241,19 +262,22 @@ const PastureCard = ({ field, maxAum }) => {
   );
 };
 
-// ── PastureSummary ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// PastureSummary
+// ─────────────────────────────────────────────────────────────
+
 const PastureSummary = ({ data }) => {
   const { t } = useLang();
   const stageCount = {};
   (data.fields ?? []).forEach(f => { const c = f.growth_stage?.code ?? 'dormant'; stageCount[c] = (stageCount[c] ?? 0) + 1; });
 
   const items = [
-    { label: t('pasture_summary_fields'),  value: data.field_count,                      icon: '🐄', color: '#2e7d32' },
+    { label: t('pasture_summary_fields'),  value: data.field_count,                         icon: '🐄', color: '#2e7d32' },
     { label: t('pasture_summary_area'),    value: `${data.total_pasture_ha?.toFixed(1)} ha`, icon: '🗺️', color: '#0277bd' },
-    { label: t('pasture_summary_aum'),     value: data.total_aum_capacity?.toFixed(1),    icon: '🐮', color: '#f57c00' },
-    { label: t('pasture_summary_peak'),    value: stageCount.peak ?? 0,                   icon: '🌾', color: '#1b5e20' },
-    { label: t('pasture_summary_active'),  value: stageCount.active ?? 0,                 icon: '🌿', color: '#388e3c' },
-    { label: t('pasture_summary_resting'), value: stageCount.dormant ?? 0,                icon: '💤', color: '#9e9e9e' },
+    { label: t('pasture_summary_aum'),     value: data.total_aum_capacity?.toFixed(1),       icon: '🐮', color: '#f57c00' },
+    { label: t('pasture_summary_peak'),    value: stageCount.peak  ?? 0,                     icon: '🌾', color: '#1b5e20' },
+    { label: t('pasture_summary_active'),  value: stageCount.active ?? 0,                    icon: '🌿', color: '#388e3c' },
+    { label: t('pasture_summary_resting'), value: stageCount.dormant ?? 0,                   icon: '💤', color: '#9e9e9e' },
   ];
 
   return (
@@ -268,13 +292,17 @@ const PastureSummary = ({ data }) => {
   );
 };
 
-// ── Main panel ────────────────────────────────────────────────────────────────
-const PasturePanel = ({ locationId }) => {
+// ─────────────────────────────────────────────────────────────
+// PasturePanel — main component
+// Props: locationId (required), userId (required for rotation)
+// ─────────────────────────────────────────────────────────────
+
+const PasturePanel = ({ locationId, userId }) => {
   const { t } = useLang();
-  const [open, setOpen]       = useState(true);
-  const [data, setData]       = useState(null);
+  const [open,    setOpen]    = useState(true);
+  const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+  const [error,   setError]   = useState(null);
 
   const load = useCallback(() => {
     if (!locationId) return;
@@ -291,12 +319,13 @@ const PasturePanel = ({ locationId }) => {
 
   useEffect(() => { load(); }, [load]);
 
-  const fields   = data?.fields ?? [];
-  const maxAum   = fields.reduce((m, f) => Math.max(m, f.aum_capacity ?? 0), 0) || 1;
+  const fields    = data?.fields ?? [];
+  const maxAum    = fields.reduce((m, f) => Math.max(m, f.aum_capacity ?? 0), 0) || 1;
   const hasFields = fields.length > 0;
 
   return (
     <div style={panelWrap}>
+      {/* ── Panel header ── */}
       <div style={panelHead} onClick={() => setOpen(v => !v)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18 }}>🐄</span>
@@ -331,6 +360,9 @@ const PasturePanel = ({ locationId }) => {
                 {t('pasture_aum_note')}
               </div>
               {fields.map(f => <PastureCard key={f.field_id} field={f} maxAum={maxAum} />)}
+
+              {/* ── Rotation section ── */}
+              <RotationSection locationId={locationId} userId={userId} />
             </>
           )}
         </div>
@@ -340,6 +372,10 @@ const PasturePanel = ({ locationId }) => {
 };
 
 export default PasturePanel;
+
+// ─────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────
 
 const panelWrap  = { background: '#fff', borderRadius: 14, border: '1px solid var(--color-accent-soil)', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', overflow: 'hidden', marginBottom: 20 };
 const panelHead  = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 20px', cursor: 'pointer', background: 'var(--color-bg-champagne)', borderBottom: '1px solid var(--color-accent-soil)', userSelect: 'none' };
