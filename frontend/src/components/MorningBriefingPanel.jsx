@@ -72,7 +72,7 @@ const MorningBriefingPanel = ({ userId }) => {
   const dismiss = () => {
     setHiding(true);
     setTimeout(() => {
-      try { localStorage.setItem(DISMISS_KEY, todayKey()); } catch {}
+      try { localStorage.setItem(DISMISS_KEY, todayKey()); } catch (_e) { /* ignore */ }
       setDismissed(true);
       setHiding(false);
     }, 420); // animation duration ms
