@@ -19,7 +19,6 @@ from app.tasks.scheduler import scheduler
 # =========================
 # Database Initialization
 # =========================
-
 Base.metadata.create_all(bind=engine)
 
 # =========================
@@ -48,7 +47,7 @@ app.add_middleware(
 def start_tasks():
     if not scheduler.running:
         scheduler.start()
-        print(f"[INFO] Background scheduler started (Seed: {config.RANDOM_SEED})")
+        print(f"[INFO] Scheduler started — sync jobs + morning briefing at 07:00 UTC (Seed: {config.RANDOM_SEED})")
 
 @app.on_event("shutdown")
 def stop_tasks():
@@ -57,24 +56,17 @@ def stop_tasks():
         print("[INFO] Background scheduler shut down.")
 
 # =========================
-# Routers Connection
+# Routers
 # =========================
+app.include_router(field_router,    prefix="/api/v1",       tags=["Field Analysis"])
+app.include_router(data_router,     prefix="/api/v1",       tags=["Data & Visualization"])
+app.include_router(auth_router,     prefix="/api/v1/auth",  tags=["Authentication"])
+app.include_router(weather_router,  prefix="/api/v1/weather", tags=["Weather"])
+app.include_router(sensor_router,   prefix="/api/v1/sensors", tags=["Sensors"])
+app.include_router(utils_router,    prefix="/api/v1/utils", tags=["Utils"])
+app.include_router(events_router,   prefix="/api/v1",       tags=["Alerts & Tasks"])
+app.include_router(fieldwork_router,prefix="/api/v1",       tags=["Field Work"])
 
-app.include_router(field_router, prefix="/api/v1", tags=["Field Analysis"])
-
-app.include_router(data_router, prefix="/api/v1", tags=["Data & Visualization"])
-
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
-
-app.include_router(weather_router, prefix="/api/v1/weather", tags=["Weather"])
-
-app.include_router(sensor_router, prefix="/api/v1/sensors", tags=["Sensors"])
-
-app.include_router(utils_router, prefix="/api/v1/utils", tags=["Utils"])
-
-app.include_router(events_router, prefix="/api/v1", tags=["Alerts & Tasks"])
-
-app.include_router(fieldwork_router, prefix="/api/v1", tags=["Field Work"])
 # =========================
 # Health Check
 # =========================
@@ -83,5 +75,5 @@ async def health_check():
     return {
         "status": "online",
         "app": config.API_TITLE,
-        "version": config.API_VERSION
+        "version": config.API_VERSION,
     }

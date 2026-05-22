@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.core.database import UserLocation, FieldAnalysis, get_db
+from app.core.database import UserLocation, FieldAnalysis, UserDB, get_db
+from app.events.morning_briefing_email import send_morning_briefing_for_user
 from app.services.orchestrator import full_sync_process, short_sync_process
 from app.services.biomass_service import run_biomass_estimation
 from app.services.irrigation_service import run_irrigation_recommendations
@@ -13,9 +14,9 @@ router = APIRouter()
 
 @router.get("/users/{user_id}/locations/{location_id}/stats")
 def get_location_analysis_stats(
-    user_id: int,
-    location_id: int,
-    db: Session = Depends(get_db)
+        user_id: int,
+        location_id: int,
+        db: Session = Depends(get_db)
 ):
     location = db.query(UserLocation).filter(
         UserLocation.id == location_id,
@@ -65,6 +66,7 @@ def test_function(db: Session = Depends(get_db)):
 async def manual_full_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     def run_sync():
         full_sync_process(db)
+
     background_tasks.add_task(run_sync)
     return {"status": "Full synchronization started in background"}
 
@@ -73,5 +75,20 @@ async def manual_full_sync(background_tasks: BackgroundTasks, db: Session = Depe
 async def manual_short_sync(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     def run_sync():
         short_sync_process(db)
+
     background_tasks.add_task(run_sync)
     return {"status": "Short sync (weather) started in background"}
+
+
+@router.post("/briefing/test", tags=["Utils"])
+def test_morning_briefing(user_id: int, db: Session = Depends(get_db)):
+    user = db.get(UserDB, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.email:
+        raise HTTPException(status_code=400, detail="User has no email set")
+
+    success = send_morning_briefing_for_user(db, user)
+    if success:
+        return {"status": "sent", "to": user.email}
+    raise HTTPException(status_code=500, detail="Failed to send email — check server logs")
