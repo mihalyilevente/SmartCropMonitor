@@ -13,7 +13,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 from pydantic import BaseModel
 from app.core.config import SQLALCHEMY_DATABASE_URL
-from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus, EventType, StatusType, Status_task, Priority_task, AnomalyType
+from app.core.schemas import FieldType, FieldWorkType, FieldWorkStatus, EventType, StatusType, Status_task, Priority_task, AnomalyType, RotationStatus
 import enum
 from geoalchemy2 import Geometry
 
@@ -249,6 +249,81 @@ class Biomass(Base):
     __table_args__ = (
         Index("ix_biomass_field_date", "field_id", "analysis_date"),
         Index("ix_biomass_analysis", "analysis_id"),
+    )
+
+
+class GrazingRotation(Base):
+    __tablename__ = "grazing_rotation"
+
+    id = Column(Integer, primary_key=True, index=True)
+    location_id = Column(Integer, ForeignKey("user_locations.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    name = Column(String(128), nullable=False)
+    description = Column(String(512), nullable=True)
+
+    plan_start = Column(DateTime, nullable=False)
+    plan_end = Column(DateTime, nullable=True)
+
+    total_aum_target = Column(Float, nullable=True)
+    notes = Column(String(1024), nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    location = relationship("UserLocation")
+    entries = relationship(
+        "GrazingRotationEntry",
+        back_populates="rotation",
+        order_by="GrazingRotationEntry.graze_start",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_grazing_rotation_location", "location_id"),
+        Index("ix_grazing_rotation_user", "user_id"),
+    )
+
+
+class GrazingRotationEntry(Base):
+    __tablename__ = "grazing_rotation_entry"
+
+    id = Column(Integer, primary_key=True, index=True)
+    rotation_id = Column(Integer, ForeignKey("grazing_rotation.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_id = Column(Integer, ForeignKey("field_units.id"), nullable=False, index=True)
+
+    sequence = Column(Integer, nullable=False, default=0)
+
+    graze_start = Column(DateTime, nullable=False)
+    graze_end = Column(DateTime, nullable=False)
+    rest_end = Column(DateTime, nullable=False)
+
+    planned_aum = Column(Float, nullable=True)
+    actual_aum = Column(Float, nullable=True)
+
+    status = Column(
+        Enum(RotationStatus),
+        nullable=False,
+        default=RotationStatus.PLANNED,
+        index=True,
+    )
+
+    biomass_at_start = Column(Float, nullable=True)
+    biomass_at_end = Column(Float, nullable=True)
+
+    notes = Column(String(512), nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    rotation = relationship("GrazingRotation", back_populates="entries")
+    field = relationship("FieldUnit")
+
+    __table_args__ = (
+        UniqueConstraint("rotation_id", "field_id", "graze_start", name="uq_rotation_entry_slot"),
+        Index("ix_rotation_entry_field", "field_id"),
+        Index("ix_rotation_entry_status", "status"),
+        Index("ix_rotation_entry_dates", "graze_start", "rest_end"),
     )
 
 
