@@ -540,6 +540,11 @@ const fr = {
   fmp_gps_denied:        'Accès à la localisation refusé',
   fmp_gps_unavail:       'Localisation indisponible',
   fmp_gps_timeout:       'Délai de la demande GPS dépassé',
+  fmp_anomaly:            '⚠ Anomalies',
+  fmp_anomaly_hide:       'Masquer les anomalies',
+  fmp_anomaly_show:       'Afficher les pixels d\'anomalie sur la carte',
+  fmp_anomaly_err:        'Impossible de charger les anomalies',
+  fmp_anomaly_badge:      (px, rec) => `${px} px · ${rec} entrées`,
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Capteurs',

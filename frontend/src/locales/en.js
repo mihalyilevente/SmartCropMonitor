@@ -457,6 +457,11 @@ const en = {
   fmp_gps_denied:        'Location access denied',
   fmp_gps_unavail:       'Location unavailable',
   fmp_gps_timeout:       'GPS request timed out',
+  fmp_anomaly:            '⚠ Anomalies',
+  fmp_anomaly_hide:       'Hide anomalies',
+  fmp_anomaly_show:       'Show anomaly pixels on map',
+  fmp_anomaly_err:        'Failed to load anomalies',
+  fmp_anomaly_badge:      (px, rec) => `${px} px · ${rec} records`,
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Sensors',

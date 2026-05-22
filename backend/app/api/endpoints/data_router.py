@@ -345,3 +345,94 @@ def patch_field(
         "season_year": field.season_year,
         "status":      field.status,
     }
+
+# ── Anomaly pixels for a field ────────────────────────────────────────────────
+@router.get("/fields/{field_id}/anomalies")
+def get_field_anomalies(
+    field_id: int,
+    user_id: int,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+):
+    """
+    GET /api/v1/fields/{field_id}/anomalies?user_id=1&limit=10
+
+    Returns the most recent anomaly records for a field, including
+    anomaly_pixels (lat/lon/delta) so the frontend can plot them on the map.
+
+    Response shape:
+    [
+      {
+        "id": 42,
+        "field_id": 13,
+        "analysis_date": "2026-05-22T10:00:00",
+        "anomaly_type": "SUDDEN_CHANGE",
+        "confidence_score": 0.845,
+        "status": "ACTIVE",
+        "metric_type": "ndvi",
+        "direction": "drop",
+        "prev_mean": 0.72,
+        "last_mean": 0.48,
+        "abs_delta": -0.24,
+        "rel_change": -0.333,
+        "anomaly_ratio": 0.574,
+        "anomaly_pixel_count": 31,
+        "total_pixel_count": 54,
+        "area_ha": 1.48,
+        "anomaly_pixels": [
+          {"row":2,"col":3,"lat":46.702,"lon":13.701,"delta":-0.28},
+          ...
+        ]
+      },
+      ...
+    ]
+    """
+    from app.core.database import FieldStatAnomalyAnalysis, FieldUnit
+    from sqlalchemy import and_
+
+    # Verify the field belongs to this user
+    field = (
+        db.query(FieldUnit)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(FieldUnit.id == field_id, UserLocation.user_id == user_id)
+        .first()
+    )
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found or access denied")
+
+    limit = max(1, min(limit, 50))
+
+    rows = (
+        db.query(FieldStatAnomalyAnalysis)
+        .filter(FieldStatAnomalyAnalysis.field_id == field_id)
+        .order_by(FieldStatAnomalyAnalysis.analysis_date.desc())
+        .limit(limit)
+        .all()
+    )
+
+    result = []
+    for r in rows:
+        s = r.metrics_summary or {}
+        result.append({
+            "id":                  r.id,
+            "field_id":            r.field_id,
+            "analysis_date":       r.analysis_date.isoformat() if r.analysis_date else None,
+            "anomaly_type":        r.anomaly_type.value if hasattr(r.anomaly_type, "value") else r.anomaly_type,
+            "confidence_score":    float(r.confidence_score) if r.confidence_score is not None else None,
+            "status":              r.status.value if hasattr(r.status, "value") else r.status,
+            "metric_type":         s.get("metric_type"),
+            "direction":           s.get("direction"),
+            "prev_mean":           s.get("prev_mean"),
+            "last_mean":           s.get("last_mean"),
+            "abs_delta":           s.get("abs_delta"),
+            "rel_change":          s.get("rel_change"),
+            "anomaly_ratio":       s.get("anomaly_ratio"),
+            "anomaly_pixel_count": s.get("anomaly_pixel_count"),
+            "total_pixel_count":   s.get("total_pixel_count"),
+            "area_ha":             s.get("area_ha"),
+            "prev_timestamp":      s.get("prev_timestamp"),
+            "last_timestamp":      s.get("last_timestamp"),
+            "anomaly_pixels":      s.get("anomaly_pixels", []),
+        })
+
+    return result
