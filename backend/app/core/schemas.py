@@ -220,3 +220,11 @@ class AnomalyType(str, enum.Enum):
     SUDDEN_CHANGE = "sudden_change"
     DATA_DRIFT = "data_drift"
     UNKNOWN = "unknown"
+
+
+class RotationStatus(str, enum.Enum):
+    PLANNED   = "PLANNED"
+    GRAZING   = "GRAZING"
+    RESTING   = "RESTING"
+    COMPLETED = "COMPLETED"
+    SKIPPED   = "SKIPPED"

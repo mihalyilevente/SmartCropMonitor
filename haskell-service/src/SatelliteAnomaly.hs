@@ -6,6 +6,7 @@ module SatelliteAnomaly
   , SnapshotInput (..)
   , SnapshotResult (..)
   , MetricAnomaly (..)
+  , AnomalyPixel (..)
   ) where
 
 import Data.Aeson (FromJSON, ToJSON)
@@ -23,6 +24,10 @@ data SnapshotInput = SnapshotInput
   , prev_ndre            :: [[Double]]
   , last_ndre            :: [[Double]]
   , area_threshold_ratio :: Double
+  -- Coordinate grids (optional — empty list means no geo coords available)
+  -- Shape must match the metric grids: [[Double]] of same dims
+  , xs                   :: [[Double]]   -- longitude per pixel
+  , ys                   :: [[Double]]   -- latitude  per pixel
   } deriving (Show, Generic)
 
 instance FromJSON SnapshotInput
@@ -31,6 +36,19 @@ instance ToJSON   SnapshotInput
 -- ================================
 -- Output
 -- ================================
+
+-- Single anomalous pixel with its location and delta value
+data AnomalyPixel = AnomalyPixel
+  { row   :: Int
+  , col   :: Int
+  , lat   :: Maybe Double
+  , lon   :: Maybe Double
+  , delta :: Double
+  } deriving (Show, Generic)
+
+instance FromJSON AnomalyPixel
+instance ToJSON   AnomalyPixel
+
 
 data MetricAnomaly = MetricAnomaly
   { metric_name         :: String
@@ -44,6 +62,7 @@ data MetricAnomaly = MetricAnomaly
   , anomaly_pixel_count :: Int
   , total_pixel_count   :: Int
   , anomaly_ratio       :: Double
+  , anomaly_pixels      :: [AnomalyPixel]  -- coordinates of anomalous pixels
   } deriving (Show, Generic)
 
 instance FromJSON MetricAnomaly
@@ -97,20 +116,37 @@ computeConfidence relChange relThr ratio =
       areaBonus = min ratio 1.0 * 0.10
   in min 0.9999 (meanConf + areaBonus)
 
+-- Look up coordinate from a 2D grid by (row, col); returns Nothing if grid is
+-- empty or indices are out of bounds.
+lookupCoord :: [[Double]] -> Int -> Int -> Maybe Double
+lookupCoord []  _ _ = Nothing
+lookupCoord grid r c
+  | r < 0 || r >= length grid       = Nothing
+  | c < 0 || c >= length (grid !! r) = Nothing
+  | otherwise                        = Just ((grid !! r) !! c)
+
 
 -- ================================
 -- Core analysis
 -- ================================
 
-analyzeMetric :: String -> [[Double]] -> [[Double]] -> Double -> MetricAnomaly
-analyzeMetric name prevMap lastMap areaThr =
+analyzeMetric :: String -> [[Double]] -> [[Double]] -> Double -> [[Double]] -> [[Double]] -> MetricAnomaly
+analyzeMetric name prevMap lastMap areaThr xGrid yGrid =
   let pixThr = pixelThreshold name
       relThr = meanRelThreshold name
 
-      pairs      = zip (concat prevMap) (concat lastMap)
-      validPairs = filter (\(p, l) -> safeFinite p && safeFinite l) pairs
-      validPx    = length validPairs
-      anomPx     = length $ filter (\(p, l) -> abs (l - p) >= pixThr) validPairs
+      -- Flatten with (row, col) index
+      indexedPrev = [ (r, c, v) | (r, row) <- zip [0..] prevMap,  (c, v) <- zip [0..] row ]
+      indexedLast = [ (r, c, v) | (r, row) <- zip [0..] lastMap, (c, v) <- zip [0..] row ]
+
+      -- Pair prev/last by position, keep only finite
+      paired = [ (r, c, p, l)
+               | ((r, c, p), (_, _, l)) <- zip indexedPrev indexedLast
+               , safeFinite p && safeFinite l
+               ]
+
+      validPx = length paired
+      anomPx  = length $ filter (\(_, _, p, l) -> abs (l - p) >= pixThr) paired
 
       ratio = if validPx > 0
                 then fromIntegral anomPx / fromIntegral validPx
@@ -119,16 +155,32 @@ analyzeMetric name prevMap lastMap areaThr =
       mPrev = flatMean prevMap
       mLast = flatMean lastMap
 
+      -- Build anomaly pixel list (only when anomaly fires)
+      buildAnomalyPixels anomaly =
+        if not anomaly
+          then []
+          else
+            [ AnomalyPixel
+                { row   = r
+                , col   = c
+                , lat   = lookupCoord yGrid r c
+                , lon   = lookupCoord xGrid r c
+                , delta = l - p
+                }
+            | (r, c, p, l) <- paired
+            , abs (l - p) >= pixThr
+            ]
+
   in case (mPrev, mLast) of
        (Just pv, Just lv) ->
-         let delta   = lv - pv
-             rel     = delta / (abs pv + 1.0e-9)
+         let d       = lv - pv
+             rel     = d / (abs pv + 1.0e-9)
              meanOk  = abs rel >= relThr
              areaOk  = ratio   >= areaThr
              anomaly = meanOk && areaOk
              kind
                | not anomaly = "none"
-               | delta < 0   = "drop"
+               | d < 0       = "drop"
                | otherwise   = "rise"
              conf
                | anomaly   = computeConfidence rel relThr ratio
@@ -137,7 +189,7 @@ analyzeMetric name prevMap lastMap areaThr =
               { metric_name         = name
               , prev_mean           = pv
               , last_mean           = lv
-              , abs_delta           = delta
+              , abs_delta           = d
               , rel_change          = rel
               , is_anomaly          = anomaly
               , anomaly_kind        = kind
@@ -145,6 +197,7 @@ analyzeMetric name prevMap lastMap areaThr =
               , anomaly_pixel_count = anomPx
               , total_pixel_count   = validPx
               , anomaly_ratio       = ratio
+              , anomaly_pixels      = buildAnomalyPixels anomaly
               }
        _ ->
          MetricAnomaly
@@ -159,6 +212,7 @@ analyzeMetric name prevMap lastMap areaThr =
            , anomaly_pixel_count = 0
            , total_pixel_count   = validPx
            , anomaly_ratio       = ratio
+           , anomaly_pixels      = []
            }
 
 
@@ -169,10 +223,12 @@ analyzeMetric name prevMap lastMap areaThr =
 computeSnapshotAnomaly :: SnapshotInput -> SnapshotResult
 computeSnapshotAnomaly inp =
   let areaThr = area_threshold_ratio inp
+      xg      = xs inp
+      yg      = ys inp
   in SnapshotResult
        { metrics =
-           [ analyzeMetric "ndvi"  (prev_ndvi  inp) (last_ndvi  inp) areaThr
-           , analyzeMetric "gndvi" (prev_gndvi inp) (last_gndvi inp) areaThr
-           , analyzeMetric "ndre"  (prev_ndre  inp) (last_ndre  inp) areaThr
+           [ analyzeMetric "ndvi"  (prev_ndvi  inp) (last_ndvi  inp) areaThr xg yg
+           , analyzeMetric "gndvi" (prev_gndvi inp) (last_gndvi inp) areaThr xg yg
+           , analyzeMetric "ndre"  (prev_ndre  inp) (last_ndre  inp) areaThr xg yg
            ]
        }

@@ -5,10 +5,10 @@ const de = {
   loading:               'Laden…',
   location_label:        'Standort:',
   no_locations:          'Keine Standorte konfiguriert',
-  add_location:          '+ Standort hinzufügen',
-  draw_field:            '✏️ Feld zeichnen',
-  segment_fields:        '🛰 Felder segmentieren',
-  fields_updated:        '✓ Felder aktualisiert',
+  add_location:          'Standort hinzufügen',
+  draw_field:            'Feld zeichnen',
+  segment_fields:        'Felder segmentieren',
+  fields_updated:        'Felder aktualisiert',
   font_large:            'Groß',
   font_normal:           'Normal',
   font_switch_to_large:  'Zur großen Schriftgröße wechseln',
@@ -436,9 +436,23 @@ const de = {
   fmp_nmdi_desc:         'Feuchte-/Trockenheitsindex',
   fmp_gps_track:         'Position verfolgen',
   fmp_gps_stop:          'Verfolgung stoppen',
+  // ── Tabs ────────────────────────────────────────────────────────────────────
+  tab_overview:          'Übersicht',
+  tab_weather:           'Wetter',
+  tab_fields:            'Felder',
+  tab_tasks:             'Aufgaben',
+  tab_sensors:           'Sensoren',
+
+  // ── FieldMapPanel extras ────────────────────────────────────────────────────
+  fmp_overlay_none:      'Keine',
   fmp_gps_denied:        'Standortzugriff verweigert',
   fmp_gps_unavail:       'Standort nicht verfügbar',
   fmp_gps_timeout:       'GPS-Anfrage hat Zeitlimit überschritten',
+  fmp_anomaly:            '⚠ Anomalien',
+  fmp_anomaly_hide:       'Anomalien ausblenden',
+  fmp_anomaly_show:       'Anomalie-Pixel auf der Karte anzeigen',
+  fmp_anomaly_err:        'Anomalien konnten nicht geladen werden',
+  fmp_anomaly_badge:      (px, rec) => `${px} Px · ${rec} Einträge`,
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Sensoren',
@@ -574,6 +588,55 @@ const de = {
   mfm_saving:            'Speichern…',
   mfm_save_failed:       'Speichern fehlgeschlagen',
 
+
+  // ── RotationPanel ──────────────────────────────────────────────────────────
+  rot_section_title:        'Weiderotationspläne',
+  rot_new_btn:              'Neuer Plan',
+  rot_new_plan_title:       'Rotationsplan generieren',
+  rot_loading:              'Rotationspläne werden geladen…',
+  rot_empty:                'Noch keine Rotationspläne.',
+  rot_empty_hint:           'Klicken Sie auf „+ Neuer Plan", um automatisch einen Plan aus den aktuellen Biomasse-Daten zu erstellen.',
+  rot_default_name_prefix:  'Rotation',
+
+  rot_form_name:            'Planname',
+  rot_form_name_ph:         'z. B. Frühjahrsrotation 2025',
+  rot_form_start:           'Startdatum',
+  rot_form_aum:             'AUM-Ziel / Monat',
+  rot_form_notes:           'Notizen',
+  rot_form_optional:        'optional',
+  rot_form_hint:            'Felder werden nach Wachstumsphase sortiert (Peak → Aktiv → Früh) und erhalten automatisch Beweidungs- / Ruhezeitfenster.',
+
+  rot_generate_btn:         'Plan generieren',
+  rot_generating:           'Wird generiert',
+  rot_cancel:               'Abbrechen',
+  rot_delete:               'Plan löschen',
+  rot_deleting:             'Wird gelöscht',
+  rot_delete_confirm:       'Rotationsplan löschen',
+
+  rot_timeline:             'Zeitplan',
+  rot_schedule:             'Koppelreihenfolge',
+  rot_paddocks:             'Koppeln',
+  rot_target:               'Ziel',
+  rot_no_entries:           'Keine Einträge in diesem Plan.',
+  rot_currently_grazing:    'Wird beweidet',
+  rot_graze:                'Beweidung',
+  rot_rest:                 'Ruhe',
+  rot_days_abbr:            'T',
+  rot_planned:              'geplant',
+  rot_actual:               'tatsächlich',
+  rot_bio_start:            'Biomasse',
+
+  rot_status_PLANNED:       'Geplant',
+  rot_status_GRAZING:       'Beweidung',
+  rot_status_RESTING:       'Ruhe',
+  rot_status_COMPLETED:     'Abgeschlossen',
+  rot_status_SKIPPED:       'Übersprungen',
+
+  rot_err_name_required:    'Planname ist erforderlich.',
+  rot_err_date_required:    'Startdatum ist erforderlich.',
+  rot_err_generate:         'Plan konnte nicht generiert werden.',
+  rot_err_update:           'Eintrag konnte nicht aktualisiert werden.',
+
   // ── SegmentationModal ──────────────────────────────────────────────────────
   seg_title:             'Feldsegmentierung',
   seg_detected:          (n) => `${n} Feld(er) erkannt`,
@@ -614,6 +677,23 @@ const de = {
   fp_err_add:            'Fehler beim Hinzufügen',
   fp_sync_started:       'Synchronisierung gestartet',
   fp_err_sync:           'Synchronisierungsfehler',
+
+  // ── Auth registration & Briefing dismiss ──────────────────────────────────
+  briefing_dismiss:        'Schließen ✕',
+  briefing_dismiss_title:  'Bis morgen ausblenden',
+  reg_section_account:     'Konto',
+  reg_section_contact:     'Kontakt',
+  reg_section_location:    'Standort',
+  reg_section_farm:        'Betrieb',
+  email_placeholder:       'E-Mail',
+  first_name_placeholder:  'Vorname',
+  last_name_placeholder:   'Nachname',
+  phone_placeholder:       'Telefon',
+  country_placeholder:     'Land',
+  city_placeholder:        'Stadt',
+  farm_name_placeholder:   'Betriebsname',
+  farm_size_placeholder:   'Fläche (ha)',
+
 };
 
 export default de;

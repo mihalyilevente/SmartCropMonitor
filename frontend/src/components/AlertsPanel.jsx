@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/client';
 import { useLang } from '../context/LanguageContext';
 
-const BASE_EVENTS = '../api/v1/events';
+const BASE_EVENTS = '/api/v1/events';
 const POLL_INTERVAL_MS = 30_000;
 
 const SEV_COLOR = {
@@ -102,12 +102,19 @@ const AlertRow = ({ event, onStatusChange }) => {
                 {t('alerts_details')}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {Object.entries(event.extra_metadata).map(([k, v]) => (
-                  <div key={k} style={{ background: '#f5f0ea', borderRadius: 6, padding: '4px 10px', fontSize: 12 }}>
-                    <span style={{ color: '#999', marginRight: 4 }}>{k.replace(/_/g, ' ')}:</span>
-                    <span style={{ fontWeight: 600, color: '#444' }}>{String(v)}</span>
-                  </div>
-                ))}
+                {Object.entries(event.extra_metadata).map(([k, v]) => {
+                  const display = v === null || v === undefined
+                    ? '—'
+                    : typeof v === 'object'
+                      ? JSON.stringify(v)
+                      : String(v);
+                  return (
+                    <div key={k} style={{ background: '#f5f0ea', borderRadius: 6, padding: '4px 10px', fontSize: 12 }}>
+                      <span style={{ color: '#999', marginRight: 4 }}>{k.replace(/_/g, ' ')}:</span>
+                      <span style={{ fontWeight: 600, color: '#444' }}>{display}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -535,7 +542,7 @@ const AlertsPanel = ({ userId, locationId }) => {
   const [events, setEvents]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [rulesVer, setRulesVer] = useState(0);
-  const [filter, setFilter]   = useState({ status: 'ALL', severity: 'ALL' });
+  const [filter, setFilter]   = useState({ status: 'ACTIVE', severity: 'ALL' });
   const [lastPoll, setLastPoll] = useState(null);
 
   const loadEvents = useCallback(() => {

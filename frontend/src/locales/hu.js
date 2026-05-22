@@ -5,10 +5,10 @@ const hu = {
   loading:               'Betöltés…',
   location_label:        'Helyszín:',
   no_locations:          'Nincs konfigurált helyszín',
-  add_location:          '+ Helyszín hozzáadása',
-  draw_field:            '✏️ Tábla rajzolása',
-  segment_fields:        '🛰 Táblák szegmentálása',
-  fields_updated:        '✓ Táblák frissítve',
+  add_location:          'Helyszín hozzáadása',
+  draw_field:            'Tábla rajzolása',
+  segment_fields:        'Táblák szegmentálása',
+  fields_updated:        'Táblák frissítve',
   font_large:            'Nagy',
   font_normal:           'Normál',
   font_switch_to_large:  'Váltás nagy betűméretre',
@@ -447,9 +447,23 @@ const hu = {
   fmp_nmdi_desc:         'Nedvesség / szárazsági index',
   fmp_gps_track:         'Saját pozíció követése',
   fmp_gps_stop:          'Követés leállítása',
+  // ── Tabs ────────────────────────────────────────────────────────────────────
+  tab_overview:          'Áttekintés',
+  tab_weather:           'Időjárás',
+  tab_fields:            'Táblák',
+  tab_tasks:             'Feladatok',
+  tab_sensors:           'Szenzorok',
+
+  // ── FieldMapPanel extras ────────────────────────────────────────────────────
+  fmp_overlay_none:      'Nincs',
   fmp_gps_denied:        'Helyhozzáférés megtagadva',
   fmp_gps_unavail:       'Helymeghatározás nem elérhető',
   fmp_gps_timeout:       'GPS-kérés időtúllépés',
+  fmp_anomaly:            '⚠ Anomáliák',
+  fmp_anomaly_hide:       'Anomáliák elrejtése',
+  fmp_anomaly_show:       'Anomália pixelek megjelenítése a térképen',
+  fmp_anomaly_err:        'Anomáliák betöltése sikertelen',
+  fmp_anomaly_badge:      (px, rec) => `${px} px · ${rec} rekord`,
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Szenzorok',
@@ -580,6 +594,59 @@ const hu = {
   wm_solar_rs:           'Napsugárzás (Rs)',
   wm_extra_rad:          'Extraterr. sugárzás',
 
+  // ── RotationPanel ───────────────────────────────────────────────────────────
+  rot_section_title:        'Legeltetési rotációs tervek',
+  rot_new_btn:              'Új terv',
+  rot_new_plan_title:       'Rotációs terv generálása',
+  rot_loading:              'Rotációs tervek betöltése…',
+  rot_empty:                'Még nincs rotációs terv.',
+  rot_empty_hint:           'Kattintson az „+ Új terv" gombra az aktuális biomassza-adatokból való automatikus ütemezés létrehozásához.',
+  rot_default_name_prefix:  'Rotáció',
+
+  // form
+  rot_form_name:            'Terv neve',
+  rot_form_name_ph:         'pl. 2025 tavaszi rotáció',
+  rot_form_start:           'Kezdő dátum',
+  rot_form_aum:             'AUM cél / hó',
+  rot_form_notes:           'Megjegyzés',
+  rot_form_optional:        'opcionális',
+  rot_form_hint:            'A táblák növekedési fázis szerint vannak rendezve (Csúcs → Aktív → Korai), és automatikusan kapnak legeltetési / pihenő időablakot.',
+
+  // actions
+  rot_generate_btn:         'Terv generálása',
+  rot_generating:           'Generálás',
+  rot_cancel:               'Mégse',
+  rot_delete:               'Terv törlése',
+  rot_deleting:             'Törlés',
+  rot_delete_confirm:       'Rotációs terv törlése',
+
+  // card / entry
+  rot_timeline:             'Ütemterv',
+  rot_schedule:             'Parcellák sorrendje',
+  rot_paddocks:             'parcella',
+  rot_target:               'cél',
+  rot_no_entries:           'Nincs bejegyzés ebben a tervben.',
+  rot_currently_grazing:    'Jelenleg legeltet',
+  rot_graze:                'Legeltetés',
+  rot_rest:                 'Pihenő',
+  rot_days_abbr:            'n',
+  rot_planned:              'tervezett',
+  rot_actual:               'tényleges',
+  rot_bio_start:            'Biomassza',
+
+  // statuses
+  rot_status_PLANNED:       'Tervezett',
+  rot_status_GRAZING:       'Legeltetés',
+  rot_status_RESTING:       'Pihenő',
+  rot_status_COMPLETED:     'Befejezett',
+  rot_status_SKIPPED:       'Kihagyott',
+
+  // errors
+  rot_err_name_required:    'A terv neve kötelező.',
+  rot_err_date_required:    'A kezdő dátum kötelező.',
+  rot_err_generate:         'Nem sikerült a terv generálása.',
+  rot_err_update:           'Nem sikerült frissíteni a bejegyzést.',
+
   // (already defined in previous partials but repeated for completeness)
   tpl_group_weather:     '🌡️ Időjárás',
   tpl_group_sensor:      '📡 Szenzor',
@@ -637,6 +704,23 @@ const hu = {
   fw_status_verified:    'ELLENŐRZÖTT',
   fw_status_cancelled:   'MEGSZAKÍTVA',
   fw_status_failed:      'SIKERTELEN',
+
+  // ── Auth registration & Briefing dismiss ──────────────────────────────────
+  briefing_dismiss:        'Elrejtés ✕',
+  briefing_dismiss_title:  'Elrejtés holnapig',
+  reg_section_account:     'Fiók',
+  reg_section_contact:     'Kapcsolattartás',
+  reg_section_location:    'Helyszín',
+  reg_section_farm:        'Gazdaság',
+  email_placeholder:       'E-mail',
+  first_name_placeholder:  'Keresztnév',
+  last_name_placeholder:   'Vezetéknév',
+  phone_placeholder:       'Telefon',
+  country_placeholder:     'Ország',
+  city_placeholder:        'Város',
+  farm_name_placeholder:   'Gazdaság neve',
+  farm_size_placeholder:   'Terület (ha)',
+
 };
 
 export default hu;

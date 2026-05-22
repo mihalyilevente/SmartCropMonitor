@@ -21,7 +21,6 @@ if ! ls "${INPUT_DIR}"/met_em.d01.* 1>/dev/null 2>&1; then
 fi
 ln -sf "${INPUT_DIR}"/met_em.d01.* .
 
-# Читаем namelist.input из shared volume (preprocessor туда кладёт с правильными датами)
 if [ -f "${SHARED_DIR}/namelist.input" ]; then
     echo "[wrf] Using namelist.input from shared volume..."
     cp "${SHARED_DIR}/namelist.input" namelist.input
@@ -29,7 +28,6 @@ else
     echo "[wrf] WARNING: No namelist.input in shared volume, using default"
 fi
 
-# Автоопределяем num_metgrid_levels из met_em файлов
 MET_FILE=$(ls "${INPUT_DIR}"/met_em.d01.* 2>/dev/null | head -1)
 if [ -n "${MET_FILE}" ]; then
     NUM_LEVELS=$(ncdump -h "${MET_FILE}" 2>/dev/null | grep 'num_metgrid_levels' | head -1 | grep -o '[0-9]*' | head -1)
