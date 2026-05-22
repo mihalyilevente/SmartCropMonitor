@@ -51,7 +51,7 @@ def _load_and_clip_metric(
     metrics_filename: str,
     metric_name: str,
     field_geom_wkb,
-) -> Optional[list]:
+) -> Optional[dict]:
 
     file_path = os.path.join(NDVI_DIR, metrics_filename)
     if not os.path.exists(file_path):
@@ -99,7 +99,27 @@ def _load_and_clip_metric(
                 logger.warning(f"[MAP] Empty clip for {metric_name} in {metrics_filename}")
                 return None
 
-            return arr.tolist()
+            try:
+                import pyproj
+                transformer = pyproj.Transformer.from_crs(
+                    raster_crs, "EPSG:4326", always_xy=True
+                )
+                col_coords = clipped.x.values   # 1-D
+                row_coords = clipped.y.values   # 1-D
+                xx, yy = np.meshgrid(col_coords, row_coords)
+                lons, lats = transformer.transform(xx, yy)
+                xs_grid = np.round(lons, 6).tolist()
+                ys_grid = np.round(lats, 6).tolist()
+            except Exception as proj_err:
+                logger.warning(f"[MAP] coordinate reprojection failed: {proj_err}; coords omitted")
+                xs_grid = []
+                ys_grid = []
+
+            return {
+                "values": arr.tolist(),
+                "xs":     xs_grid,
+                "ys":     ys_grid,
+            }
 
     except Exception as e:
         logger.error(f"[MAP] clip failed for {metric_name} / {metrics_filename}: {e}")
@@ -141,6 +161,8 @@ def _build_haskell_payload(
 ) -> Optional[dict]:
 
     raw_data: dict = {}
+    xs_grid: list = []
+    ys_grid: list = []
 
     for metric in SAT_METRICS:
         if metric not in groups:
@@ -154,14 +176,24 @@ def _build_haskell_payload(
         prev_src = prev_row.extra.get("source_file") if prev_row.extra else None
         last_src = last_row.extra.get("source_file") if last_row.extra else None
 
-        prev_map = _load_and_clip_metric(prev_src, metric, field_geom_wkb) if prev_src else None
-        last_map = _load_and_clip_metric(last_src, metric, field_geom_wkb) if last_src else None
+        prev_result = _load_and_clip_metric(prev_src, metric, field_geom_wkb) if prev_src else None
+        last_result = _load_and_clip_metric(last_src, metric, field_geom_wkb) if last_src else None
 
-        if prev_map is None:
+        if prev_result is not None:
+            prev_map = prev_result["values"]
+            if prev_result.get("xs"):
+                xs_grid = prev_result["xs"]
+                ys_grid = prev_result["ys"]
+        else:
             v = _safe_float(prev_row.mean_metric)
             prev_map = [[v if v is not None else 0.0]]
 
-        if last_map is None:
+        if last_result is not None:
+            last_map = last_result["values"]
+            if last_result.get("xs"):
+                xs_grid = last_result["xs"]
+                ys_grid = last_result["ys"]
+        else:
             v = _safe_float(last_row.mean_metric)
             last_map = [[v if v is not None else 0.0]]
 
@@ -173,6 +205,8 @@ def _build_haskell_payload(
         "raw_data": {
             **raw_data,
             "area_threshold_ratio": area_threshold_ratio,
+            "xs": xs_grid,
+            "ys": ys_grid,
         },
     }
 
@@ -243,6 +277,7 @@ def _analyze_field_satellite(
             "area_ha":             round(area_ha, 2),
             "area_threshold_ratio": area_threshold_ratio,
             "detector":            "satellite_snapshot_diff_haskell",
+            "anomaly_pixels":      metric_result.get("anomaly_pixels", []),
         }
 
         rec = FieldStatAnomalyAnalysis(

@@ -448,6 +448,11 @@ const de = {
   fmp_gps_denied:        'Standortzugriff verweigert',
   fmp_gps_unavail:       'Standort nicht verfügbar',
   fmp_gps_timeout:       'GPS-Anfrage hat Zeitlimit überschritten',
+  fmp_anomaly:            '⚠ Anomalien',
+  fmp_anomaly_hide:       'Anomalien ausblenden',
+  fmp_anomaly_show:       'Anomalie-Pixel auf der Karte anzeigen',
+  fmp_anomaly_err:        'Anomalien konnten nicht geladen werden',
+  fmp_anomaly_badge:      (px, rec) => `${px} Px · ${rec} Einträge`,
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Sensoren',

@@ -48,6 +48,80 @@ function utmToWgs84(easting, northing, zone = 34) {
 
 function isUtm(coords) { return Math.abs(coords[0]) > 180 || Math.abs(coords[1]) > 90; }
 
+// Build a GeoJSON FeatureCollection from anomaly_pixels across all anomaly records
+function _anomalyToGeoJSON(anomalyRecords) {
+  const features = [];
+  for (const rec of anomalyRecords) {
+    if (!rec.is_anomaly && rec.confidence_score < 0.5) continue;
+    for (const px of (rec.anomaly_pixels || [])) {
+      if (px.lat == null || px.lon == null) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [px.lon, px.lat] },
+        properties: {
+          delta:       px.delta,
+          metric:      rec.metric_type  || 'ndvi',
+          direction:   rec.direction    || 'drop',
+          confidence:  rec.confidence_score,
+          date:        rec.analysis_date ? rec.analysis_date.slice(0, 10) : '—',
+          last_mean:   rec.last_mean,
+          prev_mean:   rec.prev_mean,
+          rel_change:  rec.rel_change,
+        },
+      });
+    }
+  }
+  return { type: 'FeatureCollection', features };
+}
+
+function _renderAnomalyLayer(map, anomalyRecords, srcId, layerId) {
+  if (map.getLayer(layerId)) map.removeLayer(layerId);
+  if (map.getSource(srcId))  map.removeSource(srcId);
+
+  const gj = _anomalyToGeoJSON(anomalyRecords);
+  if (!gj.features.length) return;
+
+  map.addSource(srcId, { type: 'geojson', data: gj });
+  map.addLayer({
+    id: layerId, type: 'circle', source: srcId,
+    paint: {
+      // Red for drop, orange for rise — intensity by abs delta
+      'circle-color': ['case',
+        ['==', ['get','direction'], 'drop'], '#e74c3c',
+        '#e67e22',
+      ],
+      'circle-radius': ['interpolate',['linear'],['zoom'],
+        10, 3,  12, 5,  14, 8,  16, 12,
+      ],
+      'circle-opacity': 0.85,
+      'circle-stroke-width': 1.5,
+      'circle-stroke-color': '#fff',
+    },
+  });
+
+  // Popup on click
+  map.on('click', layerId, e => {
+    const p = e.features[0].properties;
+    const pct = p.rel_change != null ? `${(p.rel_change * 100).toFixed(1)}%` : '—';
+    const conf = p.confidence != null ? `${(p.confidence * 100).toFixed(0)}%` : '—';
+    new mapboxgl.Popup({ closeButton: true, maxWidth: '240px' })
+      .setLngLat(e.lngLat)
+      .setHTML(`
+        <div style="font-family:sans-serif;font-size:12px;line-height:1.7">
+          <strong style="font-size:13px">⚠ ${(p.metric || 'NDVI').toUpperCase()} ${p.direction === 'drop' ? '↓ Drop' : '↑ Rise'}</strong><br/>
+          <span style="color:#888">Date:</span> <b>${p.date}</b><br/>
+          <span style="color:#888">Δ mean:</span> ${pct}<br/>
+          <span style="color:#888">Pixel Δ:</span> ${Number(p.delta).toFixed(3)}<br/>
+          <span style="color:#888">Prev / Last:</span> ${Number(p.prev_mean).toFixed(3)} → ${Number(p.last_mean).toFixed(3)}<br/>
+          <span style="color:#888">Confidence:</span> ${conf}
+        </div>
+      `)
+      .addTo(map);
+  });
+  map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+}
+
 function gridToGeoJSON(z, x, y) {
   const needsConversion = isUtm([x[0], y[0]]);
   const features = [];
@@ -103,6 +177,13 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
   const [contourMeta, setContourMeta]     = useState(null);
   const [gpsActive, setGpsActive]         = useState(false);
   const [gpsError,  setGpsError]          = useState(null);
+
+  // ── Anomaly overlay ──────────────────────────────────────────────────────
+  const [anomalyOn,      setAnomalyOn]      = useState(false);
+  const [anomalyData,    setAnomalyData]    = useState(null);   // array of anomaly records
+  const [anomalyLoading, setAnomalyLoading] = useState(false);
+  const [anomalyError,   setAnomalyError]   = useState(null);
+  const [anomalyField,   setAnomalyField]   = useState(null);   // field_id currently shown
 
   useImperativeHandle(ref, () => ({
     refreshFields: () => {
@@ -213,6 +294,43 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
     if (!open) return;
     applyToMap(map => { if (contoursOn && contourData) addContourLayers(map, contourData); else removeContourLayers(map); });
   }, [contoursOn, contourData, open, applyToMap]);
+
+  // Fetch + render anomaly pixels when a field is selected and anomaly mode is on
+  useEffect(() => {
+    const ASRC = 'anomaly-src', ALAYER = 'anomaly-layer';
+    const clearLayer = () => applyToMap(map => {
+      if (map.getLayer(ALAYER)) map.removeLayer(ALAYER);
+      if (map.getSource(ASRC))  map.removeSource(ASRC);
+    });
+
+    if (!anomalyOn || !selectedField?.id || !userId) { clearLayer(); return; }
+
+    // Already loaded for this field
+    if (anomalyField === selectedField.id && anomalyData) {
+      applyToMap(map => _renderAnomalyLayer(map, anomalyData, ASRC, ALAYER));
+      return;
+    }
+
+    setAnomalyLoading(true); setAnomalyError(null);
+    api.get(`/api/v1/fields/${selectedField.id}/anomalies`, { params: { user_id: userId, limit: 5 } })
+      .then(r => {
+        setAnomalyData(r.data);
+        setAnomalyField(selectedField.id);
+        setAnomalyLoading(false);
+        applyToMap(map => _renderAnomalyLayer(map, r.data, ASRC, ALAYER));
+      })
+      .catch(() => { setAnomalyError(t('fmp_anomaly_err')); setAnomalyLoading(false); clearLayer(); });
+  }, [anomalyOn, selectedField, userId, anomalyData, anomalyField, applyToMap, t]); // eslint-disable-line
+
+  // Clear anomaly layer when field deselected or anomaly mode turned off
+  useEffect(() => {
+    if (!anomalyOn || !selectedField) {
+      applyToMap(map => {
+        if (map.getLayer('anomaly-layer')) map.removeLayer('anomaly-layer');
+        if (map.getSource('anomaly-src'))  map.removeSource('anomaly-src');
+      });
+    }
+  }, [anomalyOn, selectedField, applyToMap]);
 
   useEffect(() => {
     if (!locationCenter?.lat || !locationCenter?.lon) return;
@@ -389,6 +507,22 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
             {metricError  && <span style={styles.errorNote}>{metricError}</span>}
             {contourError && <span style={styles.errorNote}>{contourError}</span>}
             {gpsError     && <span style={styles.errorNote}>{gpsError}</span>}
+            {anomalyError && <span style={styles.errorNote}>{anomalyError}</span>}
+
+            <span style={styles.divider} />
+            <button
+              onClick={() => setAnomalyOn(v => !v)}
+              disabled={!selectedField || anomalyLoading}
+              title={anomalyOn ? t('fmp_anomaly_hide') : t('fmp_anomaly_show')}
+              style={{ ...styles.metricBtn, ...(anomalyOn ? styles.anomalyBtnActive : {}), opacity: (!selectedField || anomalyLoading) ? 0.45 : 1 }}
+            >
+              {anomalyLoading ? `⟳ ${t('fmp_anomaly')}` : t('fmp_anomaly')}
+            </button>
+            {anomalyOn && anomalyData && (
+              <span style={styles.anomalyBadge}>
+                {t('fmp_anomaly_badge', anomalyData.reduce((s, r) => s + (r.anomaly_pixels?.length || 0), 0), anomalyData.length)}
+              </span>
+            )}
           </div>
 
           <div style={styles.mapWrap}>
@@ -470,6 +604,8 @@ const styles = {
   legendLabels:{ display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.7 },
   fieldChip:   { position: 'absolute', top: 12, left: 12, zIndex: 10, background: 'rgba(255,255,255,0.93)', borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 500, boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', gap: 6 },
   chipClose:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 2px', opacity: 0.5 },
+  anomalyBtnActive: { background: '#c0392b', color: '#fff', borderColor: '#c0392b' },
+  anomalyBadge: { fontSize: 11, fontWeight: 600, color: '#c0392b', background: 'rgba(192,57,43,0.1)', border: '1px solid rgba(192,57,43,0.3)', borderRadius: 20, padding: '2px 10px' },
 };
 
 FieldMapPanel.displayName = 'FieldMapPanel';

@@ -459,6 +459,11 @@ const hu = {
   fmp_gps_denied:        'Helyhozzáférés megtagadva',
   fmp_gps_unavail:       'Helymeghatározás nem elérhető',
   fmp_gps_timeout:       'GPS-kérés időtúllépés',
+  fmp_anomaly:            '⚠ Anomáliák',
+  fmp_anomaly_hide:       'Anomáliák elrejtése',
+  fmp_anomaly_show:       'Anomália pixelek megjelenítése a térképen',
+  fmp_anomaly_err:        'Anomáliák betöltése sikertelen',
+  fmp_anomaly_badge:      (px, rec) => `${px} px · ${rec} rekord`,
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Szenzorok',
