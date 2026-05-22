@@ -78,7 +78,7 @@ function removeContourLayers(map) {
   if (map.getSource(CONTOUR_SRC))  map.removeSource(CONTOUR_SRC);
 }
 
-const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) => {
+const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLocation, onDrawField, onSegment, segmentationStatus }, ref) => {
   const { t } = useLang();
   const mapRef       = useRef(null);
   const loadedRef    = useRef(false);
@@ -90,6 +90,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
   const [open, setOpen]                   = useState(true);
   const [fields, setFields]               = useState(null);
   const [metric, setMetric]               = useState('ndvi');
+  const [metricEnabled, setMetricEnabled] = useState(true);
   const [metricData, setMetricData]       = useState(null);
   const [metricLoading, setMetricLoading] = useState(false);
   const [metricError, setMetricError]     = useState(null);
@@ -266,7 +267,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
       const HM_SRC = 'metric-src', HM_LAYER = 'metric-layer';
       if (map.getLayer(HM_LAYER)) map.removeLayer(HM_LAYER);
       if (map.getSource(HM_SRC))  map.removeSource(HM_SRC);
-      if (!metricData) return;
+      if (!metricData || !metricEnabled) return;
       const { z, x, y } = metricData;
       const gj   = gridToGeoJSON(z, x, y);
       const meta = METRIC_META[metric];
@@ -280,7 +281,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
         'circle-opacity': 0.7, 'circle-blur': 0, 'circle-stroke-width': 0, 'circle-pitch-alignment': 'map',
       } }, map.getLayer('fields-fill') ? 'fields-fill' : undefined);
     });
-  }, [metricData, metric, open, applyToMap]);
+  }, [metricData, metric, metricEnabled, open, applyToMap]);
 
   useEffect(() => () => {
     if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -315,9 +316,47 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
       {open && (
         <div style={styles.panelBody}>
           <div style={styles.toolbar}>
+            {/* ── Map action buttons ── */}
+            {onAddLocation && (
+              <button onClick={onAddLocation} style={styles.actionBtn} title={t('add_location')}>
+                + {t('add_location')}
+              </button>
+            )}
+            {locationId && onDrawField && (
+              <button onClick={onDrawField} style={{ ...styles.actionBtn, ...styles.actionBtnBlue }}>
+                ✏ {t('draw_field')}
+              </button>
+            )}
+            {locationId && onSegment && (
+              <button
+                onClick={onSegment}
+                style={{ ...styles.actionBtn, ...styles.actionBtnGreen, ...(segmentationStatus === 'done' ? styles.actionBtnDone : {}) }}
+              >
+                {segmentationStatus === 'done'
+                  ? `✔ ${t('fields_updated')}`
+                  : `🛰 ${t('segment_fields')}`}
+              </button>
+            )}
+
+            <span style={styles.divider} />
+
+            {/* ── Metric overlay toggle ── */}
             <span style={styles.toolbarLabel}>{t('fmp_overlay')}</span>
+
+            {/* "None" / off button */}
+            <button
+              onClick={() => setMetricEnabled(false)}
+              style={{ ...styles.metricBtn, ...(!metricEnabled ? styles.metricBtnActive : {}) }}
+            >
+              {t('fmp_overlay_none') || '—'}
+            </button>
+
             {METRICS.map(m => (
-              <button key={m} onClick={() => setMetric(m)} style={{ ...styles.metricBtn, ...(metric === m ? styles.metricBtnActive : {}) }}>
+              <button
+                key={m}
+                onClick={() => { setMetric(m); setMetricEnabled(true); }}
+                style={{ ...styles.metricBtn, ...(metricEnabled && metric === m ? styles.metricBtnActive : {}) }}
+              >
                 {METRIC_META[m].label}
               </button>
             ))}
@@ -369,6 +408,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
               </button>
             )}
 
+            {metricEnabled && (
             <div style={styles.legend}>
               <div style={styles.legendTitle}>
                 {meta.label} <span style={styles.legendDesc}>{t(meta.descKey)}</span>
@@ -376,6 +416,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter }, ref) =
               <div style={{ height: 8, borderRadius: 4, marginBottom: 3, background: `linear-gradient(to right, ${meta.ramp.join(',')})` }} />
               <div style={styles.legendLabels}><span>{meta.min}</span><span>{meta.max}</span></div>
             </div>
+            )}
 
             {selectedField && (
               <div style={styles.fieldChip}>
@@ -408,6 +449,15 @@ const styles = {
   metricBtnActive:  { background: 'var(--color-accent-soil)', color: '#fff', borderColor: 'var(--color-accent-soil)' },
   contourBtnActive: { background: '#5a3e1b', color: '#fff', borderColor: '#5a3e1b' },
   gpsBtnActive:     { background: '#1a5276', color: '#fff', borderColor: '#1a5276' },
+  actionBtn: {
+    padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+    border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+    background: 'var(--color-accent-soil)', color: '#fff',
+    transition: 'opacity 0.15s',
+  },
+  actionBtnBlue: { background: 'linear-gradient(135deg, #2471a3, #1a5276)' },
+  actionBtnGreen: { background: 'linear-gradient(135deg, #2c7a4b, #1a5c38)' },
+  actionBtnDone: { background: 'linear-gradient(135deg, #27ae60, #1e8449)' },
   locateBtn:        { position: 'absolute', top: 100, right: 10, zIndex: 10, width: 30, height: 30, borderRadius: 4, border: '1px solid rgba(0,0,0,0.25)', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.3)', cursor: 'pointer', fontSize: 18, lineHeight: '28px', textAlign: 'center', padding: 0, color: '#2980b9', fontWeight: 700 },
   divider:     { display: 'inline-block', width: 1, height: 18, background: 'var(--color-accent-soil)', opacity: 0.35, margin: '0 4px' },
   elevBadge:   { fontSize: 11, fontWeight: 600, color: '#5a3e1b', background: 'rgba(90,62,27,0.1)', border: '1px solid rgba(90,62,27,0.25)', borderRadius: 20, padding: '2px 10px' },

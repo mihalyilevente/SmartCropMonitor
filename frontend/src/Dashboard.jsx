@@ -19,10 +19,58 @@ import ManualFieldModal from './components/ManualFieldModal';
 import MorningBriefingPanel from './components/MorningBriefingPanel';
 import logo from './assets/logo1.png';
 
+// ── Tab definitions ──────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'overview',  labelKey: 'tab_overview',  icon: '🌱' },
+  { id: 'weather',   labelKey: 'tab_weather',   icon: '🌦' },
+  { id: 'fields',    labelKey: 'tab_fields',    icon: '🗺️' },
+  { id: 'tasks',     labelKey: 'tab_tasks',     icon: '✅' },
+  { id: 'sensors',   labelKey: 'tab_sensors',   icon: '📡' },
+];
+
+// ── Compact weather badge ────────────────────────────────────────────────────
+const WeatherBadge = ({ currentWeather, t }) => {
+  if (!currentWeather) return (
+    <div style={styles.weatherBadge}>
+      <span style={{ color: '#aaa', fontSize: 13 }}>{t('no_weather')}</span>
+    </div>
+  );
+  return (
+    <div style={styles.weatherBadge}>
+      <span style={{ fontSize: 22, fontWeight: 700 }}>{currentWeather.temp}°C</span>
+      <span style={{ fontSize: 13, opacity: 0.75, marginLeft: 8 }}>{currentWeather.weather_main}</span>
+      <span style={{ fontSize: 12, opacity: 0.55, marginLeft: 8 }}>
+        💧{currentWeather.humidity}% · 💨{currentWeather.wind_speed} m/s
+      </span>
+    </div>
+  );
+};
+
+// ── Two-column layout: panels left, map right ────────────────────────────────
+const TwoColumnLayout = ({ left, mapProps }) => (
+  <div style={styles.twoCol}>
+    <div style={styles.leftCol}>{left}</div>
+    <div style={styles.rightCol}>
+      <FieldMapPanel
+        ref={mapProps.ref}
+        userId={mapProps.userId}
+        locationId={mapProps.locationId}
+        locationCenter={mapProps.locationCenter}
+        onAddLocation={mapProps.onAddLocation}
+        onDrawField={mapProps.onDrawField}
+        onSegment={mapProps.onSegment}
+        segmentationStatus={mapProps.segmentationStatus}
+      />
+    </div>
+  </div>
+);
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
 const Dashboard = ({ userId, onLogout }) => {
   const { largeFonts, toggleFonts } = useFontSize();
   const { t, lang, setLang } = useLang();
 
+  const [activeTab, setActiveTab]           = useState('overview');
   const [locations, setLocations]           = useState([]);
   const [locationId, setLocationId]         = useState(null);
   const [locationCenter, setLocationCenter] = useState(null);
@@ -35,6 +83,17 @@ const Dashboard = ({ userId, onLogout }) => {
   const [showManualField, setShowManualField]       = useState(false);
   const [segmentationStatus, setSegmentationStatus] = useState(null);
   const fieldMapRef = useRef(null);
+
+  const mapProps = {
+    ref: fieldMapRef,
+    userId,
+    locationId,
+    locationCenter,
+    onAddLocation:   () => setShowAddLocation(true),
+    onDrawField:     () => setShowManualField(true),
+    onSegment:       () => setShowSegmentation(true),
+    segmentationStatus,
+  };
 
   // ── data fetching ──────────────────────────────────────────────────────────
   const fetchLocations = () => {
@@ -49,10 +108,7 @@ const Dashboard = ({ userId, onLogout }) => {
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => {
-    fetchLocations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  useEffect(() => { fetchLocations(); }, [userId]);
 
   useEffect(() => {
     if (!locationId || locations.length === 0) return;
@@ -85,16 +141,99 @@ const Dashboard = ({ userId, onLogout }) => {
 
   if (loading) return <div style={styles.container}>{t('loading')}</div>;
 
+  // ── Tab content ─────────────────────────────────────────────────────────
+  const renderTabContent = () => {
+    switch (activeTab) {
+
+      case 'overview':
+        return (
+          <TwoColumnLayout
+            mapProps={mapProps}
+            left={
+              <>
+                <MorningBriefingPanel userId={userId} locationId={locationId} chartData={chartData} />
+                <AlertsPanel userId={userId} locationId={locationId} />
+                <TasksPanel userId={userId} />
+              </>
+            }
+          />
+        );
+
+      case 'weather':
+        return (
+          <TwoColumnLayout
+            mapProps={mapProps}
+            left={
+              <>
+                <WeatherMetricsPanel latestWeather={latestWeather} userId={userId} locationId={locationId} />
+                <WeatherCharts data={chartData} />
+                <SprayingWindowsPanel userId={userId} locationId={locationId} />
+              </>
+            }
+          />
+        );
+
+      case 'fields':
+        return (
+          <TwoColumnLayout
+            mapProps={mapProps}
+            left={
+              <>
+                <FieldsPanel userId={userId} locationId={locationId} />
+                <PasturePanel userId={userId} locationId={locationId} />
+                <FieldWorkPanel userId={userId} locationId={locationId} />
+              </>
+            }
+          />
+        );
+
+      case 'tasks':
+        return (
+          <TwoColumnLayout
+            mapProps={mapProps}
+            left={
+              <>
+                <TasksPanel userId={userId} />
+                <FieldWorkPanel userId={userId} locationId={locationId} />
+                <AlertsPanel userId={userId} locationId={locationId} />
+              </>
+            }
+          />
+        );
+
+      case 'sensors':
+        return (
+          <TwoColumnLayout
+            mapProps={mapProps}
+            left={
+              <>
+                <SensorPanel userId={userId} />
+                <WeatherMetricsPanel latestWeather={latestWeather} userId={userId} locationId={locationId} />
+              </>
+            }
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div style={styles.container}>
+
       {/* ── Header ── */}
       <header style={styles.header}>
+
+        {/* Branding */}
         <div style={styles.branding}>
-          <img src={logo} style={{ width: 40 }} alt="logo" />
-          <h1 style={{ fontFamily: 'var(--font-heading)', margin: 0 }}>SmartCrop Monitor</h1>
+          <img src={logo} style={{ width: 36 }} alt="logo" />
+          <h1 style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: 18, whiteSpace: 'nowrap' }}>
+            SmartCrop Monitor
+          </h1>
         </div>
 
-        {/* Location selector + action buttons */}
+        {/* Location selector only – action buttons moved to FieldMapPanel */}
         <div style={styles.locationRow}>
           {locations.length > 0 ? (
             <div style={styles.locationSelector}>
@@ -114,97 +253,62 @@ const Dashboard = ({ userId, onLogout }) => {
           ) : (
             <div style={{ color: 'red', fontSize: 13 }}>{t('no_locations')}</div>
           )}
-
-          <button onClick={() => setShowAddLocation(true)} style={styles.addLocationBtn} title={t('add_location')}>
-            {t('add_location')}
-          </button>
-
-          {locationId && (
-            <button onClick={() => setShowManualField(true)} style={styles.manualFieldBtn} title={t('draw_field')}>
-              {t('draw_field')}
-            </button>
-          )}
-
-          {locationId && (
-            <button
-              onClick={() => setShowSegmentation(true)}
-              style={{ ...styles.segmentBtn, ...(segmentationStatus === 'done' ? styles.segmentBtnDone : {}) }}
-              title={t('segment_fields')}
-            >
-              {segmentationStatus === 'done' ? t('fields_updated') : t('segment_fields')}
-            </button>
-          )}
         </div>
 
-        {/* ── Right side: lang toggle + accessibility toggle + logout ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Weather badge */}
+        <WeatherBadge currentWeather={currentWeather} t={t} />
 
-          {/* Language selector */}
-          <select
-            value={lang}
-            onChange={e => setLang(e.target.value)}
-            style={styles.langSelect}
-          >
+        {/* Right: lang + font + logout */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <select value={lang} onChange={e => setLang(e.target.value)} style={styles.langSelect}>
             <option value="hu">🇭🇺 Magyar</option>
             <option value="en">🇬🇧 English</option>
             <option value="fr">🇫🇷 Français</option>
             <option value="de">🇩🇪 Deutsch</option>
           </select>
 
-          {/* Large font toggle */}
           <button
             onClick={toggleFonts}
             title={largeFonts ? t('font_switch_to_normal') : t('font_switch_to_large')}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
+              display: 'flex', alignItems: 'center', gap: 4,
               background: largeFonts ? 'var(--color-accent-chernozem)' : '#f0ebe3',
               color: largeFonts ? '#fff' : 'var(--color-accent-chernozem)',
               border: `1px solid ${largeFonts ? 'var(--color-accent-chernozem)' : 'var(--color-accent-soil)'}`,
-              borderRadius: 8, padding: '7px 13px',
-              cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              borderRadius: 8, padding: '6px 10px',
+              cursor: 'pointer', fontWeight: 700, fontSize: 12,
               fontFamily: 'inherit', transition: 'all 0.2s',
-              whiteSpace: 'nowrap',
             }}
           >
-            <span style={{ fontSize: largeFonts ? 17 : 14, lineHeight: 1 }}>A</span>
-            <span style={{ fontSize: 11, lineHeight: 1 }}>A</span>
-            <span style={{ fontSize: 10, marginLeft: 2, opacity: 0.7 }}>
-              {largeFonts ? t('font_large') : t('font_normal')}
-            </span>
+            <span style={{ fontSize: largeFonts ? 16 : 13 }}>A</span>
+            <span style={{ fontSize: 10 }}>A</span>
           </button>
 
           <button onClick={onLogout} style={styles.logoutBtn}>{t('logout')}</button>
         </div>
       </header>
 
-      {/* ── Current weather banner ── */}
-      {currentWeather ? (
-        <div style={styles.weatherBanner}>
-          <h2 style={{ margin: '0 0 4px' }}>
-            {currentWeather.temp}°C &nbsp;·&nbsp; {currentWeather.weather_main}
-          </h2>
-          <p style={{ margin: '0 0 4px', opacity: 0.8 }}>{currentWeather.weather_description}</p>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.7 }}>
-            {t('humidity')}: {currentWeather.humidity}% &nbsp;·&nbsp; {t('wind')}: {currentWeather.wind_speed} m/s
-          </p>
-        </div>
-      ) : (
-        <div style={{ ...styles.weatherBanner, color: '#aaa' }}>{t('no_weather')}</div>
-      )}
+      {/* ── Tab navigation ── */}
+      <nav style={styles.tabNav}>
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              ...styles.tabBtn,
+              ...(activeTab === tab.id ? styles.tabBtnActive : {}),
+            }}
+          >
+            <span style={{ fontSize: 16 }}>{tab.icon}</span>
+            <span>{t(tab.labelKey) || tab.labelKey}</span>
+          </button>
+        ))}
+      </nav>
 
-      {/* ── Panels ── */}
-      <MorningBriefingPanel userId={userId} locationId={locationId} chartData={chartData} />
-      <AlertsPanel userId={userId} locationId={locationId} />
-      <TasksPanel userId={userId} />
-      <FieldWorkPanel userId={userId} locationId={locationId} />
-      <FieldsPanel userId={userId} locationId={locationId} />
-      <PasturePanel userId={userId} locationId={locationId} />
-
-      <WeatherMetricsPanel latestWeather={latestWeather} userId={userId} locationId={locationId} />
-      <WeatherCharts data={chartData} />
-      <SprayingWindowsPanel userId={userId} locationId={locationId} />
-      <FieldMapPanel ref={fieldMapRef} userId={userId} locationId={locationId} locationCenter={locationCenter} />
-      <SensorPanel userId={userId} />
+      {/* ── Tab content ── */}
+      <div style={styles.content}>
+        {renderTabContent()}
+      </div>
 
       {/* ── Modals ── */}
       {showAddLocation && (
@@ -239,81 +343,162 @@ const Dashboard = ({ userId, onLogout }) => {
   );
 };
 
+// ── Styles ───────────────────────────────────────────────────────────────────
 const styles = {
   container: {
-    padding: '20px',
     backgroundColor: 'var(--color-bg-champagne)',
     minHeight: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
   },
+
+  // ── Header ──
   header: {
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 12,
+    gap: 12,
+    padding: '10px 20px',
     borderBottom: '1px solid var(--color-accent-soil)',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  branding: { display: 'flex', alignItems: 'center', gap: 10 },
-  locationRow: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  locationSelector: {
-    display: 'flex', alignItems: 'center',
     backgroundColor: 'var(--color-bg-magnolia)',
-    padding: '5px 15px', borderRadius: 10,
+    flexWrap: 'wrap',
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
+  },
+  branding: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  locationRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    flex: 1,
+    minWidth: 0,
+  },
+  locationSelector: {
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: 'var(--color-bg-champagne)',
+    padding: '4px 10px',
+    borderRadius: 8,
     border: '1px solid var(--color-accent-soil)',
   },
-  label: { marginRight: 10, fontWeight: 'bold', color: 'var(--color-accent-chernozem)', fontSize: 13 },
+  label: {
+    marginRight: 8,
+    fontWeight: 'bold',
+    color: 'var(--color-accent-chernozem)',
+    fontSize: 12,
+    whiteSpace: 'nowrap',
+  },
   select: {
-    padding: '7px 10px', borderRadius: 6,
+    padding: '5px 8px',
+    borderRadius: 6,
     border: '1px solid var(--color-accent-soil)',
-    cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    background: 'transparent',
   },
-  addLocationBtn: {
-    background: 'var(--color-accent-soil)',
-    color: '#fff', border: 'none', padding: '8px 14px',
-    borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13,
-    whiteSpace: 'nowrap', transition: 'opacity 0.15s',
-  },
-  manualFieldBtn: {
-    background: 'linear-gradient(135deg, #2471a3, #1a5276)',
-    color: '#fff', border: 'none', padding: '8px 16px',
-    borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
-    whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(36,113,163,0.35)',
-    transition: 'opacity 0.15s', letterSpacing: '0.01em',
-  },
-  segmentBtn: {
-    background: 'linear-gradient(135deg, #2c7a4b, #1a5c38)',
-    color: '#fff', border: 'none', padding: '8px 16px',
-    borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13,
-    whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(44,122,75,0.35)',
-    transition: 'opacity 0.15s, transform 0.1s', letterSpacing: '0.01em',
-  },
-  segmentBtnDone: {
-    background: 'linear-gradient(135deg, #27ae60, #1e8449)',
-  },
-  weatherBanner: {
-    background: 'var(--color-bg-magnolia)',
-    padding: '18px 24px', borderRadius: 12, marginBottom: 20,
+  addLocationBtn: {},
+  manualFieldBtn: {},
+  segmentBtn: {},
+  segmentBtnDone: {},
+
+  // ── Weather badge (inline in header) ──
+  weatherBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    background: 'var(--color-bg-champagne)',
     border: '1px solid var(--color-accent-soil)',
+    borderRadius: 8,
+    padding: '5px 14px',
+    flexShrink: 0,
+    gap: 4,
   },
+
+  // ── Tab nav ──
+  tabNav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '8px 20px 0',
+    borderBottom: '2px solid var(--color-accent-soil)',
+    backgroundColor: 'var(--color-bg-magnolia)',
+    flexWrap: 'wrap',
+  },
+  tabBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '8px 16px 10px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--color-accent-chernozem)',
+    opacity: 0.6,
+    borderBottom: '2px solid transparent',
+    marginBottom: -2,
+    borderRadius: '6px 6px 0 0',
+    transition: 'opacity 0.15s, background 0.15s',
+  },
+  tabBtnActive: {
+    opacity: 1,
+    background: 'var(--color-bg-champagne)',
+    borderBottom: '2px solid var(--color-accent-chernozem)',
+    color: 'var(--color-accent-chernozem)',
+  },
+
+  // ── Content area ──
+  content: {
+    flex: 1,
+    padding: '16px 20px',
+    overflowY: 'auto',
+  },
+
+  // ── Two-column layout ──
+  twoCol: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 16,
+    alignItems: 'start',
+  },
+  leftCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    minWidth: 0,
+  },
+  rightCol: {
+    position: 'sticky',
+    top: 8,
+    minWidth: 0,
+  },
+
+  // ── Misc ──
   logoutBtn: {
     background: 'var(--color-accent-mulberry)',
-    color: '#fff', border: 'none', padding: '8px 16px',
-    borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+    color: '#fff', border: 'none', padding: '6px 14px',
+    borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+    whiteSpace: 'nowrap',
   },
   langSelect: {
-    padding: '7px 10px',
+    padding: '6px 8px',
     borderRadius: 8,
     border: '1px solid var(--color-accent-soil)',
     background: '#f0ebe3',
     color: 'var(--color-accent-chernozem)',
     cursor: 'pointer',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 700,
     fontFamily: 'inherit',
     outline: 'none',
-    transition: 'border-color 0.15s',
   },
 };
 
