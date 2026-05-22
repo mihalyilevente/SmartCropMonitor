@@ -332,7 +332,9 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
                 onClick={onSegment}
                 style={{ ...styles.actionBtn, ...styles.actionBtnGreen, ...(segmentationStatus === 'done' ? styles.actionBtnDone : {}) }}
               >
-                {segmentationStatus === 'done' ? `✔ ${t('fields_updated')}` : `🛰 ${t('segment_fields')}`}
+                {segmentationStatus === 'done'
+                  ? `✔ ${t('fields_updated')}`
+                  : `🛰 ${t('segment_fields')}`}
               </button>
             )}
 
