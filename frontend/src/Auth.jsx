@@ -69,13 +69,28 @@ const Auth = ({ onLogin }) => {
       <div style={s.card}>
 
         {/* Language selector */}
-        <div style={{ position: 'absolute', top: 16, right: 16 }}>
-          <select value={lang} onChange={e => setLang(e.target.value)} style={s.langSelect}>
-            <option value="hu">🇭🇺 Magyar</option>
-            <option value="en">🇬🇧 English</option>
-            <option value="fr">🇫🇷 Français</option>
-            <option value="de">🇩🇪 Deutsch</option>
-          </select>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16, gap: 6 }}>
+          {[
+            { code: 'hu', flag: '🇭🇺', label: 'Magyar' },
+            { code: 'en', flag: '🇬🇧', label: 'English' },
+            { code: 'fr', flag: '🇫🇷', label: 'Français' },
+            { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+          ].map(({ code, flag, label }) => (
+            <button
+              key={code}
+              onClick={() => setLang(code)}
+              title={label}
+              style={{
+                padding: '5px 10px', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+                border: lang === code ? '2px solid var(--color-accent-soil, #6b4c2a)' : '2px solid transparent',
+                background: lang === code ? '#f5ede0' : '#f0ebe3',
+                fontWeight: lang === code ? 700 : 400,
+                transition: 'all 0.15s',
+              }}
+            >
+              {flag}
+            </button>
+          ))}
         </div>
 
         <img src={logo} alt="SmartCrop Logo" style={s.logo} />
@@ -150,7 +165,6 @@ const s = {
   button:      { padding: '12px', marginTop: 6, background: 'var(--color-green-signal)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', fontSize: 14, transition: '0.2s' },
   switch:      { marginTop: 16, color: 'var(--color-green-primary)', cursor: 'pointer', fontSize: 13, fontWeight: 500 },
   message:     { marginTop: 12, fontSize: 13, fontWeight: 600, textAlign: 'center' },
-  langSelect:  { padding: '4px 8px', borderRadius: 6, border: '1px solid #ddd', background: '#f5f0ea', fontSize: 12, cursor: 'pointer' },
 };
 
 export default Auth;

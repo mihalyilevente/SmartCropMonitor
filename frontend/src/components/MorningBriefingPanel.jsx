@@ -3,7 +3,7 @@ import api from '../api/client';
 import { useLang } from '../context/LanguageContext';
 
 const POLL_INTERVAL_MS = 30_000;
-const DISMISS_KEY = 'briefing_dismissed_date'; // localStorage key
+const DISMISS_KEY = 'briefing_dismissed_date'; // localStorage key (per-day dismiss)
 
 const RISK_ORDER = { CRITICAL: 0, ERROR: 1, WARNING: 2, INFO: 3 };
 const RISK_STYLE = {
@@ -23,7 +23,7 @@ const EVT_ICONS = {
   LOW_BATTERY:'🔋', PEST_OUTBREAK:'🐛', OTHER:'⚠️',
 };
 
-// today's date string как ключ (YYYY-MM-DD)
+// today's date string as key (YYYY-MM-DD)
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
 const RiskBadge = ({ level }) => {
@@ -60,13 +60,13 @@ const RiskRow = ({ event, rank }) => {
 const MorningBriefingPanel = ({ userId }) => {
   const { t } = useLang();
 
-  // ── dismiss / раз-в-день логика ──────────────────────────────────────────
+  // Dismiss once-per-day logic
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem(DISMISS_KEY) === todayKey(); }
     catch { return false; }
   });
 
-  // анимация "уезжает вверх"
+  // Slide-up animation on dismiss
   const [hiding, setHiding] = useState(false);
 
   const dismiss = () => {
@@ -75,10 +75,10 @@ const MorningBriefingPanel = ({ userId }) => {
       try { localStorage.setItem(DISMISS_KEY, todayKey()); } catch {}
       setDismissed(true);
       setHiding(false);
-    }, 420); // длина анимации
+    }, 420); // animation duration ms
   };
 
-  // ── данные ────────────────────────────────────────────────────────────────
+  // Data fetching
   const [open, setOpen]       = useState(true);
   const [events, setEvents]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +103,7 @@ const MorningBriefingPanel = ({ userId }) => {
     return () => clearInterval(pollRef.current);
   }, [userId]);
 
-  // ── derivations ───────────────────────────────────────────────────────────
+  // Derived values
   const active = events
     .filter(e => e.status === 'ACTIVE')
     .sort((a, b) => (RISK_ORDER[a.severity] ?? 9) - (RISK_ORDER[b.severity] ?? 9));
@@ -128,12 +128,12 @@ const MorningBriefingPanel = ({ userId }) => {
     ? t('briefing_status_medium')
     : t('briefing_status_low');
 
-  // ── если уже закрыт сегодня — не рендерим ────────────────────────────────
+  // Already dismissed today — render nothing
   if (dismissed) return null;
 
   return (
     <>
-      {/* инжект keyframes один раз */}
+      {/* Inject keyframes */}
       <style>{`
         @keyframes briefing-slide-up {
           0%   { opacity: 1; transform: translateY(0)   scale(1);    max-height: 600px; }
@@ -157,10 +157,10 @@ const MorningBriefingPanel = ({ userId }) => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: '#bbb', fontSize: 13 }}>{open ? '▲' : '▼'}</span>
-            {/* Кнопка "убрать на сегодня" */}
+            {/* Dismiss button */}
             <button
               onClick={e => { e.stopPropagation(); dismiss(); }}
-              title={t('briefing_dismiss_title') || 'Убрать до завтра'}
+              title={t('briefing_dismiss_title') || 'Hide until tomorrow'}
               style={{
                 background: 'none', border: '1px solid #ddd', borderRadius: 6,
                 padding: '3px 10px', fontSize: 11, fontWeight: 700, color: '#aaa',
@@ -170,7 +170,7 @@ const MorningBriefingPanel = ({ userId }) => {
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#bbb'; e.currentTarget.style.color = '#888'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#ddd'; e.currentTarget.style.color = '#aaa'; }}
             >
-              {t('briefing_dismiss') || 'Убрать ✕'}
+              {t('briefing_dismiss') || 'Dismiss ✕'}
             </button>
           </div>
         </div>
