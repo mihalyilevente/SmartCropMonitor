@@ -296,6 +296,7 @@ class WeatherHistory(Base):
         UniqueConstraint(
             "location_id",
             "timestamp",
+            "data_source",
             name="uq_weather_location_timestamp"
         ),
     )

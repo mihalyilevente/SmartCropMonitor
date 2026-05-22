@@ -4,7 +4,7 @@ set -euo pipefail
 
 INFO_FILE="/app/shared/gfs_run_info.txt"
 WPS_NML="/app/WPS/namelist.wps"
-WRF_NML="/app/WRF/test/em_real/namelist.input"
+WRF_NML="/app/config/namelist.input"
 
 if [ ! -f "${INFO_FILE}" ]; then
     echo "[update_namelists] ERROR: ${INFO_FILE} not found."
@@ -28,8 +28,8 @@ echo "[update_namelists] start=${START_DATE}  end=${END_DATE}"
 
 LAT="${WRF_CENTER_LAT:-51.5}"
 LON="${WRF_CENTER_LON:-61.0}"
-TRUELAT1=$(echo "${LAT} - 5" | bc)
-TRUELAT2=$(echo "${LAT} + 5" | bc)
+TRUELAT1=$(python3 -c "print(round(float("${LAT}") - 5, 1))")
+TRUELAT2=$(python3 -c "print(round(float("${LAT}") + 5, 1))")
 
 echo "[update_namelists] center lat=${LAT} lon=${LON}"
 
@@ -58,4 +58,9 @@ if [ -f "${WRF_NML}" ]; then
     sed -i "s/end_hour\s*=\s*[0-9]*/end_hour     = ${END_HOUR}/"       "${WRF_NML}"
 
     echo "[update_namelists] namelist.input patched (dates)"
+fi
+# Копируем обновлённый namelist.input в shared volume для wrf-runner
+if [ -f "${WRF_NML}" ]; then
+    cp "${WRF_NML}" /app/shared/namelist.input
+    echo "[update_namelists] namelist.input copied to shared volume"
 fi

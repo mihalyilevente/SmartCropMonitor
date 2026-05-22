@@ -206,23 +206,32 @@ def _ingest_file(db: Session, location: UserLocation, lat: float, lon: float, fp
                 except Exception:
                     pass
 
+            def _f(v):
+                """Convert numpy scalar to plain Python float, or None."""
+                if v is None:
+                    return None
+                try:
+                    return float(v)
+                except Exception:
+                    return None
+
             rows.append({
                 "location_id":           location.id,
                 "timestamp":             timestamp,
-                "temp":                  temp,
-                "humidity":              humidity,
-                "dew_point":             dew_point,
-                "vapour_pressure_deficit": None,  # computed downstream by Haskell
-                "precipitation":         rain_acc,
-                "rain":                  rain_acc,
+                "temp":                  _f(temp),
+                "humidity":              _f(humidity),
+                "dew_point":             _f(dew_point),
+                "vapour_pressure_deficit": None,
+                "precipitation":         _f(rain_acc),
+                "rain":                  _f(rain_acc),
                 "showers":               None,
                 "snowfall":              None,
-                "soil_temperature_0cm":  soil_temp,
-                "soil_moisture_0_to_1cm": soil_moist,
-                "pressure":              pressure,
-                "cloud_coverage":        cloud_cov,
-                "wind_speed":            wind_spd,
-                "wind_deg":              wind_dir,
+                "soil_temperature_0cm":  _f(soil_temp),
+                "soil_moisture_0_to_1cm": _f(soil_moist),
+                "pressure":              _f(pressure),
+                "cloud_coverage":        _f(cloud_cov),
+                "wind_speed":            _f(wind_spd),
+                "wind_deg":              _f(wind_dir),
                 "sunrise":               None,
                 "sunset":                None,
                 "is_night":              False,
@@ -234,7 +243,7 @@ def _ingest_file(db: Session, location: UserLocation, lat: float, lon: float, fp
             return 0
 
         stmt = insert(WeatherHistory).values(rows)
-        stmt = stmt.on_conflict_do_update(
+        stmt = stmt.on_conflict_do_nothing(
             constraint="uq_weather_location_timestamp",
             set_={
                 # Only overwrite if existing record is NOT also from WRF

@@ -21,6 +21,24 @@ if ! ls "${INPUT_DIR}"/met_em.d01.* 1>/dev/null 2>&1; then
 fi
 ln -sf "${INPUT_DIR}"/met_em.d01.* .
 
+# Читаем namelist.input из shared volume (preprocessor туда кладёт с правильными датами)
+if [ -f "${SHARED_DIR}/namelist.input" ]; then
+    echo "[wrf] Using namelist.input from shared volume..."
+    cp "${SHARED_DIR}/namelist.input" namelist.input
+else
+    echo "[wrf] WARNING: No namelist.input in shared volume, using default"
+fi
+
+# Автоопределяем num_metgrid_levels из met_em файлов
+MET_FILE=$(ls "${INPUT_DIR}"/met_em.d01.* 2>/dev/null | head -1)
+if [ -n "${MET_FILE}" ]; then
+    NUM_LEVELS=$(ncdump -h "${MET_FILE}" 2>/dev/null | grep 'num_metgrid_levels' | head -1 | grep -o '[0-9]*' | head -1)
+    if [ -n "${NUM_LEVELS}" ]; then
+        echo "[wrf] Detected num_metgrid_levels = ${NUM_LEVELS}"
+        sed -i "s/num_metgrid_levels\s*=\s*[0-9]*/num_metgrid_levels                  = ${NUM_LEVELS}/" namelist.input
+    fi
+fi
+
 echo "[wrf] Running real.exe..."
 notify "info" ":hourglass: real.exe started for loc *${LOCATION_ID}*..."
 ./real.exe 2>&1 | tee rsl.out.0000
@@ -50,7 +68,6 @@ WRFOUT_SIZE=$(du -sh wrfout_d01_* 2>/dev/null | tail -1 | cut -f1)
 mkdir -p "${WRF_OUTPUT_DIR}"
 cp wrfout_d01_* "${WRF_OUTPUT_DIR}/"
 
-# Clean up symlinks to avoid stale met_em from next run
 rm -f met_em.d01.* wrfinput_d01 wrfbdy_d01
 
 notify "success" ":tada: *WRF complete* loc ${LOCATION_ID} — ${WRFOUT_COUNT} files (${WRFOUT_SIZE}) → \`wrf_output/loc_${LOCATION_ID}/\`"

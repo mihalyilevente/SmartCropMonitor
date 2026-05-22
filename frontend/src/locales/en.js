@@ -47,6 +47,11 @@ const en = {
   err_lat_invalid:       'Latitude must be between -90 and 90.',
   err_lon_invalid:       'Longitude must be between -180 and 180.',
   err_save_failed:       'Failed to create location.',
+  gps_use_location:      'Use My Location',
+  gps_locating:          'Locating…',
+  gps_denied:            'Location access denied. Please enter coordinates manually.',
+  gps_unavailable:       'Location unavailable.',
+  gps_timeout:           'Location request timed out.',
 
   // ── MorningBriefingPanel ───────────────────────────────────────────────────
   briefing_title:              'Morning Briefing',
@@ -438,6 +443,11 @@ const en = {
   fmp_ndre_desc:         'Red-edge vegetation',
   fmp_ndwi_desc:         'Water index',
   fmp_nmdi_desc:         'Moisture / drought index',
+  fmp_gps_track:         'Track My Position',
+  fmp_gps_stop:          'Stop Tracking',
+  fmp_gps_denied:        'Location access denied',
+  fmp_gps_unavail:       'Location unavailable',
+  fmp_gps_timeout:       'GPS request timed out',
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Sensors',

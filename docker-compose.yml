@@ -10,12 +10,15 @@ services:
       - SQLALCHEMY_DATABASE_URL=${SQLALCHEMY_DATABASE_URL}
       - WEBHOOK_URL=${WEBHOOK_URL}
       - WRF_OUTPUT_DIR=/app/shared/wrf_output
-      - COMPOSE_FILE=/app/docker-compose.yml
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-smartcropmonitor}
+      - WRF_PREPROCESSOR_IMAGE=${COMPOSE_PROJECT_NAME:-smartcropmonitor}-wrf-preprocessor
+      - WRF_RUNNER_IMAGE=${COMPOSE_PROJECT_NAME:-smartcropmonitor}-wrf-runner
+      - WRF_SHARED_VOLUME=${COMPOSE_PROJECT_NAME:-smartcropmonitor}_wrf_shared_exchange
+      - TOPO_HOST_PATH=/mnt/volume-nbg1-2/topo
     volumes:
       - ./backend/data:/app/data
       - wrf_shared_exchange:/app/shared
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.yml:/app/docker-compose.yml:ro
     depends_on:
       - haskell-service
     restart: unless-stopped
@@ -31,7 +34,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://46.225.7.134:8000
+        - VITE_API_URL=https://smartrcrop.org/api
         - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
     container_name: smartcrop_frontend
     ports:
@@ -42,6 +45,7 @@ services:
     build:
       context: ./wrf-preprocessor
       dockerfile: Dockerfile
+    image: ${COMPOSE_PROJECT_NAME:-smartcropmonitor}-wrf-preprocessor
     environment:
       - WRF_CENTER_LAT=${WRF_CENTER_LAT:-0}
       - WRF_CENTER_LON=${WRF_CENTER_LON:-0}
@@ -63,6 +67,7 @@ services:
     build:
       context: ./wrf-runner
       dockerfile: Dockerfile
+    image: ${COMPOSE_PROJECT_NAME:-smartcropmonitor}-wrf-runner
     environment:
       - SHARED_DIR=/app/shared
       - WEBHOOK_URL=${WEBHOOK_URL}

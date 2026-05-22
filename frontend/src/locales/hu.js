@@ -47,6 +47,11 @@ const hu = {
   err_lat_invalid:       'A szélességnek -90 és 90 között kell lennie.',
   err_lon_invalid:       'A hosszúságnak -180 és 180 között kell lennie.',
   err_save_failed:       'Nem sikerült létrehozni a helyszínt.',
+  gps_use_location:      'Saját helyzet használata',
+  gps_locating:          'Helymeghatározás…',
+  gps_denied:            'Helyhozzáférés megtagadva. Kérjük, adja meg manuálisan a koordinátákat.',
+  gps_unavailable:       'A helymeghatározás nem elérhető.',
+  gps_timeout:           'A helymeghatározás időtúllépés miatt nem sikerült.',
 
   // ── MorningBriefingPanel ───────────────────────────────────────────────────
   briefing_title:              'Reggeli összefoglaló',
@@ -440,6 +445,11 @@ const hu = {
   fmp_ndre_desc:         'Vörös-él vegetáció',
   fmp_ndwi_desc:         'Vízindex',
   fmp_nmdi_desc:         'Nedvesség / szárazsági index',
+  fmp_gps_track:         'Saját pozíció követése',
+  fmp_gps_stop:          'Követés leállítása',
+  fmp_gps_denied:        'Helyhozzáférés megtagadva',
+  fmp_gps_unavail:       'Helymeghatározás nem elérhető',
+  fmp_gps_timeout:       'GPS-kérés időtúllépés',
 
   // ── SensorPanel ────────────────────────────────────────────────────────────
   sensor_title:          'Szenzorok',

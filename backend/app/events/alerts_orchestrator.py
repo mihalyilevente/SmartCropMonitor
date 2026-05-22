@@ -7,11 +7,23 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.events.sensor_alerts import check_sensors_offline
 
+try:
+    from app.events.irrigation_alerts import check_irrigation_alerts
+except ModuleNotFoundError as exc:
+    if exc.name != "app.events.irrigation_alerts":
+        raise
+    check_irrigation_alerts = None
+
 logger = logging.getLogger(__name__)
 
 
 ALERT_CHECKS: list[tuple[str, Callable[[Session], dict | None]]] = [
     ("sensor_offline_check", check_sensors_offline),
+    *(
+        [("irrigation_alert_check", check_irrigation_alerts)]
+        if check_irrigation_alerts
+        else []
+    ),
     # ("frost_hazard_check", check_frost_hazard),
     # ("drought_warning_check", check_drought_warning),
 ]

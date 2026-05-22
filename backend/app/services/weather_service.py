@@ -1,4 +1,6 @@
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from time import sleep
 import datetime
 from datetime import datetime, timedelta
@@ -17,6 +19,43 @@ alert_service = AlertService(webhook_url=WEBHOOK_URL)
 OPEN_METEO_SOURCE = "open-meteo"
 
 
+def _liquid_precipitation_mm(weather_record: WeatherHistory) -> float:
+    liquid_parts = [
+        weather_record.rain,
+        weather_record.showers,
+    ]
+    if any(v is not None for v in liquid_parts):
+        return sum(max(0.0, float(v)) for v in liquid_parts if v is not None)
+
+    if weather_record.precipitation is None:
+        return 0.0
+
+    snowfall = weather_record.snowfall or 0.0
+    return max(0.0, float(weather_record.precipitation) - float(snowfall))
+
+
+def _total_precipitation_mm(weather_record: WeatherHistory) -> float:
+    if weather_record.precipitation is not None:
+        return max(0.0, float(weather_record.precipitation))
+    return _liquid_precipitation_mm(weather_record) + max(0.0, float(weather_record.snowfall or 0.0))
+
+
+def _http_session() -> requests.Session:
+    """HTTP session with automatic retry on 5xx and connection errors."""
+    session = requests.Session()
+    retry = Retry(
+        total=4,
+        backoff_factor=2,          # 2s, 4s, 8s, 16s
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET", "POST"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
 def fetch_and_save_weather(db: Session, location: UserLocation):
     point = to_shape(location.location)
     lon, lat = point.x, point.y
@@ -32,7 +71,8 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
     )
 
     try:
-        response = requests.get(url, timeout=30)
+        session  = _http_session()
+        response = session.get(url, timeout=30)
         response.raise_for_status()
         data   = response.json()
         hourly = data["hourly"]
@@ -44,15 +84,11 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
             for i in range(len(daily.get("time", [])))
         }
 
-        wrf_covered = wrf_covered_timestamps(db, location.id)
         skipped = inserted = 0
 
         for i, ts in enumerate(times):
             timestamp = datetime.fromisoformat(ts)
 
-            if timestamp in wrf_covered:
-                skipped += 1
-                continue
 
             date_key = ts.split("T")[0]
             sunrise_str, sunset_str = sun_map.get(date_key, (None, None))
@@ -132,7 +168,7 @@ def _serialize_weather_point(weather_record):
         "ws":       weather_record.wind_speed,
         "wd":       weather_record.wind_deg,
         "cc":       weather_record.cloud_coverage,
-        "r":        weather_record.rain or 0.0,
+        "r":        _liquid_precipitation_mm(weather_record),
         "s":        weather_record.snowfall or 0.0,
         "dt":       weather_record.timestamp.isoformat(),
         "is_night": weather_record.is_night,
@@ -144,8 +180,9 @@ def weather_metrics(db: Session, location: UserLocation):
     pending_list = (
         db.query(WeatherHistory)
         .filter(
-            WeatherHistory.location_id    == location.id,
+            WeatherHistory.location_id == location.id,
             WeatherHistory.metrics_status == False,
+            WeatherHistory.data_source == "open-meteo",
         )
         .order_by(WeatherHistory.timestamp.asc())
         .all()
@@ -175,6 +212,7 @@ def weather_metrics(db: Session, location: UserLocation):
             .filter(
                 WeatherHistory.location_id == location.id,
                 WeatherHistory.timestamp.between(start_7d, end_date),
+                WeatherHistory.data_source == "open-meteo",
             )
             .order_by(WeatherHistory.timestamp.asc())
             .all()
@@ -185,6 +223,7 @@ def weather_metrics(db: Session, location: UserLocation):
             .filter(
                 WeatherHistory.location_id == location.id,
                 WeatherHistory.timestamp.between(start_30d, end_date),
+                WeatherHistory.data_source == "open-meteo",
             )
             .order_by(WeatherHistory.timestamp.asc())
             .all()
@@ -193,8 +232,8 @@ def weather_metrics(db: Session, location: UserLocation):
         temps       = [h.temp     for h in history_7d if h.temp     is not None]
         humidity_7d = [h.humidity for h in history_7d if h.humidity is not None]
 
-        rain_7d  = sum(h.rain or 0.0 for h in history_7d)
-        rain_30d = sum(h.rain or 0.0 for h in history_30d)
+        rain_7d  = sum(_total_precipitation_mm(h) for h in history_7d)
+        rain_30d = sum(_total_precipitation_mm(h) for h in history_30d)
 
         gdd_base_10    = sum(max(0, h.temp - 10) for h in history_7d if h.temp is not None) / 24
         heat_days_7d   = sum(1 for h in history_7d  if h.temp and h.temp > 30)
@@ -216,7 +255,6 @@ def weather_metrics(db: Session, location: UserLocation):
 
         result = perform_haskell_weather_metrics(location_data)
 
-        # base_kwargs — общие поля без gdd_base_10 (он ниже зависит от result)
         base_kwargs = dict(
             location_id=location.id,
             reference_weather_id=weather_record.id,
@@ -273,7 +311,8 @@ def weather_metrics(db: Session, location: UserLocation):
 
 def perform_haskell_weather_metrics(location_data):
     try:
-        response = requests.post(
+        session  = _http_session()
+        response = session.post(
             HASKELL_SERVICE_URL,
             json={"raw_data": location_data, "config": 3},
             timeout=10,
@@ -297,7 +336,8 @@ def current_weather_request(location: UserLocation):
     )
 
     try:
-        response = requests.get(url)
+        session  = _http_session()
+        response = session.get(url, timeout=15)
         response.raise_for_status()
         data = response.json()
         return {
