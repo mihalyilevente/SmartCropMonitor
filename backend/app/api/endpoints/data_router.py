@@ -436,3 +436,161 @@ def get_field_anomalies(
         })
 
     return result
+
+# ── False-positive feedback ───────────────────────────────────────────────────
+
+from pydantic import BaseModel as _FPBase
+from typing import Optional as _Opt
+
+
+class _FPCreate(_FPBase):
+    user_id:          int
+    event_id:         _Opt[int]  = None
+    anomaly_id:       _Opt[int]  = None
+    event_type:       _Opt[str]  = None
+    comment:          _Opt[str]  = None
+    context_snapshot: _Opt[dict] = None
+
+
+@router.post("/false-positives", tags=["FalsePositives"], status_code=201)
+def create_false_positive(
+    payload: _FPCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    POST /api/v1/false-positives
+
+    Body (JSON):
+        user_id          int        – обязательно
+        event_id         int|null   – id из таблицы events
+        anomaly_id       int|null   – id из field_stat_anomaly_analysis
+        event_type       str|null   – тип события / аномалии (для аналитики)
+        comment          str|null   – свободный комментарий оператора
+        context_snapshot dict|null  – произвольный снапшот параметров
+    """
+    from app.core.database import FalsePositiveFeedback, Events, FieldStatAnomalyAnalysis
+
+    if not payload.event_id and not payload.anomaly_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Необходимо передать event_id или anomaly_id (или оба)"
+        )
+
+    record = FalsePositiveFeedback(
+        user_id          = payload.user_id,
+        event_id         = payload.event_id,
+        anomaly_id       = payload.anomaly_id,
+        event_type       = payload.event_type,
+        comment          = payload.comment,
+        context_snapshot = payload.context_snapshot,
+    )
+    db.add(record)
+
+    if payload.event_id:
+        evt = db.query(Events).filter(Events.id == payload.event_id).first()
+        if evt:
+            evt.status = "IGNORED"
+
+    if payload.anomaly_id:
+        from app.core.database import FieldStatAnomalyAnalysis
+        anom = db.query(FieldStatAnomalyAnalysis).filter(
+            FieldStatAnomalyAnalysis.id == payload.anomaly_id
+        ).first()
+        if anom:
+            anom.status = "IGNORED"
+
+    db.commit()
+    db.refresh(record)
+
+    return {
+        "id":         record.id,
+        "event_id":   record.event_id,
+        "anomaly_id": record.anomaly_id,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "message":    "Записано как ложноположительное",
+    }
+
+
+@router.get("/false-positives", tags=["FalsePositives"])
+def list_false_positives(
+    user_id:    int,
+    event_type: _Opt[str] = None,
+    limit:      int = 50,
+    offset:     int = 0,
+    db: Session = Depends(get_db),
+):
+    """
+    GET /api/v1/false-positives?user_id=1&event_type=METRIC_ANOMALY&limit=50
+
+    Response shape:
+    {
+      "total": 42,
+      "items": [
+        {
+          "id": 1,
+          "event_id": 17,
+          "anomaly_id": null,
+          "event_type": "NDVI_DROP",
+          "comment": "скашивание, не аномалия",
+          "context_snapshot": { "abs_delta": -0.31, "metric_type": "ndvi" },
+          "created_at": "2026-05-22T10:00:00"
+        },
+        ...
+      ]
+    }
+    """
+    from app.core.database import FalsePositiveFeedback
+
+    query = db.query(FalsePositiveFeedback).filter(
+        FalsePositiveFeedback.user_id == user_id
+    )
+    if event_type:
+        query = query.filter(FalsePositiveFeedback.event_type == event_type)
+
+    total = query.count()
+    rows  = (
+        query
+        .order_by(FalsePositiveFeedback.created_at.desc())
+        .offset(offset)
+        .limit(max(1, min(limit, 200)))
+        .all()
+    )
+
+    return {
+        "total": total,
+        "items": [
+            {
+                "id":               r.id,
+                "event_id":         r.event_id,
+                "anomaly_id":       r.anomaly_id,
+                "event_type":       r.event_type,
+                "comment":          r.comment,
+                "context_snapshot": r.context_snapshot,
+                "created_at":       r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.delete("/false-positives/{fp_id}", tags=["FalsePositives"], status_code=204)
+def delete_false_positive(
+    fp_id:   int,
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    DELETE /api/v1/false-positives/{fp_id}?user_id=1
+    """
+    from app.core.database import FalsePositiveFeedback
+
+    record = db.query(FalsePositiveFeedback).filter(
+        FalsePositiveFeedback.id      == fp_id,
+        FalsePositiveFeedback.user_id == user_id,
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Запись не найдена или нет доступа")
+
+    db.delete(record)
+    db.commit()
