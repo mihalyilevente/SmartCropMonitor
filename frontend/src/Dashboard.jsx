@@ -21,11 +21,12 @@ import logo from './assets/logo1.png';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'overview',  labelKey: 'tab_overview',  icon: '🌱' },
-  { id: 'weather',   labelKey: 'tab_weather',   icon: '🌦' },
-  { id: 'fields',    labelKey: 'tab_fields',    icon: '🗺️' },
-  { id: 'tasks',     labelKey: 'tab_tasks',     icon: '✅' },
-  { id: 'sensors',   labelKey: 'tab_sensors',   icon: '📡' },
+  { id: 'overview',   labelKey: 'tab_overview',   icon: '🌱' },
+  { id: 'weather',    labelKey: 'tab_weather',    icon: '🌦' },
+  { id: 'fields',     labelKey: 'tab_fields',     icon: '🗺️' },
+  { id: 'fieldwork',  labelKey: 'tab_fieldwork',  icon: '🚜' },
+  { id: 'tasks',      labelKey: 'tab_tasks',      icon: '✅' },
+  { id: 'sensors',    labelKey: 'tab_sensors',    icon: '📡' },
 ];
 
 // ── Compact weather badge ────────────────────────────────────────────────────
@@ -181,8 +182,17 @@ const Dashboard = ({ userId, onLogout }) => {
               <>
                 <FieldsPanel userId={userId} locationId={locationId} />
                 <PasturePanel userId={userId} locationId={locationId} />
-                <FieldWorkPanel userId={userId} locationId={locationId} />
               </>
+            }
+          />
+        );
+
+      case 'fieldwork':
+        return (
+          <TwoColumnLayout
+            mapProps={mapProps}
+            left={
+              <FieldWorkPanel userId={userId} locationId={locationId} />
             }
           />
         );
@@ -194,7 +204,6 @@ const Dashboard = ({ userId, onLogout }) => {
             left={
               <>
                 <TasksPanel userId={userId} />
-                <FieldWorkPanel userId={userId} locationId={locationId} />
                 <AlertsPanel userId={userId} locationId={locationId} />
               </>
             }
