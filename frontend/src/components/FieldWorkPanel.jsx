@@ -192,7 +192,7 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
 // ── Work row ──────────────────────────────────────────────────────────────────
 const WorkRow = ({ record, onUpdate }) => {
   const { t } = useLang();
-  const [open,setOpen]=[useState(false)][0];const[_open,_setOpen]=useState(false);
+  const [_open,_setOpen]=useState(false);
   const [updating,setUpdating]=useState(false);
   const icon=WORK_ICONS[record.work_type]||'🌾';
   const ts=record.work_date ? new Date(record.work_date).toLocaleString('hu-HU',{dateStyle:'medium',timeStyle:'short'}) : '—';
@@ -438,7 +438,7 @@ const WorkTypeAnalytics = ({ userId }) => {
                 <PieChart>
                   <Pie data={sel.by_status} dataKey="count" nameKey="status"
                     cx="50%" cy="50%" outerRadius={55} innerRadius={26}
-                    label={({status,percent})=>percent>0.05?`${(percent*100).toFixed(0)}%`:''} labelLine={false}
+                    label={({percent})=>percent>0.05?`${(percent*100).toFixed(0)}%`:''} labelLine={false}
                     style={{fontSize:10}}>
                     {sel.by_status.map(d=>(
                       <Cell key={d.status} fill={STATUS_COLORS[d.status]||'#888'}/>
@@ -718,7 +718,7 @@ const LocationAnalytics = ({ userId }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // LOG TAB (existing list)
 // ══════════════════════════════════════════════════════════════════════════════
-const LogTab = ({ userId, locationId, records, fields, loading, onUpdate, onCreated,
+const LogTab = ({ userId, records, fields, loading, onUpdate, onCreated,
   filterType, setFilterType, filterStatus, setFilterStatus }) => {
   const { t } = useLang();
   const typeOptions = ['ALL',...new Set(records.map(r=>r.work_type))];
@@ -831,7 +831,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
           </div>
 
           {tab==='log' && (
-            <LogTab userId={userId} locationId={locationId} records={records} fields={fields}
+            <LogTab userId={userId} records={records} fields={fields}
               loading={loading} onUpdate={loadRecords} onCreated={loadRecords}
               filterType={filterType} setFilterType={setFilterType}
               filterStatus={filterStatus} setFilterStatus={setFilterStatus}/>
