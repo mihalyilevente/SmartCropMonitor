@@ -715,6 +715,36 @@ class UserTask(Base):
 
     extra_metadata = Column(JSONB, nullable=True)
 
+
+class FalsePositiveFeedback(Base):
+    __tablename__ = "false_positive_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True, index=True)
+
+    anomaly_id = Column(
+        Integer,
+        ForeignKey("field_stat_anomaly_analysis.id"),
+        nullable=True,
+        index=True,
+    )
+
+    event_type = Column(String(64), nullable=True, index=True)
+
+    comment = Column(String(500), nullable=True)
+
+    context_snapshot = Column(JSONB, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_fp_user_created", "user_id", "created_at"),
+        Index("ix_fp_event_type_created", "event_type", "created_at"),
+    )
+
 # =========================
 # DB Dependency
 # =========================

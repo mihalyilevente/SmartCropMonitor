@@ -36,9 +36,10 @@ const Pill = ({ label, colors }) => (
 );
 
 // ── Single alert row ──────────────────────────────────────────────────────────
-const AlertRow = ({ event, onStatusChange }) => {
+const AlertRow = ({ event, userId, onStatusChange }) => {
   const { t } = useLang();
   const [updating, setUpdating] = useState(false);
+  const [ignoring, setIgnoring] = useState(false);
   const [open, setOpen] = useState(false);
   const sev  = SEV_COLOR[event.severity]  || SEV_COLOR.INFO;
   const sta  = STATUS_COLOR[event.status] || STATUS_COLOR.ACTIVE;
@@ -61,6 +62,24 @@ const AlertRow = ({ event, onStatusChange }) => {
     } catch { alert(t('alert_err_status')); }
     finally { setUpdating(false); }
   };
+
+  const markFalsePositive = async (e) => {
+    e.stopPropagation();
+    if (event.status === 'IGNORED') return;
+    setIgnoring(true);
+    try {
+      await api.post('/api/v1/false-positives', {
+        user_id:          userId,
+        event_id:         event.id,
+        event_type:       event.event_type,
+        context_snapshot: event.extra_metadata ?? null,
+      });
+      onStatusChange();
+    } catch { alert(t('alert_err_status')); }
+    finally { setIgnoring(false); }
+  };
+
+  const isAlreadyIgnored = event.status === 'IGNORED';
 
   return (
     <div style={{ border: `1px solid ${sev.border}`, borderRadius: 10, overflow: 'hidden', background: '#fafaf8', marginBottom: 6 }}>
@@ -85,6 +104,23 @@ const AlertRow = ({ event, onStatusChange }) => {
           </div>
           <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{ts}</div>
         </div>
+        {!isAlreadyIgnored && (
+          <button
+            disabled={ignoring || updating}
+            onClick={markFalsePositive}
+            title={t('alert_mark_fp') || 'False positives'}
+            style={{
+              flexShrink: 0,
+              padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', border: '1px solid #e0d8cf',
+              background: '#f5f0ea', color: '#9e7a4a',
+              opacity: ignoring ? 0.5 : 1, transition: 'all 0.15s',
+              userSelect: 'none',
+            }}
+          >
+            {ignoring ? '…' : '🚫 FP'}
+          </button>
+        )}
         <span style={{ color: '#bbb', fontSize: 12, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
       </div>
 
@@ -148,7 +184,7 @@ const AlertRow = ({ event, onStatusChange }) => {
 };
 
 // ── Template library ──────────────────────────────────────────────────────────
-// name/description/group берутся из словаря по ключу при рендере
+// name/description/group
 const TEMPLATES = [
   { groupKey: 'tpl_group_weather', items: [
     { nameKey: 'tpl_frost_hazard_name',    descKey: 'tpl_frost_hazard_desc',    event_type: 'FROST_HAZARD',    icon: '❄️', condition: { metric: 'temp_min_night_7d',         operator: '<', value: 0    }, action: { notify: true, severity: 'WARNING' } },
@@ -612,7 +648,7 @@ const AlertsPanel = ({ userId, locationId }) => {
                   {events.length === 0 ? t('alerts_empty_all') : t('alerts_empty_filter')}
                 </div>
               ) : (
-                <div>{filtered.map(e => <AlertRow key={e.id} event={e} onStatusChange={loadEvents} />)}</div>
+                <div>{filtered.map(e => <AlertRow key={e.id} event={e} userId={userId} onStatusChange={loadEvents} />)}</div>
               )}
             </>
           )}

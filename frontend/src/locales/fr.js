@@ -214,6 +214,7 @@ const fr = {
   rule_err_delete:       'Impossible de supprimer.',
   rule_err_create:       'Impossible de créer la règle.',
   alert_err_status:      'Impossible de mettre à jour le statut.',
+  alert_mark_fp:         'Faux positif — Ignorer',
 
   // Alert statuses
   alert_status_all:          'TOUT',
@@ -323,6 +324,9 @@ const fr = {
   fw_err_create:         'Impossible de créer l\'enregistrement.',
   fw_err_status:         'Impossible de mettre à jour le statut.',
   fw_err_delete:         'Impossible de supprimer.',
+  fw_tab_log:            'Journal',
+  fw_tab_types:          'Par opération',
+  fw_tab_locations:      'Par emplacement',
   fw_status_all:         'TOUT',
   fw_status_draft:       'BROUILLON',
   fw_status_planned:     'PLANIFIÉ',
@@ -534,6 +538,7 @@ const fr = {
   tab_fields:            'Parcelles',
   tab_tasks:             'Tâches',
   tab_sensors:           'Capteurs',
+  tab_fieldwork:         'Travaux agricoles',
 
   // ── FieldMapPanel extras ────────────────────────────────────────────────────
   fmp_overlay_none:      'Aucun',

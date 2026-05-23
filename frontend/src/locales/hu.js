@@ -122,6 +122,7 @@ const hu = {
   rule_err_delete:       'Nem sikerült törölni.',
   rule_err_create:       'Nem sikerült létrehozni a szabályt.',
   alert_err_status:      'Nem sikerült frissíteni az állapotot.',
+  alert_mark_fp:         'Téves riasztás — Figyelmen kívül hagyás',
 
   // ── FieldsPanel ────────────────────────────────────────────────────────────
   fields_title:          'Saját táblák',
@@ -191,6 +192,9 @@ const hu = {
   fw_err_create:         'Nem sikerült létrehozni a táblamunka bejegyzést.',
   fw_err_status:         'Nem sikerült frissíteni az állapotot.',
   fw_err_delete:         'Nem sikerült törölni.',
+  fw_tab_log:            'Napló',
+  fw_tab_types:          'Munkatípus szerint',
+  fw_tab_locations:      'Helyszín szerint',
 
   // ── ManualFieldModal ───────────────────────────────────────────────────────
   mfm_title:             'Tábla kézi hozzáadása',
@@ -453,6 +457,7 @@ const hu = {
   tab_fields:            'Táblák',
   tab_tasks:             'Feladatok',
   tab_sensors:           'Szenzorok',
+  tab_fieldwork:         'Táblamunkák',
 
   // ── FieldMapPanel extras ────────────────────────────────────────────────────
   fmp_overlay_none:      'Nincs',

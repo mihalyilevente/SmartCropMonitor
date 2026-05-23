@@ -1,3 +1,168 @@
+# Smart Crop Monitor & Agro-Analytics Platform
+
+A high-performance agro-analytical backend designed for real-time farm management, precision agriculture, and automated risk assessment. The platform integrates satellite imagery processing, micro-climate physical modeling (WRF), deep learning segmentation, and biological risk engines to deliver actionable insights directly to farmers.
+
+---
+
+## Core Architectural Modules
+
+### 1. Meteorological Core & Multi-Source Weather Ingestion
+
+Handles precise grid-relative weather indexing and calculation of essential agro-meteorological metrics.
+
+* **WRF (Weather Research and Forecasting) Ingestion (`wrf_service.py`):** Parses high-resolution NetCDF4 outputs from local WRF physical model simulations. Includes automated spatial mapping via grid distance triangulation (`_find_nearest_grid_point`) to match exact farm locations (`UserLocation`).
+* **Open-Meteo & Open-Elevation Integration (`weather_service.py`):** Acts as a highly resilient fallback sync pipeline using automated HTTP exponential backoff retries (`_http_session`).
+* **Agro-Meteorological Metrics:** Processes complex data structures through high-performance compute engines to extract advanced indices like Evapotranspiration ($ET_0$), Vapor Pressure Deficit ($VPD$), Growing Degree Days ($GDD$), and Soil Moisture/Temperature profiles.
+
+### 2. Satellite Ingestion & Remote Sensing Pipeline
+
+An automated pipeline for gathering and processing vegetation health matrices.
+
+* **STAC-Driven Ingestion (`orchestrator.py`):** Queries and pulls `sentinel-2-l2a` bands directly over target bounds.
+* **Multi-Spectral Indices Engine (`ndvi_processor.py`):** Computes precise field-level matrices mapping raw spatial variables to high-level vegetation health indicators:
+* **NDVI** (Normalized Difference Vegetation Index) — General biomass and greenness.
+* **GNDVI** (Green NDVI) — Chlorophyll sensitivity monitoring.
+* **NDRE** (Normalized Difference Red Edge) — Late-stage crop canopy vigor.
+* **NDWI & NMDI** — Plant water stress and soil moisture dynamics.
+
+
+* **Zonal Extraction (`calculate_per_field_metrics`):** Clips high-resolution multi-spectral rasters directly against spatial database geometries (`GeoAlchemy2`/`WKB`), extracting statistical profiles (Mean, Min, Max, Std) for each independent farming sector.
+
+### 3. Deep Learning Field Segmentation
+
+* **UTAE (U-TimeSpatial Spatial-Temporal Attention) Model (`segmentation.py`):** Leverages neural networks optimized for multi-temporal satellite data. It dynamically runs batch inference on cloud-masked NetCDF sequences over full tile areas to isolate individual agricultural land entities without manual vector tracing.
+* **Geospatial Extraction:** Automatically vectorizes neural network binary masks back into real-world geographic coordinates (`EPSG:4326` MultiPolygons) and runs topological sanity checks (`validate_field_shape`) to calculate field areas in hectares ($ha$) prior to database commitment.
+
+### 4. Disease Risk & Epiphytoty Forecasting Engine
+
+Continuous sliding-window disease prediction module (`disease_service.py`) running automated analysis over 48-hour, 7-day, and 10-day weather time-series matrices synchronized with the plant's actual development stage (**BBCH scale**).
+
+* **Botrytis cinerea:** Evaluates risk scores based on uninterrupted leaf wetness and strict temperature threshold durations over a 48-hour window.
+* **TOMCAST:** Calculates Daily Severity Values ($DSV$) to manage early blight, Septoria, and fruit anthracnose treatments.
+* **Blitecast:** Monitors late blight occurrence ($P$-Value accumulation thresholds).
+* **Plasmopara viticola (Downy Mildew):** Tracks spore incubation using multi-day rainfall volume data paired with micro-climatic humidity tracking.
+
+### 5. Smart Spraying Window Optimization
+
+* **Dynamic Validation (`spraying_service.py`):** Combines an 8-day hourly forecast matrix ($T$, $H$, wind speed, precipitation, $ET_0$, $VPD$) to determine safe chemical application periods.
+* **Risk Mitigation:** Flags critical constraints such as chemical drift risks (high wind speed), high evaporation gaps ($VPD$), or immediate wash-off risks (precipitation).
+
+### 6. Automated Statistical Anomaly Processor
+
+* **Sudden Change Detection (`spot_anomaly_processor.py`):** Evaluates multi-temporal satellite observations on a pixel-by-pixel basis.
+* **Spatial Cluster Extraction:** If a sub-sector of a field demonstrates a sudden, statistically significant vegetative drop (exceeding adaptive area ratio thresholds), it isolates the anomaly, rates it by confidence level (`WARNING`, `HIGH`, `CRITICAL`), and issues targeted crop protection alerts.
+
+### 7. Custom Alert Engine & Real-Time Sensor Processing
+
+* **Live Streams (`sensor_servise.py`):** Direct hardware integration via secure telemetry payloads (`WeatherSensors`) using cryptographic key validation.
+* **Dynamic Rule Definition:** An upcoming user-defined alert framework allowing farmers to write specific logic thresholds (e.g., *“Alert if soil temperature at 0cm drops below 2°C while air humidity is > 85%”*). Processes micro-streams instantly through automated webhook alerting pathways.
+
+### 8. Pasture Rotation & Smart Grazing Optimization
+
+* **Forage Allocation Matrices:** Utilizing multi-spectral tracking data to monitor vegetative regeneration velocity inside rotational grazing zones.
+* **Regenerative Agriculture Analytics:** Automated recommendation engines computing optimal stocking rates, precise days of occupancy ($DO$), and mandatory rest periods ($RP$) per pasture sector to prevent soil compaction and overgrazing.
+
+### 9. AI Biomass Estimation Engine
+
+* **Dry Matter Yield ($DMY$) Projections:** Merging historical $GDD$ accumulations, spatial soil moisture layers, and radar/optical satellite signatures into predictive crop modeling systems.
+* **Harvest Timeline Optimization:** Live tonnage estimations allowing farmers to plan logistical supply chains and predict actual yield capacity weeks before physical machinery enters the field.
+
+---
+
+## Tech Stack Specification
+
+The system is built on a decoupled, heterogeneous microservices architecture designed to isolate high-throughput data parsing, compute-heavy deep learning models, and complex functional data pipelines.
+
+* **Backend Core:** Python 3.12 / FastAPI (High-performance asynchronous API gateway and task execution orchestrator).
+* **Geospatial Analysis Compute:** Haskell (GHC 9.x / Stack). Handles pure, deterministic vector-to-raster validation, custom alerting thresholds, and micro-climatic multi-day risk aggregates (`haskell-service`).
+* **Database Layers:** PostgreSQL + **PostGIS** extension (Handles topological field boundaries, relational farm hierarchies, and spatial indexing).
+* **Numerical Weather Prediction (NWP):** WRF (Weather Research and Forecasting) v4.x + WPS (WRF Preprocessing System). Run inside dedicated ephemeral containers for boundary-layer downscaling.
+* **Deep Learning & Matrix Core:** PyTorch (Inference optimization for temporal semantic segmentation), `Xarray` / `Rioxarray` (Distributed NetCDF4/GeoTIFF ingestion and geospatial array operations).
+
+---
+
+## Project Directory Structure
+
+```text
+SmartCropMonitor/
+├── .github/                   # CI/CD Workflows and automated deployment actions
+├── backend/                   # FastAPI Core Enterprise Application
+│   ├── app/
+│   │   ├── api/               # REST API Routes and controllers
+│   │   ├── core/              # Global Configurations, Database initialization, and Schemas
+│   │   ├── events/            # Telemetry processing hooks and async notification pipes
+│   │   ├── models/            # ML Architecture definitions (e.g., UTAE, UNet) and binary weights
+│   │   ├── monitoring/        # Critical alerting infrastructure and remote sync endpoints
+│   │   ├── services/          # Pure analytical services (WRF, NDVI, Disease Risk, Spraying Window)
+│   │   ├── tasks/             # Scheduled background synchronization loops
+│   │   └── utils/             # Spatial geometry and mathematical calculation helpers
+│   ├── data/                  # Embedded local application data configuration mappings
+│   └── Dockerfile             # Production multi-stage build script for backend core
+├── docs/                      # Architectural Specification Docs
+│   ├── assets/diagrams/       # Compiled schemas (ERD, Neural Net Topologies: UTAE, UNet)
+│   └── iot/                   # Hardware blueprints, schematic specs, and ESP32 reference firmware
+├── frontend/                  # Single Page Application (Vite + React / TypeScript Dashboard)
+├── haskell-service/           # High-Performance Analytics Compute (Cabals & Stack-built binary)
+├── notebooks/                 # Research environments for Deep Learning model tracking and calibration
+├── wrf-preprocessor/          # Geogrid, Ungrib, and Metgrid execution layer container (WPS)
+├── wrf-runner/                # Real-time boundary downscaling container (WRF Core)
+├── .env                       # Decentralized deployment environment keys
+├── docker-compose.yml         # Container topology orchestration schema
+└── requirements.txt           # Monolithic python environment snapshot declaration
+
+```
+
+---
+
+## Network Topology & Ports Architecture
+
+The following matrix isolates internal cross-container routing boundaries and public ingress definitions:
+
+| Container Service | External Port | Internal Port | Protocol | Network Routing Target | Access Domain |
+| --- | --- | --- | --- | --- | --- |
+| `backend` | `8000` | `8000` | HTTP/TCP | Main API Gateway / Core Orchestrator | Public / Reverse Proxy |
+| `haskell-service` | `8081` | `8081` | HTTP/TCP | Statistical compute endpoints (`/field-stats`) | Private / Internal Only |
+| `frontend` | `3000` | `80` | HTTP/TCP | Production Nginx hosting compiled web client assets | Public Ingress |
+| `wrf-preprocessor` | *None* | *None* | Ephemeral | One-shot processing container run natively on the host docker daemon | Shared Storage IPC |
+| `wrf-runner` | *None* | *None* | Ephemeral | One-shot processing container bounded to strict computational hardware limits | Shared Storage IPC |
+
+---
+
+## Docker Container Topology & Shared Volumes
+
+The platform utilizes standard Docker isolation configurations to decouple persistent APIs from compute-heavy pipelines.
+
+### Persistent Services
+
+* **`backend`:** Mounts host Docker socket (`/var/run/docker.sock`). This gives the API the capability to launch sibling one-shot container instances (`wrf-preprocessor` / `wrf-runner`) dynamically via subprocess operations when target farm configurations are added or modified.
+* **`haskell-service`:** Runs fully isolated and detached without storage hooks, processing pure functional computations across standard memory allocations.
+* **`frontend`:** Injects production configuration endpoints (`VITE_API_URL`) and spatial keys (`VITE_MAPBOX_TOKEN`) at build-time directly into a static web tier.
+
+### Ephemeral / Profile-Driven Batch Processing
+
+The WRF modeling containers are managed via standard **Docker Compose Profiles (`profile: ["wrf"]`)**. They stay completely down until explicitly awakened by the core task manager, bypassing persistent memory consumption during quiet cycles.
+
+### Storage Volumetric Mapping
+
+A centralized high-performance local storage grid handles zero-copy matrix tracking:
+
+```yaml
+volumes:
+  wrf_shared_exchange: # Inter-container workspace handling binary netCDF arrays
+
+```
+
+* **`wrf_shared_exchange` Layer:** Binds `backend`, `wrf-preprocessor`, and `wrf-runner` together.
+1. The `backend` writes custom geo-referenced target metrics (`namelist.wps`) to the shared mount.
+2. The `wrf-preprocessor` reads the instructions, downloads external GFS boundary inputs, extracts geographical layers, and outputs binary grids into the shared space.
+3. The `wrf-runner` reads the processed grids, binds them to real hardware limits (maximum `4G` RAM, allocating a dedicated `3G` reservation to optimize memory footprints), processes the fluid dynamics variables, and returns final weather grids into the storage volume.
+4. The `backend` triggers its local ingestion script to map the output metrics directly down into PostgreSQL.
+
+
+* **Terrain Data Layer (`/mnt/volume-nbg1-2/topo`):** High-capacity static topological data volume attached directly as a read-only parameter to the preprocessor stage. This lets the modeling engine process precise digital elevation parameters locally without repetitive data lookups.
+
+---
+
 ## Local Development Setup
 
 ### 1. Prerequisites
@@ -373,9 +538,4 @@ For commercial licensing inquiries, please contact:
 
 The commercial license is an alternative to the AGPL license.
 You must choose one of the two licensing options depending on your use case.
----
-
-
-git commit -m "chore(data): ingest latest weather and satellite imagery"
-
 ---
