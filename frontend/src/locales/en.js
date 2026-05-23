@@ -122,6 +122,7 @@ const en = {
   rule_err_delete:       'Failed to delete.',
   rule_err_create:       'Failed to create rule.',
   alert_err_status:      'Failed to update status.',
+  alert_mark_fp:         'False Positive — Ignore',
 
   // ── FieldsPanel ────────────────────────────────────────────────────────────
   fields_title:          'My Fields',
@@ -191,6 +192,9 @@ const en = {
   fw_err_create:         'Failed to create field work record.',
   fw_err_status:         'Failed to update status.',
   fw_err_delete:         'Failed to delete.',
+  fw_tab_log:            'Work Log',
+  fw_tab_types:          'By Operation',
+  fw_tab_locations:      'By Location',
 
   // ── ManualFieldModal ───────────────────────────────────────────────────────
   mfm_title:             'Add Field Manually',
@@ -451,6 +455,7 @@ const en = {
   tab_fields:            'Fields',
   tab_tasks:             'Tasks',
   tab_sensors:           'Sensors',
+  tab_fieldwork:         'Field Work',
 
   // ── FieldMapPanel extras ────────────────────────────────────────────────────
   fmp_overlay_none:      'None',

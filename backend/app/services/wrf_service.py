@@ -245,23 +245,6 @@ def _ingest_file(db: Session, location: UserLocation, lat: float, lon: float, fp
         stmt = insert(WeatherHistory).values(rows)
         stmt = stmt.on_conflict_do_nothing(
             constraint="uq_weather_location_timestamp",
-            set_={
-                # Only overwrite if existing record is NOT also from WRF
-                # (WRF always wins over open-meteo; newer WRF run wins over older)
-                "temp":                   stmt.excluded.temp,
-                "humidity":               stmt.excluded.humidity,
-                "dew_point":              stmt.excluded.dew_point,
-                "precipitation":          stmt.excluded.precipitation,
-                "rain":                   stmt.excluded.rain,
-                "soil_temperature_0cm":   stmt.excluded.soil_temperature_0cm,
-                "soil_moisture_0_to_1cm": stmt.excluded.soil_moisture_0_to_1cm,
-                "pressure":               stmt.excluded.pressure,
-                "cloud_coverage":         stmt.excluded.cloud_coverage,
-                "wind_speed":             stmt.excluded.wind_speed,
-                "wind_deg":               stmt.excluded.wind_deg,
-                "data_source":            stmt.excluded.data_source,
-                "metrics_status":         False,
-            }
         )
 
         db.execute(stmt)
