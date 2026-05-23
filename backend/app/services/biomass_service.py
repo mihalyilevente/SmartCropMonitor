@@ -111,6 +111,7 @@ def _get_nearest_weather(
     metrics = (
         db.query(WeatherMetrics)
         .filter(WeatherMetrics.reference_weather_id == weather.id)
+        .order_by(WeatherMetrics.id.desc())
         .first()
     )
     return weather, metrics

@@ -52,7 +52,7 @@ def _latest_metrics(
             WeatherMetrics.location_id == location_id,
             WeatherMetrics.window_end_date <= as_of,
         )
-        .order_by(WeatherMetrics.window_end_date.desc())
+        .order_by(WeatherMetrics.window_end_date.desc(), WeatherMetrics.id.desc())
         .first()
     )
 

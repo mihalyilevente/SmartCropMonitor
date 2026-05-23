@@ -3,8 +3,27 @@ import { useLang } from '../context/LanguageContext';
 
 const C = { green:'#317f43', soil:'#8b6340', mulberry:'#470736', sky:'#1a6fa3', amber:'#b87300', teal:'#1a7a6e', rose:'#b53060', slate:'#4a5568' };
 
+const timestampMs = (value) => {
+  if (!value) return null;
+  const raw = String(value);
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw) ? raw : `${raw}Z`;
+  const ms = Date.parse(normalized);
+  return Number.isFinite(ms) ? ms : null;
+};
+
+const normalizeTimeSeries = (points = []) => {
+  const byTime = new Map();
+  points.forEach((p) => {
+    const t = timestampMs(p.x);
+    const y = Number(p.y);
+    if (t == null || !Number.isFinite(y)) return;
+    byTime.set(t, { x: new Date(t).toISOString(), y, t });
+  });
+  return Array.from(byTime.values()).sort((a, b) => a.t - b.t);
+};
+
 const LineChart = ({ points = [], color = C.green, label = '', unit = '', cursorIdx, onCursorChange, noDataLabel }) => {
-  const valid = points.filter(p => p.y != null && !isNaN(p.y));
+  const valid = normalizeTimeSeries(points);
   if (!valid.length) return (
     <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 12 }}>
       {noDataLabel}
@@ -16,20 +35,22 @@ const LineChart = ({ points = [], color = C.green, label = '', unit = '', cursor
   const ys = valid.map(p => p.y);
   const minY = Math.min(...ys), maxY = Math.max(...ys), rangeY = maxY - minY || 1;
   const now = Date.now();
-  const sx = (i) => padX + (i / (valid.length - 1 || 1)) * innerW;
+  const minT = valid[0].t, maxT = valid[valid.length - 1].t, rangeT = maxT - minT || 1;
+  const sx = (p) => padX + ((p.t - minT) / rangeT) * innerW;
   const sy = (v) => padY + (1 - (v - minY) / rangeY) * innerH;
-  const linePts = valid.map((p, i) => `${sx(i)},${sy(p.y)}`).join(' ');
-  const area    = `M${sx(0)},${padY + innerH} ` + valid.map((p, i) => `L${sx(i)},${sy(p.y)}`).join(' ') + ` L${sx(valid.length - 1)},${padY + innerH} Z`;
+  const linePts = valid.map((p) => `${sx(p)},${sy(p.y)}`).join(' ');
+  const area    = `M${sx(valid[0])},${padY + innerH} ` + valid.map((p) => `L${sx(p)},${sy(p.y)}`).join(' ') + ` L${sx(valid[valid.length - 1])},${padY + innerH} Z`;
   const step   = Math.max(1, Math.floor(valid.length / 6));
   const xTicks = valid.map((p, i) => ({ i, p })).filter(({ i }) => i % step === 0 || i === valid.length - 1);
   const yVals  = [minY, minY + rangeY * 0.5, maxY];
   const gId    = `grad${label.replace(/\W/g, '')}`;
 
   let nowIdx = 0, bestDiff = Infinity;
-  valid.forEach((p, i) => { const diff = Math.abs(new Date(p.x).getTime() - now); if (diff < bestDiff) { bestDiff = diff; nowIdx = i; } });
-  const nowX = sx(nowIdx);
+  valid.forEach((p, i) => { const diff = Math.abs(p.t - now); if (diff < bestDiff) { bestDiff = diff; nowIdx = i; } });
+  const nowPoint = valid[nowIdx];
+  const nowX = sx(nowPoint);
   const curIdx   = cursorIdx != null ? Math.min(Math.max(0, cursorIdx), valid.length - 1) : null;
-  const curX     = curIdx != null ? sx(curIdx) : null;
+  const curX     = curIdx != null ? sx(valid[curIdx]) : null;
   const curPoint = curIdx != null ? valid[curIdx] : null;
 
   const handleClick = (e) => {
@@ -37,7 +58,16 @@ const LineChart = ({ points = [], color = C.green, label = '', unit = '', cursor
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = (e.clientX - rect.left) / rect.width * W;
     const frac = Math.max(0, Math.min(1, (relX - padX) / innerW));
-    onCursorChange(Math.round(frac * (valid.length - 1)));
+    const clickedT = minT + frac * rangeT;
+    let nearest = 0, nearestDiff = Infinity;
+    valid.forEach((p, i) => {
+      const diff = Math.abs(p.t - clickedT);
+      if (diff < nearestDiff) {
+        nearest = i;
+        nearestDiff = diff;
+      }
+    });
+    onCursorChange(nearest);
   };
 
   return (
@@ -75,9 +105,9 @@ const LineChart = ({ points = [], color = C.green, label = '', unit = '', cursor
           </g>
         );
       })()}
-      <circle cx={sx(valid.length - 1)} cy={sy(valid[valid.length - 1].y)} r={4} fill={color} stroke="#fff" strokeWidth="2" />
-      {xTicks.map(({ i, p }) => (
-        <text key={i} x={sx(i)} y={H - 2} textAnchor="middle" fontSize="9" fill="#bbb" fontFamily="inherit">
+      <circle cx={sx(valid[valid.length - 1])} cy={sy(valid[valid.length - 1].y)} r={4} fill={color} stroke="#fff" strokeWidth="2" />
+      {xTicks.map(({ p }) => (
+        <text key={p.t} x={sx(p)} y={H - 2} textAnchor="middle" fontSize="9" fill="#bbb" fontFamily="inherit">
           {new Date(p.x).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })}
         </text>
       ))}
@@ -131,8 +161,8 @@ const WeatherCharts = ({ data = [] }) => {
   const ALL_TABS = [...WEATHER_TABS, ...METRIC_TABS];
 
   const cfg    = ALL_TABS.find(tb => tb.key === active) || ALL_TABS[0];
-  const points = useMemo(() => data.map(row => ({ x: row.timestamp, y: cfg.src === 'weather' ? row.weather_data?.[cfg.key] : row.metrics_data?.[cfg.key] })), [data, active, cfg.key, cfg.src]);
-  const validPoints = useMemo(() => points.filter(p => p.y != null && !isNaN(p.y)), [points]);
+  const points = useMemo(() => data.map(row => ({ x: row.timestamp, y: cfg.src === 'weather' ? row.weather_data?.[cfg.key] : row.metrics_data?.[cfg.key] })), [data, cfg.key, cfg.src]);
+  const validPoints = useMemo(() => normalizeTimeSeries(points), [points]);
   const vals = validPoints.map(p => p.y);
   const stats = vals.length ? { min: Math.min(...vals).toFixed(2), max: Math.max(...vals).toFixed(2), avg: (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2), last: vals[vals.length - 1].toFixed(2) } : null;
   const sliderMax  = Math.max(0, validPoints.length - 1);
