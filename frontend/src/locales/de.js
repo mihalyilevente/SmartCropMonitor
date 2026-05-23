@@ -122,6 +122,7 @@ const de = {
   rule_err_delete:       'Löschen fehlgeschlagen.',
   rule_err_create:       'Regel konnte nicht erstellt werden.',
   alert_err_status:      'Status konnte nicht aktualisiert werden.',
+  alert_mark_fp:         'Falsch positiv — Ignorieren',
 
   // Alert statuses
   alert_status_all:          'ALLE',
@@ -231,6 +232,9 @@ const de = {
   fw_err_create:         'Eintrag konnte nicht erstellt werden.',
   fw_err_status:         'Status konnte nicht aktualisiert werden.',
   fw_err_delete:         'Löschen fehlgeschlagen.',
+  fw_tab_log:            'Arbeitsprotokoll',
+  fw_tab_types:          'Nach Arbeitstyp',
+  fw_tab_locations:      'Nach Standort',
   fw_status_all:         'ALLE',
   fw_status_draft:       'ENTWURF',
   fw_status_planned:     'GEPLANT',
@@ -442,6 +446,7 @@ const de = {
   tab_fields:            'Felder',
   tab_tasks:             'Aufgaben',
   tab_sensors:           'Sensoren',
+  tab_fieldwork:         'Feldarbeiten',
 
   // ── FieldMapPanel extras ────────────────────────────────────────────────────
   fmp_overlay_none:      'Keine',
