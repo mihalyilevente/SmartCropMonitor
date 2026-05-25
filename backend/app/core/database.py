@@ -628,6 +628,7 @@ class AlertDeliveryLog(Base):
 
 class EventsRules(Base):
     __tablename__ = "events_rules"
+    id = Column(Integer, primary_key=True, index=True)
     
 # eGN 3.5 – Pesticide / Plant-protection log
 class PesticideLog(Base):
