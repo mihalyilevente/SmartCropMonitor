@@ -383,21 +383,33 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
     if (!open) return;
     applyToMap(map => {
       const HM_SRC = 'metric-src', HM_LAYER = 'metric-layer';
-      if (map.getLayer(HM_LAYER)) map.removeLayer(HM_LAYER);
-      if (map.getSource(HM_SRC))  map.removeSource(HM_SRC);
-      if (!metricData || !metricEnabled) return;
+      if (!metricData || !metricEnabled) {
+        if (map.getLayer(HM_LAYER)) map.removeLayer(HM_LAYER);
+        if (map.getSource(HM_SRC))  map.removeSource(HM_SRC);
+        return;
+      }
       const { z, x, y } = metricData;
       const gj   = gridToGeoJSON(z, x, y);
       const meta = METRIC_META[metric];
       let dMin = Infinity, dMax = -Infinity;
       gj.features.forEach(f => { const v = f.properties.value; if (v < dMin) dMin = v; if (v > dMax) dMax = v; });
       const dMid = dMin + (dMax - dMin) * 0.5;
-      map.addSource(HM_SRC, { type: 'geojson', data: gj });
-      map.addLayer({ id: HM_LAYER, type: 'circle', source: HM_SRC, paint: {
-        'circle-color': ['interpolate',['linear'],['get','value'], dMin, meta.ramp[0], dMid, meta.ramp[1], dMax, meta.ramp[2]],
-        'circle-radius': ['interpolate',['exponential',1.5],['zoom'], 8,0.5, 10,1.2, 12,3, 14,6, 16,12, 18,22],
-        'circle-opacity': 0.7, 'circle-blur': 0, 'circle-stroke-width': 0, 'circle-pitch-alignment': 'map',
-      } }, map.getLayer('fields-fill') ? 'fields-fill' : undefined);
+      const colorExpr = ['interpolate',['linear'],['get','value'], dMin, meta.ramp[0], dMid, meta.ramp[1], dMax, meta.ramp[2]];
+
+      if (map.getSource(HM_SRC)) {
+        // Reuse existing source and layer to avoid flicker on metric switch
+        map.getSource(HM_SRC).setData(gj);
+        if (map.getLayer(HM_LAYER)) map.setPaintProperty(HM_LAYER, 'circle-color', colorExpr);
+      } else {
+        map.addSource(HM_SRC, { type: 'geojson', data: gj });
+        map.addLayer({ id: HM_LAYER, type: 'circle', source: HM_SRC, paint: {
+          'circle-color': colorExpr,
+          'circle-radius': ['interpolate',['exponential',2],['zoom'], 7,1, 10,2.5, 12,5, 14,9, 16,16, 18,28],
+          'circle-opacity': 0.75,
+          'circle-blur': ['interpolate',['linear'],['zoom'], 8,1.5, 12,0.8, 15,0.3, 18,0],
+          'circle-stroke-width': 0, 'circle-pitch-alignment': 'map',
+        } }, map.getLayer('fields-fill') ? 'fields-fill' : undefined);
+      }
     });
   }, [metricData, metric, metricEnabled, open, applyToMap]);
 
@@ -596,9 +608,9 @@ const styles = {
   divider:     { display: 'inline-block', width: 1, height: 18, background: 'var(--color-accent-soil)', opacity: 0.35, margin: '0 4px' },
   elevBadge:   { fontSize: 11, fontWeight: 600, color: '#5a3e1b', background: 'rgba(90,62,27,0.1)', border: '1px solid rgba(90,62,27,0.25)', borderRadius: 20, padding: '2px 10px' },
   errorNote:   { fontSize: 12, color: '#c0392b', marginLeft: 8 },
-  mapWrap:     { position: 'relative', height: '480px', width: '100%' },
+  mapWrap:     { position: 'relative', height: 'clamp(320px, 45vh, 480px)', width: '100%' },
   mapErrorMsg: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#c0392b', background: '#fff3f3' },
-  legend:      { position: 'absolute', bottom: 36, right: 12, zIndex: 10, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 140 },
+  legend:      { position: 'absolute', bottom: 60, right: 12, zIndex: 10, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 140 },
   legendTitle: { fontSize: 12, fontWeight: 700, marginBottom: 4 },
   legendDesc:  { fontWeight: 400, opacity: 0.65, fontSize: 11 },
   legendLabels:{ display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.7 },
