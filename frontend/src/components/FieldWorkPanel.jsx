@@ -5,7 +5,6 @@ import {
   PolarAngleAxis, PolarRadiusAxis, Legend, CartesianGrid,
 } from 'recharts';
 import api from '../api/client';
-import { useLang } from '../context/LanguageContext';
 
 const BASE = '/api/v1/fieldwork';
 
@@ -135,12 +134,6 @@ const FL = ({ label, children }) => (
   <label style={lbl}>{label}{children}</label>
 );
 const Inp = (props) => <input {...props} style={{...inp, ...props.style}}/>;
-const Sel = ({ value, onChange, options, style }) => (
-  <select value={value} onChange={onChange} style={{...inp, ...style}}>
-    {options.map(([v,l])=><option key={v} value={v}>{l||v.replace(/_/g,' ')}</option>)}
-  </select>
-);
-
 // ── Tab selector for create forms ─────────────────────────────────────────────
 const CreateTabs = ({ active, setActive }) => {
   const tabs = [
@@ -601,7 +594,7 @@ const HarvestModal = ({ season, onClose, onSaved }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // SEASONS TAB
 // ══════════════════════════════════════════════════════════════════════════════
-const SeasonsTab = ({ userId, fields }) => {
+const SeasonsTab = ({ fields }) => {
   const [selectedField, setSelectedField] = useState(fields[0]?.id || null);
   const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1351,7 +1344,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
               filterType={filterType} setFilterType={setFilterType}
               filterStatus={filterStatus} setFilterStatus={setFilterStatus}/>
           )}
-          {tab === 'seasons' && <SeasonsTab userId={userId} fields={fields}/>}
+          {tab === 'seasons' && <SeasonsTab fields={fields}/>}
           {tab === 'by_type'     && <WorkTypeAnalytics userId={userId}/>}
           {tab === 'by_location' && <LocationAnalytics userId={userId}/>}
         </div>

@@ -696,7 +696,7 @@ const fr = {
   phone_placeholder:       'Téléphone',
   country_placeholder:     'Pays',
   city_placeholder:        'Ville',
-  farm_name_placeholder:   "Nom de l\'exploitation",
+  farm_name_placeholder:   "Nom de l'exploitation",
   farm_size_placeholder:   'Surface (ha)',
 
 
