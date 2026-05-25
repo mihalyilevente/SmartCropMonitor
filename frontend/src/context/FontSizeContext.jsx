@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-
-const FontSizeContext = createContext(null);
+import { useState, useEffect } from 'react';
+import FontSizeContext from './fontSizeContextValue';
 
 export const FontSizeProvider = ({ children }) => {
   const [largeFonts, setLargeFonts] = useState(
@@ -29,5 +28,3 @@ export const FontSizeProvider = ({ children }) => {
     </FontSizeContext.Provider>
   );
 };
-
-export const useFontSize = () => useContext(FontSizeContext);
