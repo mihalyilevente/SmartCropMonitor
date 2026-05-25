@@ -5,7 +5,7 @@ import datetime
 
 from sqlalchemy import (
     create_engine, Column, Integer, Float, Enum, Numeric,
-    ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint, func, Index, Date, Text
+    ForeignKey, String, DateTime, JSON, Boolean, UniqueConstraint, func, Index, Date, Text, inspect
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
