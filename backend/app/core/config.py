@@ -11,6 +11,8 @@ VIS_DIR = os.path.join(STORAGE_PATH, "visual")
 NDVI_DIR = os.path.join(STORAGE_PATH, "ndvi")
 TOPO_DIR = os.path.join(STORAGE_PATH, "topo")
 WEATHER_DIR = os.path.join(STORAGE_PATH, "weather")
+CACHE_DIR = os.path.join(STORAGE_PATH, "cache")
+TEMP_DIR = os.path.join(STORAGE_PATH, "temp")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
@@ -20,6 +22,8 @@ os.makedirs(VIS_DIR, exist_ok=True)
 os.makedirs(NDVI_DIR, exist_ok=True)
 os.makedirs(TOPO_DIR, exist_ok=True)
 os.makedirs(WEATHER_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
 API_VERSION = "0.1.11"
@@ -55,6 +59,9 @@ MIN_SEGM_INPUTS = 3
 
 MIN_RECORDS_7D = 24 * 7 * 0.8
 WEATHER_API_KEY = "62fac38da0cb452e42ea7171b9586e60"
+
+CLEANUP_RETAIN_LATEST_DATASETS = int(os.getenv("CLEANUP_RETAIN_LATEST_DATASETS", 10))
+CLEANUP_MIN_FILE_AGE_HOURS = float(os.getenv("CLEANUP_MIN_FILE_AGE_HOURS", 1))
 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 HASKELL_SERVICE_URL = HASKELL_URL
