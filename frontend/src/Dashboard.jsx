@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
-import { useFontSize } from './context/FontSizeContext';
+import { useFontSize } from './context/useFontSize';
 import { useLang } from './context/LanguageContext';
 import AlertsPanel from './components/AlertsPanel';
 import TasksPanel from './components/TasksPanel';
@@ -18,6 +18,7 @@ import SegmentationModal from './components/SegmentationModal';
 import ManualFieldModal from './components/ManualFieldModal';
 import MorningBriefingPanel from './components/MorningBriefingPanel';
 import SettingsPanel from './components/SettingsPanel';
+import EgnReportPanel from './components/EgnReportPanel';
 import logo from './assets/logo1.png';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -77,15 +78,6 @@ const FullLayout = ({ children }) => (
 // ══════════════════════════════════════════════════════════════════════════════
 // FARM PROFILE PANEL  (eGN 3.1)
 // ══════════════════════════════════════════════════════════════════════════════
-
-const SOIL_TYPES = [
-  'Sandy','Sandy loam','Loam','Silt loam','Silt','Clay loam','Silty clay loam',
-  'Sandy clay','Silty clay','Clay','Peat','Chernozem','Rendzina','Other',
-];
-
-const SOIL_TEXTURES = [
-  'Coarse','Medium','Fine','Very fine','Organic',
-];
 
 const FarmProfilePanel = ({ userId }) => {
   const [profile, setProfile]   = useState(null);

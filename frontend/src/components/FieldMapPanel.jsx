@@ -270,7 +270,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
     );
-  }, [gpsActive, applyToMap, t]); // eslint-disable-line
+  }, [gpsActive, applyToMap, t]);
 
   const mapCallbackRef = useCallback((node) => {
     if (!node) {
@@ -353,7 +353,7 @@ const FieldMapPanel = forwardRef(({ userId, locationId, locationCenter, onAddLoc
         applyToMap(map => _renderAnomalyLayer(map, r.data, ASRC, ALAYER));
       })
       .catch(() => { setAnomalyError(t('fmp_anomaly_err')); setAnomalyLoading(false); clearLayer(); });
-  }, [anomalyOn, selectedField, userId, anomalyData, anomalyField, applyToMap, t]); // eslint-disable-line
+  }, [anomalyOn, selectedField, userId, anomalyData, anomalyField, applyToMap, t]);
 
   // Clear anomaly layer when field deselected or anomaly mode turned off
   useEffect(() => {
