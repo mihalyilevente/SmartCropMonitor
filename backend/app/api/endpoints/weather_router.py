@@ -12,6 +12,16 @@ from typing import Any
 
 router = APIRouter()
 
+
+def _utc_iso(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
 @router.get("/user/weather-history", tags=["Weather"])
 async def get_weather_history(user_id: int, db: Session = Depends(get_db)):
     history = (
@@ -94,6 +104,7 @@ async def get_latest_location_weather(
     latest_metrics = (
         db.query(WeatherMetrics)
         .filter(WeatherMetrics.reference_weather_id == latest_history.id)
+        .order_by(WeatherMetrics.id.desc())
         .first()
     )
 
@@ -127,9 +138,25 @@ async def get_weather_chart_data(
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
+    latest_metrics_subq = (
+        db.query(
+            WeatherMetrics.reference_weather_id.label("reference_weather_id"),
+            func.max(WeatherMetrics.id).label("latest_metrics_id"),
+        )
+        .group_by(WeatherMetrics.reference_weather_id)
+        .subquery()
+    )
+
     results = (
         db.query(WeatherHistory, WeatherMetrics)
-        .outerjoin(WeatherMetrics, WeatherHistory.id == WeatherMetrics.reference_weather_id)
+        .outerjoin(
+            latest_metrics_subq,
+            WeatherHistory.id == latest_metrics_subq.c.reference_weather_id,
+        )
+        .outerjoin(
+            WeatherMetrics,
+            WeatherMetrics.id == latest_metrics_subq.c.latest_metrics_id,
+        )
         .filter(WeatherHistory.location_id == location_id)
         .order_by(WeatherHistory.timestamp.asc())
         .all()
@@ -138,7 +165,7 @@ async def get_weather_chart_data(
     chart_data = []
     for history, metrics in results:
         chart_data.append({
-            "timestamp": history.timestamp,
+            "timestamp": _utc_iso(history.timestamp),
             "weather_data": {
                 "temp": history.temp,
                 "humidity": history.humidity,

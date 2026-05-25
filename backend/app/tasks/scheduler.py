@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.executors.pool import ThreadPoolExecutor
 from app.core.database import SessionLocal
 from app.services.orchestrator import full_sync_process, short_sync_process
+from app.services.storage_cleanup import cleanup_failed_datasets
 from app.events.morning_briefing_email import run_morning_briefing
 import logging
 
@@ -34,6 +35,18 @@ def scheduled_update_short():
     finally:
         db.close()
 
+
+def scheduled_storage_cleanup():
+    db = SessionLocal()
+    try:
+        report = cleanup_failed_datasets(db, dry_run=False)
+        logger.info("Storage cleanup completed: %s", report.to_dict())
+    except Exception as e:
+        logger.error(f"Storage cleanup failed: {e}", exc_info=True)
+    finally:
+        db.close()
+
+
 scheduler.add_job(
     scheduled_update_full,
     "cron",
@@ -49,6 +62,15 @@ scheduler.add_job(
     hour="0,4,8,12,16,20",
     minute=15,
     id="hourly_sync_job",
+    replace_existing=True,
+)
+
+scheduler.add_job(
+    scheduled_storage_cleanup,
+    "cron",
+    hour=1,
+    minute=30,
+    id="daily_storage_cleanup",
     replace_existing=True,
 )
 

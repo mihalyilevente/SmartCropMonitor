@@ -4,6 +4,7 @@ from urllib3.util.retry import Retry
 from time import sleep
 import datetime
 from datetime import datetime, timedelta
+from sqlalchemy import case, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from app.core.database import WeatherHistory, UserLocation, WeatherMetrics
@@ -17,6 +18,48 @@ from app.services.wrf_service import wrf_covered_timestamps
 alert_service = AlertService(webhook_url=WEBHOOK_URL)
 
 OPEN_METEO_SOURCE = "open-meteo"
+
+WEATHER_RECALCULATION_COLUMNS = (
+    "temp",
+    "humidity",
+    "dew_point",
+    "vapour_pressure_deficit",
+    "precipitation",
+    "rain",
+    "showers",
+    "snowfall",
+    "soil_temperature_0cm",
+    "soil_moisture_0_to_1cm",
+    "pressure",
+    "cloud_coverage",
+    "wind_speed",
+    "wind_deg",
+    "sunrise",
+    "sunset",
+    "is_night",
+)
+
+WEATHER_METRIC_COLUMNS = (
+    "temp_min_day_7d",
+    "temp_max_day_7d",
+    "temp_min_night_7d",
+    "temp_max_night_7d",
+    "gdd_base_10",
+    "rain_cum_7d",
+    "rain_cum_30d",
+    "water_deficit_7d",
+    "water_deficit_30d",
+    "et0",
+    "humidity_mean_7d",
+    "humidity_mean_30d",
+    "heat_days_count_7d",
+    "heat_days_count_30d",
+    "frost_days_count_7d",
+    "frost_days_count_30d",
+    "spi_1m",
+    "ra_mj_m2_day",
+    "rs_mj_m2_day",
+)
 
 
 def _liquid_precipitation_mm(weather_record: WeatherHistory) -> float:
@@ -38,6 +81,35 @@ def _total_precipitation_mm(weather_record: WeatherHistory) -> float:
     if weather_record.precipitation is not None:
         return max(0.0, float(weather_record.precipitation))
     return _liquid_precipitation_mm(weather_record) + max(0.0, float(weather_record.snowfall or 0.0))
+
+
+def _weather_changed_expr(stmt):
+    return or_(*(
+        getattr(WeatherHistory, column).is_distinct_from(getattr(stmt.excluded, column))
+        for column in WEATHER_RECALCULATION_COLUMNS
+    ))
+
+
+def _upsert_weather_metrics(db: Session, values: dict) -> WeatherMetrics:
+    existing = (
+        db.query(WeatherMetrics)
+        .filter(
+            WeatherMetrics.location_id == values["location_id"],
+            WeatherMetrics.reference_weather_id == values["reference_weather_id"],
+        )
+        .order_by(WeatherMetrics.id.desc())
+        .first()
+    )
+
+    if existing:
+        for column in WEATHER_METRIC_COLUMNS:
+            setattr(existing, column, values.get(column))
+        existing.window_end_date = values["window_end_date"]
+        return existing
+
+    metrics_entry = WeatherMetrics(**values)
+    db.add(metrics_entry)
+    return metrics_entry
 
 
 def _http_session() -> requests.Session:
@@ -124,9 +196,19 @@ def fetch_and_save_weather(db: Session, location: UserLocation):
             }
 
             stmt = insert(WeatherHistory).values(insert_data)
+            changed = _weather_changed_expr(stmt)
+            update_values = {
+                k: getattr(stmt.excluded, k)
+                for k in insert_data
+                if k not in ("location_id", "timestamp", "metrics_status")
+            }
+            update_values["metrics_status"] = case(
+                (changed, False),
+                else_=WeatherHistory.metrics_status,
+            )
             stmt = stmt.on_conflict_do_update(
                 constraint="uq_weather_location_timestamp",
-                set_={k: getattr(stmt.excluded, k) for k in insert_data if k not in ("location_id", "timestamp")},
+                set_=update_values,
             )
             db.execute(stmt)
             inserted += 1
@@ -268,38 +350,41 @@ def weather_metrics(db: Session, location: UserLocation):
         )
 
         if (not result) or len(history_7d) < MIN_RECORDS_7D:
-            metrics_entry = WeatherMetrics(
+            metrics_values = {
                 **base_kwargs,
-                gdd_base_10=r(gdd_base_10),
-                temp_min_day_7d=min(temps) if temps else None,
-                temp_max_day_7d=max(temps) if temps else None,
-                humidity_mean_7d=r(sum(humidity_7d) / len(humidity_7d)) if humidity_7d else None,
-                et0=None,
-                water_deficit_7d=None,
-                water_deficit_30d=None,
-                spi_1m=None,
-                ra_mj_m2_day=None,
-                rs_mj_m2_day=None,
-            )
+                "gdd_base_10": r(gdd_base_10),
+                "temp_min_day_7d": min(temps) if temps else None,
+                "temp_max_day_7d": max(temps) if temps else None,
+                "temp_min_night_7d": None,
+                "temp_max_night_7d": None,
+                "humidity_mean_7d": r(sum(humidity_7d) / len(humidity_7d)) if humidity_7d else None,
+                "humidity_mean_30d": None,
+                "et0": None,
+                "water_deficit_7d": None,
+                "water_deficit_30d": None,
+                "spi_1m": None,
+                "ra_mj_m2_day": None,
+                "rs_mj_m2_day": None,
+            }
         else:
-            metrics_entry = WeatherMetrics(
+            metrics_values = {
                 **base_kwargs,
-                gdd_base_10=r(result.get("gdd")),
-                temp_min_day_7d=result.get("temp_min_7d"),
-                temp_max_day_7d=result.get("temp_max_7d"),
-                temp_min_night_7d=result.get("temp_min_night_7d"),
-                temp_max_night_7d=result.get("temp_max_night_7d"),
-                humidity_mean_7d=r(result.get("hum_mean_7d")),
-                humidity_mean_30d=r(result.get("hum_mean_30d")),
-                et0=r(result.get("et0")),
-                water_deficit_7d=r(result.get("water_deficit_7d")),
-                water_deficit_30d=r(result.get("water_deficit_30d")),
-                spi_1m=r(result.get("spi1m")),
-                ra_mj_m2_day=r(result.get("ra")),
-                rs_mj_m2_day=r(result.get("rs")),
-            )
+                "gdd_base_10": r(result.get("gdd")),
+                "temp_min_day_7d": result.get("temp_min_7d"),
+                "temp_max_day_7d": result.get("temp_max_7d"),
+                "temp_min_night_7d": result.get("temp_min_night_7d"),
+                "temp_max_night_7d": result.get("temp_max_night_7d"),
+                "humidity_mean_7d": r(result.get("hum_mean_7d")),
+                "humidity_mean_30d": r(result.get("hum_mean_30d")),
+                "et0": r(result.get("et0")),
+                "water_deficit_7d": r(result.get("water_deficit_7d")),
+                "water_deficit_30d": r(result.get("water_deficit_30d")),
+                "spi_1m": r(result.get("spi1m")),
+                "ra_mj_m2_day": r(result.get("ra")),
+                "rs_mj_m2_day": r(result.get("rs")),
+            }
 
-        db.add(metrics_entry)
+        _upsert_weather_metrics(db, metrics_values)
         weather_record.metrics_status = True
 
         try:

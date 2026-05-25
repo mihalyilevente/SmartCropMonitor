@@ -435,6 +435,15 @@ class WeatherMetrics(Base):
     location = relationship("UserLocation", back_populates="weather_metrics")
     weather = relationship("WeatherHistory", back_populates="metrics")
 
+    __table_args__ = (
+        UniqueConstraint(
+            "location_id",
+            "reference_weather_id",
+            name="uq_weather_metrics_location_weather"
+        ),
+        Index("ix_weather_metrics_location_window", "location_id", "window_end_date"),
+    )
+
 
 class DiseaseRisk(Base):
 

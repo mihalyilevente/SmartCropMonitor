@@ -8,6 +8,8 @@ from app.services.orchestrator import full_sync_process, short_sync_process
 from app.services.biomass_service import run_biomass_estimation
 from app.services.irrigation_service import run_irrigation_recommendations
 from app.services.dem_service import ensure_dem_for_all_locations
+from app.services.storage_cleanup import cleanup_failed_datasets
+from app.core.config import CLEANUP_RETAIN_LATEST_DATASETS
 
 router = APIRouter()
 
@@ -78,6 +80,20 @@ async def manual_short_sync(background_tasks: BackgroundTasks, db: Session = Dep
 
     background_tasks.add_task(run_sync)
     return {"status": "Short sync (weather) started in background"}
+
+
+@router.post("/cleanup/storage", tags=["Utils"])
+def manual_storage_cleanup(
+    dry_run: bool = True,
+    retention_limit: int = CLEANUP_RETAIN_LATEST_DATASETS,
+    db: Session = Depends(get_db),
+):
+    report = cleanup_failed_datasets(
+        db,
+        dry_run=dry_run,
+        retention_limit=retention_limit,
+    )
+    return report.to_dict()
 
 
 @router.post("/briefing/test", tags=["Utils"])

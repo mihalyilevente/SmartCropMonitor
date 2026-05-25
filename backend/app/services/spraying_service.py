@@ -49,7 +49,7 @@ def calculate_spraying_window(db: Session, location: UserLocation) -> Optional[D
             WeatherMetrics.window_end_date >= now,
             WeatherMetrics.window_end_date <= end_date
         )
-    ).all()
+    ).order_by(WeatherMetrics.id.asc()).all()
 
     metrics_map = {m.window_end_date.strftime("%Y-%m-%d %H"): m for m in metrics_7d}
 
