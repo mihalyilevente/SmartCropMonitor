@@ -625,10 +625,6 @@ class AlertDeliveryLog(Base):
         UniqueConstraint("event_id", "channel", name="uq_alert_delivery_event_channel"),
         Index("ix_alert_delivery_user_status_retry", "user_id", "status", "next_retry_at"),
     )
-
-class EventsRules(Base):
-    __tablename__ = "events_rules"
-    id = Column(Integer, primary_key=True, index=True)
     
 # eGN 3.5 – Pesticide / Plant-protection log
 class PesticideLog(Base):
