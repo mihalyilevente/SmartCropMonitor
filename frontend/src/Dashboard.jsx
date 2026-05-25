@@ -17,6 +17,7 @@ import AddLocationModal from './components/AddLocationModal';
 import SegmentationModal from './components/SegmentationModal';
 import ManualFieldModal from './components/ManualFieldModal';
 import MorningBriefingPanel from './components/MorningBriefingPanel';
+import EgnReportPanel from './components/EgnReportPanel';
 import logo from './assets/logo1.png';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'fields',     labelKey: 'tab_fields',      icon: '🗺️' },
   { id: 'fieldwork',  labelKey: 'tab_fieldwork',   icon: '🚜' },
   { id: 'farm',       labelKey: 'tab_farm',        icon: '🏡' },
+  { id: 'egn',        labelKey: 'tab_egn',         icon: '📄' },
   { id: 'tasks',      labelKey: 'tab_tasks',       icon: '✅' },
   { id: 'sensors',    labelKey: 'tab_sensors',     icon: '📡' },
 ];
@@ -455,6 +457,13 @@ const Dashboard = ({ userId, onLogout }) => {
         return (
           <FullLayout>
             <FarmProfilePanel userId={userId}/>
+          </FullLayout>
+        );
+
+      case 'egn':
+        return (
+          <FullLayout>
+            <EgnReportPanel userId={userId}/>
           </FullLayout>
         );
 
