@@ -31,7 +31,15 @@ const PositionBar = ({ current, min, max, color }) => {
 };
 
 // ── Stat detail drawer ────────────────────────────────────────────────────────
-const StatDrawer = ({ statEntry, statsLoading, unit, current, color }) => {
+const PERIOD_LABELS = {
+  all:   'wmp_period_all',
+  day:   'wmp_period_day',
+  night: 'wmp_period_night',
+  '7d':  'wmp_period_7d',
+  '30d': 'wmp_period_30d',
+};
+
+const StatDrawer = ({ statEntry, statsLoading, unit, current, color, statsPeriod }) => {
   const { t } = useLang();
 
   if (statsLoading) {
@@ -50,10 +58,25 @@ const StatDrawer = ({ statEntry, statsLoading, unit, current, color }) => {
   }
 
   const { avg, min, max, std } = statEntry;
+  const periodLabel = statsPeriod ? t(PERIOD_LABELS[statsPeriod] ?? 'wmp_period_all') : null;
+
   return (
     <div style={{ paddingTop: 10, borderTop: '1px solid #f0ebe3', marginTop: 8 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>
-        {t('wmp_history_title')}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {t('wmp_history_title')}
+        </span>
+        {periodLabel && (
+          <span style={{
+            fontSize: 9, fontWeight: 700,
+            color, background: `${color}18`,
+            border: `1px solid ${color}44`,
+            borderRadius: 8, padding: '1px 6px',
+            textTransform: 'uppercase', letterSpacing: '0.04em',
+          }}>
+            {periodLabel}
+          </span>
+        )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {[
@@ -170,7 +193,7 @@ const QuickAlertModal = ({ metric, currentValue, userId, locationId, onClose }) 
 };
 
 // ── Metric card ───────────────────────────────────────────────────────────────
-const Stat = ({ label, value, unit, icon, color = '#317f43', sub, metricKey, userId, locationId, statEntry, statsLoading }) => {
+const Stat = ({ label, value, unit, icon, color = '#317f43', sub, metricKey, userId, locationId, statEntry, statsLoading, statsPeriod }) => {
   const { t } = useLang();
   const [expanded,  setExpanded]  = useState(false);
   const [hovered,   setHovered]   = useState(false);
@@ -249,7 +272,7 @@ const Stat = ({ label, value, unit, icon, color = '#317f43', sub, metricKey, use
 
         {/* Expanded drawer */}
         {expanded && (
-          <StatDrawer statEntry={statEntry} statsLoading={statsLoading} unit={unit} current={value != null ? Number(value) : null} color={color} />
+          <StatDrawer statEntry={statEntry} statsLoading={statsLoading} unit={unit} current={value != null ? Number(value) : null} color={color} statsPeriod={statsPeriod} />
         )}
       </div>
 
@@ -299,21 +322,65 @@ const RecordBadge = ({ count }) => {
   );
 };
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Period switcher ───────────────────────────────────────────────────────────
+const PERIODS = [
+  { key: 'all',   labelKey: 'wmp_period_all'   },
+  { key: 'day',   labelKey: 'wmp_period_day'   },
+  { key: 'night', labelKey: 'wmp_period_night' },
+  { key: '7d',    labelKey: 'wmp_period_7d'    },
+  { key: '30d',   labelKey: 'wmp_period_30d'   },
+];
+
+const PeriodSwitcher = ({ value, onChange }) => {
+  const { t } = useLang();
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>
+        {t('wmp_period_label')}
+      </span>
+      {PERIODS.map(({ key, labelKey }) => {
+        const active = value === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            style={{
+              padding: '3px 10px',
+              fontSize: 11,
+              fontWeight: active ? 700 : 500,
+              borderRadius: 20,
+              border: active ? '1.5px solid var(--color-green-primary, #054e05)' : '1px solid #e0d8cf',
+              background: active ? 'var(--color-green-primary, #054e05)' : '#fff',
+              color: active ? '#fff' : '#888',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              fontFamily: 'inherit',
+            }}
+          >
+            {t(labelKey)}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+
 const WeatherMetricsPanel = ({ latestWeather, userId, locationId }) => {
   const { t } = useLang();
   const [open,         setOpen]         = useState(true);
   const [stats,        setStats]        = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [statsPeriod,  setStatsPeriod]  = useState('all');
 
   useEffect(() => {
     if (!locationId || !userId) return;
     setStatsLoading(true);
-    api.get(`${BASE_WEATHER}/location/${locationId}/weather-stats?user_id=${userId}`)
+    api.get(`${BASE_WEATHER}/location/${locationId}/weather-stats?user_id=${userId}&period=${statsPeriod}`)
       .then(r => setStats(r.data))
       .catch(() => setStats(null))
       .finally(() => setStatsLoading(false));
-  }, [locationId, userId]);
+  }, [locationId, userId, statsPeriod]);
 
   const h = latestWeather?.history;
   const m = latestWeather?.metrics;
@@ -325,7 +392,7 @@ const WeatherMetricsPanel = ({ latestWeather, userId, locationId }) => {
   const hs = (key) => stats?.history?.[key] ?? null;
   const ms = (key) => stats?.metrics?.[key] ?? null;
   const alertProps = userId ? { userId, locationId } : {};
-  const statsProps = { statsLoading };
+  const statsProps = { statsLoading, statsPeriod };
 
   return (
     <div style={wrap}>
@@ -352,6 +419,10 @@ const WeatherMetricsPanel = ({ latestWeather, userId, locationId }) => {
           ) : (
             <>
               {h?.sunrise && <SunStrip sunrise={h.sunrise} sunset={h.sunset} />}
+
+              {userId && (
+                <PeriodSwitcher value={statsPeriod} onChange={setStatsPeriod} />
+              )}
 
               {h && (
                 <Section title={t('wm_sec_current')}>

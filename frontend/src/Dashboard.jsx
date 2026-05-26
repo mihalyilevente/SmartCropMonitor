@@ -19,6 +19,7 @@ import ManualFieldModal from './components/ManualFieldModal';
 import MorningBriefingPanel from './components/MorningBriefingPanel';
 import SettingsPanel from './components/SettingsPanel';
 import EgnReportPanel from './components/EgnReportPanel';
+import CalculatorsPanel from './components/CalculatorsPanel';
 import logo from './assets/logo1.png';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'egn',        labelKey: 'tab_egn',         icon: '📄' },
   { id: 'tasks',      labelKey: 'tab_tasks',       icon: '✅' },
   { id: 'sensors',    labelKey: 'tab_sensors',     icon: '📡' },
+  { id: 'tools',      labelKey: 'tab_tools',       icon: '🧮' },
 ];
 
 // ── Compact weather badge ────────────────────────────────────────────────────
@@ -480,6 +482,13 @@ const Dashboard = ({ userId, onLogout }) => {
           }/>
         );
 
+      case 'tools':
+        return (
+          <FullLayout>
+            <CalculatorsPanel />
+          </FullLayout>
+        );
+
       case 'settings':
         return (
           <SettingsPanel userId={userId} onBack={() => setActiveTab('overview')} />
@@ -779,4 +788,3 @@ const styles = {
 };
 
 export default Dashboard;
-

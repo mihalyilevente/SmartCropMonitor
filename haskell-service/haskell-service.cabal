@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           haskell-service
-version:        0.1.11.0
+version:        0.1.12.0
 build-type:     Simple
 
 library
@@ -19,6 +19,7 @@ library
       DiseaseModels
       DiseaseTypes
       IrrigationAdvisor
+      FarmCalculators
   other-modules:
       Main
       Paths_haskell_service
@@ -40,6 +41,7 @@ executable haskell-service-exe
       Biomass
       DiseaseModels
       DiseaseTypes
+      FarmCalculators
       IrrigationAdvisor
       SatelliteAnomaly
       SprayingWindow
@@ -67,6 +69,7 @@ test-suite haskell-service-test
   other-modules:
       BiomassSpec
       DiseaseModelsSpec
+      FarmCalculatorsSpec
       IrrigationAdvisorSpec
       SatelliteAnomalySpec
       SprayingWindowSpec

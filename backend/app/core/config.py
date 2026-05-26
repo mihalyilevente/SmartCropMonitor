@@ -26,7 +26,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 API_TITLE = "SmartCropMonitor API"
-API_VERSION = "0.1.11"
+API_VERSION = "0.1.12"
 
 REQUIRED_BANDS = [
     "blue", "green", "red", "nir",
