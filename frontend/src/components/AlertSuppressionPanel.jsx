@@ -26,18 +26,7 @@ const ALERT_TYPE_GROUPS = [
   },
 ];
 
-const ALL_ALERT_TYPE_VALUES = ALERT_TYPE_GROUPS.flatMap(g => g.types);
 
-const CROP_LABEL_KEYS = {
-  WHEAT_WINTER: 'WHEAT_WINTER', WHEAT_SPRING: 'WHEAT_SPRING',
-  BARLEY: 'BARLEY', CORN: 'CORN', OATS: 'OATS', RYE: 'RYE', RICE: 'RICE',
-  PEAS: 'PEAS', SOYBEANS: 'SOYBEANS', SUNFLOWER: 'SUNFLOWER',
-  RAPESEED_WINTER: 'RAPESEED_WINTER', RAPESEED_SPRING: 'RAPESEED_SPRING',
-  SUGAR_BEET: 'SUGAR_BEET', POTATOES: 'POTATOES',
-  APPLE: 'APPLE', GRAPES_WINE: 'GRAPES_WINE', GRAPES_TABLE: 'GRAPES_TABLE',
-  STRAWBERRY: 'STRAWBERRY', TOMATO: 'TOMATO', FALLOW: 'FALLOW',
-  COVER_CROP: 'COVER_CROP', OTHER: 'OTHER',
-};
 
 const EMPTY_RULE = {
   name: '', description: '', is_active: true,
@@ -216,7 +205,7 @@ const AlertSuppressionPanel = ({
   fields = [],
   locations = [],
 }) => {
-  const { t: tRaw, lang } = useLang();
+  const { t: tRaw } = useLang();
   // Fallback: if key missing in locale file, return a sensible English string
   const FALLBACKS = {
     loading: 'Loading…',
@@ -336,7 +325,7 @@ const AlertSuppressionPanel = ({
   // Run once on mount only
   useEffect(() => {
     fetchRules();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const flash = msg => { setSuccess(msg); setTimeout(() => setSuccess(null), 3000); };
 
