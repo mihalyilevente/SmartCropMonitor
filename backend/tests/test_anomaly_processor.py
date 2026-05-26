@@ -123,11 +123,18 @@ def _load_anomaly_processor():
     config_mod.MIN_POINTS_FOR_ANALYSIS = 5
     config_mod.CONFIDENCE_SCALE = 0.95
 
+    # Stub for alert_suppression — is_suppressed always returns False in tests
+    alert_suppression_mod = _make_module("app.api.endpoints.alert_suppression")
+    alert_suppression_mod.is_suppressed = MagicMock(return_value=False)
+
     fake_modules = {
         "app": _make_package("app"),
         "app.core": _make_package("app.core"),
         "app.utils": _make_package("app.utils"),
         "app.services": _make_package("app.services"),
+        "app.api": _make_package("app.api"),
+        "app.api.endpoints": _make_package("app.api.endpoints"),
+        "app.api.endpoints.alert_suppression": alert_suppression_mod,
         "app.core.config": config_mod,
         "app.core.database": db_mod,
         "app.core.schemas": schemas_mod,
