@@ -781,6 +781,39 @@ class FalsePositiveFeedback(Base):
     )
 
 
+class AlertSuppressionRule(Base):
+    __tablename__ = "alert_suppression_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    name = Column(String(200), nullable=False)
+    description = Column(String(1000), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    field_ids = Column(JSONB, nullable=True)
+    crop_types = Column(JSONB, nullable=True)
+    location_ids = Column(JSONB, nullable=True)
+
+    alert_types = Column(JSONB, nullable=True)
+
+    season_month_from = Column(Integer, nullable=True)
+    season_day_from = Column(Integer, nullable=True)
+    season_month_to = Column(Integer, nullable=True)
+    season_day_to = Column(Integer, nullable=True)
+
+    arm_after_harvest = Column(Boolean, nullable=False, default=False)
+
+    valid_from = Column(DateTime, nullable=True)
+    valid_until = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(),
+                        onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_asr_user_active", "user_id", "is_active"),
+    )
 # =========================
 # DB Dependency
 # =========================
@@ -814,4 +847,4 @@ def _ensure_runtime_columns() -> None:
         )
 
 
-_ensure_runtime_columns()
+# _ensure_runtime_columns()

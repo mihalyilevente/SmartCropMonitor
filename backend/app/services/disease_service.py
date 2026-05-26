@@ -15,6 +15,7 @@ from app.core.database import (
 from app.core.schemas import EventType, StatusType
 from app.core.config import HASKELL_SERVICE_URL, MIN_RECORDS_7D
 from app.utils.general import r, _make_event_hash
+from app.api.endpoints.alert_suppression import is_suppressed
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,19 @@ def _process_alerts(
         severity = _SEVERITY_MAP.get(level)
 
         if action and severity:
+            # ── suppression check ──────────────────────────────────────────
+            if is_suppressed(
+                db,
+                user_id=location.user_id,
+                alert_type=_DISEASE_EVENT_TYPE.value,
+                location_id=location.id,
+            ):
+                logger.debug(
+                    "[SUPPRESSED] disease alert %s location=%d suppressed by user rule",
+                    label, location.id,
+                )
+                continue
+            # ──────────────────────────────────────────────────────────────
             _create_disease_event(
                 db, location, label, severity,
                 extra={

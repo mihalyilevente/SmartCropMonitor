@@ -27,6 +27,7 @@ from app.core.schemas import AnomalyType, StatusType, EventType
 from app.core.config import HASKELL_SERVICE_URL, NDVI_DIR, SAT_METRICS, CONFIDENCE_HIGH, CONFIDENCE_CRITICAL, DEFAULT_AREA_THRESHOLD_RATIO,SMALL_FIELD_HA, SMALL_FIELD_RATIO
 from app.utils.general import _safe_float, _make_event_hash, _make_dedup_key
 from app.utils.fields import calculate_field_area
+from app.api.endpoints.alert_suppression import is_suppressed
 
 logger = logging.getLogger(__name__)
 
@@ -322,6 +323,23 @@ def _create_satellite_event_if_needed(
     summary: dict,
     now: datetime.datetime,
 ) -> None:
+    # ── suppression check ──────────────────────────────────────────────────
+    _field = db.query(FieldUnit).filter(FieldUnit.id == field_id).first()
+    if is_suppressed(
+        db,
+        user_id=user_id,
+        alert_type=_event_type_for_metric(metric_type).value,
+        field_id=field_id,
+        crop_type=_field.crop_type if _field else None,
+        location_id=_field.location_id if _field else None,
+    ):
+        logger.debug(
+            "[SUPPRESSED] satellite event field=%d metric=%s suppressed by user rule",
+            field_id, metric_type,
+        )
+        return
+    # ──────────────────────────────────────────────────────────────────────
+
     window_day = now.strftime("%Y-%m-%d")
     dedup_key  = _make_dedup_key(field_id, metric_type, anomaly_type.value, window_day)
     event_hash = _make_event_hash(field_id, metric_type, anomaly_type.value, window_day)
