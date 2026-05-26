@@ -69,6 +69,7 @@ test-suite haskell-service-test
   other-modules:
       BiomassSpec
       DiseaseModelsSpec
+      FarmCalculatorsSpec
       IrrigationAdvisorSpec
       SatelliteAnomalySpec
       SprayingWindowSpec

@@ -8,12 +8,15 @@ module FarmCalculators
   , calcIrrigationRuntime
 
     -- Soil Water Balance
+  , SWBStep(..)
   , SoilWaterBalanceInput(..)
   , SoilWaterBalanceResult(..)
   , SoilWaterStep(..)
   , calcSoilWaterBalance
 
     -- Fertilizer Rate
+  , NutrientNeed(..)
+  , FertProduct(..)
   , FertilizerRateInput(..)
   , FertilizerRateResult(..)
   , NutrientSplit(..)
