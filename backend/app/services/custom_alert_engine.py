@@ -142,6 +142,7 @@ def evaluate_custom_alert_rules(
 
     from app.core.database import Events, EventsRules
     from app.core.schemas import StatusType
+    from app.api.endpoints.alert_suppression import is_suppressed
 
     rules = (
         db.execute(
@@ -160,6 +161,17 @@ def evaluate_custom_alert_rules(
             continue
         if not evaluate_rule_condition(condition, telemetry):
             continue
+
+        # ── suppression check ────────────────────────────────────────────
+        if is_suppressed(
+            db,
+            user_id=user_id,
+            alert_type=rule.event_type.value
+            if hasattr(rule.event_type, "value") else str(rule.event_type),
+            location_id=location_id,
+        ):
+            continue
+        # ────────────────────────────────────────────────────────────────
 
         context_key = f"location:{location_id}" if location_id is not None else f"sensor:{sensor_id}"
         dedup_key = f"custom_rule:{rule.id}:{context_key}"

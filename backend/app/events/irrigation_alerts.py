@@ -8,6 +8,7 @@ from app.core.database import Events, FieldUnit, IrrigationRecommendation, UserL
 from app.core.schemas import EventType, StatusType
 from app.services.irrigation_service import run_irrigation_recommendations
 from app.utils.general import _make_event_hash
+from app.api.endpoints.alert_suppression import is_suppressed
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,23 @@ def check_irrigation_alerts(db: Session) -> dict:
     for rec in recs:
         needs_alert = rec.should_irrigate and rec.urgency in _MIN_ALERT_URGENCY
         if needs_alert:
+            # ── suppression check ──────────────────────────────────────────
+            field, location = _field_and_location(db, rec)
+            if location and is_suppressed(
+                db,
+                user_id=location.user_id,
+                alert_type=_EVENT_TYPE.value,
+                field_id=rec.field_id,
+                crop_type=field.crop_type if field else None,
+                location_id=rec.location_id,
+            ):
+                stats["suppressed"] = stats.get("suppressed", 0) + 1
+                logger.debug(
+                    "[SUPPRESSED] irrigation alert field=%d suppressed by user rule",
+                    rec.field_id,
+                )
+                continue
+            # ──────────────────────────────────────────────────────────────
             created = _create_or_update_irrigation_event(db, rec)
             if created is not None:
                 stats["created" if created else "updated"] += 1

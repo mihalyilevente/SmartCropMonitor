@@ -21,6 +21,7 @@ from app.core.config import (
 from app.core.database import Events, UserLocation, WeatherHistory, WeatherMetrics
 from app.core.schemas import EventType, StatusType
 from app.utils.general import _make_event_hash
+from app.api.endpoints.alert_suppression import is_suppressed
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +265,19 @@ def check_weather_environmental_alerts(db: Session) -> dict:
         for rule in _rules():
             value = _metric_value(rule, weather, metrics)
             if rule.triggered(value):
+                # ── suppression check ──────────────────────────────────────
+                if is_suppressed(
+                    db,
+                    user_id=location.user_id,
+                    alert_type=rule.event_type.value,
+                    location_id=location.id,
+                ):
+                    logger.debug(
+                        "[SUPPRESSED] weather alert %s location=%d suppressed by user rule",
+                        rule.event_type.value, location.id,
+                    )
+                    continue
+                # ──────────────────────────────────────────────────────────
                 created = _upsert_event(db, location, rule, float(value), weather.timestamp)
                 stats["created" if created else "updated"] += 1
             elif _resolve_event(db, location.id, rule.dedup_suffix):

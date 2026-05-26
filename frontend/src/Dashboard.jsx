@@ -350,6 +350,7 @@ const Dashboard = ({ userId, onLogout }) => {
   const [showManualField, setShowManualField]       = useState(false);
   const [segmentationStatus, setSegmentationStatus] = useState(null);
   const [menuOpen, setMenuOpen]                     = useState(false);
+  const [locationFields, setLocationFields]         = useState([]);
   const fieldMapRef = useRef(null);
 
   const mapProps = {
@@ -491,7 +492,12 @@ const Dashboard = ({ userId, onLogout }) => {
 
       case 'settings':
         return (
-          <SettingsPanel userId={userId} onBack={() => setActiveTab('overview')} />
+          <SettingsPanel
+            userId={userId}
+            onBack={() => setActiveTab('overview')}
+            fields={locationFields}
+            locations={locations}
+          />
         );
 
       default:
@@ -570,6 +576,12 @@ const Dashboard = ({ userId, onLogout }) => {
                   onClick={() => {
                     setActiveTab('settings');
                     setMenuOpen(false);
+                    // prefetch fields for the suppression panel
+                    if (locationId && locationFields.length === 0) {
+                      api.get('/api/v1/fields', { params: { location_id: locationId, user_id: userId } })
+                        .then(r => setLocationFields(r.data || []))
+                        .catch(() => {});
+                    }
                   }}
                   style={styles.menuItem}
                 >

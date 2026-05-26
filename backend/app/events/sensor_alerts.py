@@ -50,6 +50,19 @@ def _create_sensor_offline_event(db: Session, sensor: SensorsDB, threshold: date
     if existing_active:
         return
 
+    # ── suppression check ──────────────────────────────────────────────────
+    from app.api.endpoints.alert_suppression import is_suppressed  # lazy
+    if is_suppressed(
+        db,
+        user_id=sensor.user_id,
+        alert_type=EventType.SENSOR_OFFLINE.value,
+    ):
+        logger.debug(
+            "[SUPPRESSED] SENSOR_OFFLINE sensor=%d suppressed by user rule", sensor.id
+        )
+        return
+    # ──────────────────────────────────────────────────────────────────────
+
     now_str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
     versioned_dedup = f"{dedup_key}:{now_str}"
     event_hash = _build_sensor_event_hash(sensor.id, EventType.SENSOR_OFFLINE, versioned_dedup)

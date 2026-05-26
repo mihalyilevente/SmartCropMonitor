@@ -246,6 +246,25 @@ def _create_event_if_needed(
     summary: dict,
     now: datetime.datetime,
 ):
+    # ── suppression check ──────────────────────────────────────────────────
+    from app.api.endpoints.alert_suppression import is_suppressed  # lazy
+    from app.core.database import FieldUnit as _FieldUnit
+    _field = db.query(_FieldUnit).filter(_FieldUnit.id == field_id).first()
+    _loc_id = _field.location_id if _field else None
+    if is_suppressed(
+        db,
+        user_id=user_id,
+        alert_type=_event_type_for_anomaly(metric_type, anomaly_type).value,
+        field_id=field_id,
+        crop_type=_field.crop_type if _field else None,
+        location_id=_loc_id,
+    ):
+        logger.debug(
+            "[SUPPRESSED] anomaly event field=%d metric=%s suppressed by user rule",
+            field_id, metric_type,
+        )
+        return
+    # ──────────────────────────────────────────────────────────────────────
 
     window_day = now.strftime("%Y-%m-%d")
     dedup_key = _make_dedup_key(field_id, metric_type, anomaly_type.value, window_day)

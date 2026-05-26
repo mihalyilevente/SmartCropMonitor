@@ -13,7 +13,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
-SENSOR_ALERTS_PATH      = BACKEND_ROOT / "app" / "events" / "sensor_alerts.py"
+SENSOR_ALERTS_PATH       = BACKEND_ROOT / "app" / "events" / "sensor_alerts.py"
 ALERTS_ORCHESTRATOR_PATH = BACKEND_ROOT / "app" / "events" / "alerts_orchestrator.py"
 
 for _p in (SENSOR_ALERTS_PATH, ALERTS_ORCHESTRATOR_PATH):
@@ -22,7 +22,7 @@ for _p in (SENSOR_ALERTS_PATH, ALERTS_ORCHESTRATOR_PATH):
 
 
 # ---------------------------------------------------------------------------
-# Inline enums — mirrors app.core.schemas without importing it
+# Inline enums
 # ---------------------------------------------------------------------------
 
 class EventType(str, enum.Enum):
@@ -35,7 +35,7 @@ class StatusType(str, enum.Enum):
 
 
 # ---------------------------------------------------------------------------
-# Fake-module helpers (same pattern as test_anomaly_processor.py)
+# Fake-module helpers
 # ---------------------------------------------------------------------------
 
 def _make_package(name: str) -> types.ModuleType:
@@ -52,23 +52,21 @@ def _build_fake_sqlalchemy() -> dict:
     sa = _make_package("sqlalchemy")
     sa.select = MagicMock(return_value=MagicMock())
 
-    sa_orm = _make_package("sqlalchemy.orm")
+    sa_orm     = _make_package("sqlalchemy.orm")
     sa_orm.Session = MagicMock
 
     sa_ext     = _make_package("sqlalchemy.ext")
     sa_ext_dec = _make_package("sqlalchemy.ext.declarative")
 
     return {
-        "sqlalchemy":                    sa,
-        "sqlalchemy.orm":                sa_orm,
-        "sqlalchemy.ext":                sa_ext,
-        "sqlalchemy.ext.declarative":    sa_ext_dec,
+        "sqlalchemy":                 sa,
+        "sqlalchemy.orm":             sa_orm,
+        "sqlalchemy.ext":             sa_ext,
+        "sqlalchemy.ext.declarative": sa_ext_dec,
     }
 
 
 def _build_fake_app(config_overrides: dict | None = None) -> dict:
-    """Return fake app.* modules with all dependencies sensor_alerts needs."""
-
     db_mod = _make_module("app.core.database")
     db_mod.SensorsDB      = MagicMock()
     db_mod.WeatherSensors = MagicMock()
@@ -93,11 +91,18 @@ def _build_fake_app(config_overrides: dict | None = None) -> dict:
     utils_general = _make_module("app.utils.general")
     utils_general._make_event_hash = lambda *p: "hash_" + "_".join(str(x) for x in p)
 
+    # Stub for alert_suppression — is_suppressed always returns False in tests
+    alert_suppression_mod = _make_module("app.api.endpoints.alert_suppression")
+    alert_suppression_mod.is_suppressed = MagicMock(return_value=False)
+
     return {
         "app":               _make_package("app"),
         "app.core":          _make_package("app.core"),
         "app.utils":         _make_package("app.utils"),
         "app.events":        _make_package("app.events"),
+        "app.api":                             _make_package("app.api"),
+        "app.api.endpoints":                   _make_package("app.api.endpoints"),
+        "app.api.endpoints.alert_suppression": alert_suppression_mod,
         "app.core.database": db_mod,
         "app.core.schemas":  schemas_mod,
         "app.core.config":   config_mod,
@@ -115,7 +120,6 @@ def _load_sensor_alerts(fake_modules: dict):
 
 
 def _load_alerts_orchestrator(fake_modules: dict, sensor_alerts_module):
-    """Load orchestrator; inject already-loaded sensor_alerts so it doesn't re-import."""
     extended = dict(fake_modules)
     extended["app.events.sensor_alerts"] = sensor_alerts_module
 
@@ -134,10 +138,10 @@ _fake = _build_fake_app()
 sa    = _load_sensor_alerts(_fake)
 orch  = _load_alerts_orchestrator(_fake, sa)
 
-_compute_median_delta    = sa._compute_median_delta
-check_sensors_offline    = sa.check_sensors_offline
+_compute_median_delta     = sa._compute_median_delta
+check_sensors_offline     = sa.check_sensors_offline
 handle_sensor_came_online = sa.handle_sensor_came_online
-run_all_alert_checks     = orch.run_all_alert_checks
+run_all_alert_checks      = orch.run_all_alert_checks
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +183,7 @@ class TestComputeMedianDelta:
         ts = _regular_timestamps(5, interval_minutes=10, last_minutes_ago=0)
         delta = _compute_median_delta(ts)
         assert delta is not None
-        assert abs(delta.total_seconds() - 600) < 1  # 10 min = 600 s
+        assert abs(delta.total_seconds() - 600) < 1
 
     def test_duplicate_timestamps_filtered(self):
         now = datetime.datetime.utcnow()
@@ -201,7 +205,6 @@ class TestCheckSensorsOffline:
         db = _make_db([sensor], [timestamps])
         mock_select = MagicMock(return_value=MagicMock())
 
-        # Patch inside the loaded module's own namespace
         with patch.object(sa, "select", mock_select):
             if patch_create:
                 with patch.object(sa, "_create_sensor_offline_event") as mock_create:

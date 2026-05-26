@@ -17,6 +17,7 @@ from app.api.endpoints.fieldwork_router import router as fieldwork_router
 from app.api.endpoints.rotation_router import router as rotation_router
 from app.api.endpoints.egn_report_router import router as egn_router
 from app.api.endpoints.calculator_router import router as calc_router
+from app.api.endpoints.alert_suppression import router as alert_suppression_router
 
 from app.tasks.scheduler import scheduler
 
@@ -74,6 +75,7 @@ app.include_router(fieldwork_router,prefix="/api/v1",         tags=["Field Work"
 app.include_router(rotation_router, prefix="/api/v1/rotation",tags=["Pasture Rotation"])
 app.include_router(egn_router, prefix="/api/v1")
 app.include_router(calc_router, prefix="/api/v1")
+app.include_router(alert_suppression_router, prefix="/api/v1")
 
 # =========================
 # Health Check
