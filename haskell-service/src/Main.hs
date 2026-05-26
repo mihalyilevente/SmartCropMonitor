@@ -23,6 +23,7 @@ import Biomass            (computeBiomass,           BiomassInput)
 import DiseaseModels      (computeDiseaseRisk)
 import DiseaseTypes       (DiseaseInput)
 import IrrigationAdvisor  (computeIrrigation,       IrrigationInput)
+import FarmCalculators
 
 data RequestWrapper = RequestWrapper
   { config       :: Int
@@ -48,6 +49,23 @@ instance FromJSON RequestWrapper where
 instance ToJSON RequestWrapper
 
 -- =========================
+-- HELPERS
+-- =========================
+
+parseRaw :: FromJSON a => Value -> ActionM (Either String a)
+parseRaw v = return $ eitherDecode (encode v)
+
+badReq :: String -> ActionM ()
+badReq msg = status status400 >> text (TL.pack msg)
+
+withData :: FromJSON a => Maybe Value -> String -> (a -> ActionM ()) -> ActionM ()
+withData Nothing  ctx _  = badReq ("Missing raw_data for " ++ ctx)
+withData (Just v) ctx fn =
+  case eitherDecode (encode v) of
+    Right x  -> fn x
+    Left err -> badReq ("Invalid payload for " ++ ctx ++ ": " ++ err)
+
+-- =========================
 -- MAIN
 -- =========================
 
@@ -61,7 +79,9 @@ main = scotty 8081 $ do
 
     case config req of
 
-      -- Sprying window
+      -- ── Existing configs ─────────────────────────────────────────────────────
+
+      -- Spraying window
       4 -> case raw_data req of
             Just d -> do
               let forecastResult = fromJSON d :: Result (Value)
@@ -69,15 +89,9 @@ main = scotty 8081 $ do
                 Success val ->
                   case fromJSON (findInObject "forecast_7d" val) of
                     Success points -> json (computeSprayingWindows points)
-                    Error err -> do
-                      status status400
-                      text (mconcat ["Invalid Forecast format: ", TL.pack err])
-                Error err -> do
-                  status status400
-                  text (mconcat ["Invalid raw_data JSON: ", TL.pack err])
-            Nothing -> do
-              status status400
-              text "Missing raw_data for config=4"
+                    Error err -> badReq ("Invalid Forecast format: " ++ err)
+                Error err -> badReq ("Invalid raw_data JSON: " ++ err)
+            Nothing -> badReq "Missing raw_data for config=4"
 
       -- Agricultural metrics (Weather/Location)
       3 -> case raw_data req of
@@ -85,12 +99,8 @@ main = scotty 8081 $ do
               let parsed = eitherDecode (encode d) :: Either String LocationData
               case parsed of
                 Right locationData -> json (computeMetrics locationData)
-                Left err -> do
-                  status status400
-                  text (mconcat ["Invalid weather payload: ", TL.pack err])
-            Nothing -> do
-              status status400
-              text "Missing raw_data for config=3"
+                Left err -> badReq ("Invalid weather payload: " ++ err)
+            Nothing -> badReq "Missing raw_data for config=3"
 
       -- NDVI metrics
       1 -> case raw_data req of
@@ -98,40 +108,31 @@ main = scotty 8081 $ do
               let parsed = fromJSON d :: Result RawData
               case parsed of
                 Success rd -> json (computeNDVIMetrics rd)
-                Error err -> do
-                  status status400
-                  text (mconcat ["Invalid NDVI payload: ", TL.pack err])
-            Nothing -> do
-              status status400
-              text "Missing raw_data for config=1"
+                Error err -> badReq ("Invalid NDVI payload: " ++ err)
+            Nothing -> badReq "Missing raw_data for config=1"
 
       -- SCL validation
       2 -> case scl_values req of
             Just scl -> do
-                let t = maybe 0.3 id (threshold req)
+                let t = fromMaybe 0.3 (threshold req)
                 json (validateSCL scl t)
-            Nothing -> do
-                status status400
-                text "Missing scl_values"
+            Nothing -> badReq "Missing scl_values"
 
-      -- Satellite snapshot anomaly (ndvi / gndvi / ndre)
+      -- Satellite snapshot anomaly
       5 -> case raw_data req of
             Just d -> do
               let parsed = fromJSON d :: Result SnapshotInput
               case parsed of
                 Success inp -> json (computeSnapshotAnomaly inp)
-                Error err -> do
-                  status status400
-                  text (mconcat ["Invalid snapshot payload: ", TL.pack err])
-            Nothing -> do
-              status status400
-              text "Missing raw_data for config=5"
+                Error err -> badReq ("Invalid snapshot payload: " ++ err)
+            Nothing -> badReq "Missing raw_data for config=5"
+
       -- Biomass
       6 -> case raw_data req of
             Just d -> case fromJSON d :: Result BiomassInput of
               Success inp -> json (computeBiomass inp)
-              Error err   -> status status400 >> text (TL.pack err)
-            Nothing -> status status400 >> text "Missing raw_data for config=6"
+              Error err   -> badReq err
+            Nothing -> badReq "Missing raw_data for config=6"
 
       -- Disease model
       7 -> case raw_data req of
@@ -139,12 +140,8 @@ main = scotty 8081 $ do
               let parsed = eitherDecode (encode d) :: Either String DiseaseInput
               case parsed of
                 Right diseaseInput -> json (computeDiseaseRisk diseaseInput)
-                Left err -> do
-                  status status400
-                  text (mconcat ["Invalid disease payload: ", TL.pack err])
-            Nothing -> do
-              status status400
-              text "Missing raw_data for config=7"
+                Left err -> badReq ("Invalid disease payload: " ++ err)
+            Nothing -> badReq "Missing raw_data for config=7"
 
       -- Irrigation decision-support
       8 -> case raw_data req of
@@ -152,16 +149,48 @@ main = scotty 8081 $ do
               let parsed = eitherDecode (encode d) :: Either String IrrigationInput
               case parsed of
                 Right irrigInput -> json (computeIrrigation irrigInput)
-                Left err -> do
-                  status status400
-                  text (mconcat ["Invalid irrigation payload: ", TL.pack err])
-            Nothing -> do
-              status status400
-              text "Missing raw_data for config=8"
+                Left err -> badReq ("Invalid irrigation payload: " ++ err)
+            Nothing -> badReq "Missing raw_data for config=8"
 
-      _ -> do
-        status status400
-        text "Unknown config"
+      --Farm Calculators
+
+      -- config=9: Irrigation Runtime Calculator
+      9  -> withData (raw_data req) "config=9 (IrrigationRuntime)" $ \inp ->
+              json (calcIrrigationRuntime (inp :: IrrigationRuntimeInput))
+
+      -- config=10: Soil Water Balance
+      10 -> withData (raw_data req) "config=10 (SoilWaterBalance)" $ \inp ->
+              json (calcSoilWaterBalance (inp :: SoilWaterBalanceInput))
+
+      -- config=11: Fertilizer Rate
+      11 -> withData (raw_data req) "config=11 (FertilizerRate)" $ \inp ->
+              json (calcFertilizerRate (inp :: FertilizerRateInput))
+
+      -- config=12: Tank Mix
+      12 -> withData (raw_data req) "config=12 (TankMix)" $ \inp ->
+              json (calcTankMix (inp :: TankMixInput))
+
+      -- config=13: Spray Volume
+      13 -> withData (raw_data req) "config=13 (SprayVolume)" $ \inp ->
+              json (calcSprayVolume (inp :: SprayVolumeInput))
+
+      -- config=14: Soil Nutrient Balance
+      14 -> withData (raw_data req) "config=14 (SoilNutrientBalance)" $ \inp ->
+              json (calcSoilNutrientBalance (inp :: SoilNutrientInput))
+
+      -- config=15: Lime Requirement
+      15 -> withData (raw_data req) "config=15 (LimeRequirement)" $ \inp ->
+              json (calcLimeRequirement (inp :: LimeInput))
+
+      -- config=16: Machinery Cost
+      16 -> withData (raw_data req) "config=16 (MachineryCost)" $ \inp ->
+              json (calcMachineryCost (inp :: MachineryCostInput))
+
+      -- config=17: Seed Rate
+      17 -> withData (raw_data req) "config=17 (SeedRate)" $ \inp ->
+              json (calcSeedRate (inp :: SeedRateInput))
+
+      _ -> badReq "Unknown config"
 
 findInObject :: TL.Text -> Value -> Value
 findInObject key (Object o) =
