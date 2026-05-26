@@ -11,6 +11,7 @@ import SprayingWindowSpec      (spec)
 import BiomassSpec             (spec)
 import DiseaseModelsSpec       (spec)
 import IrrigationAdvisorSpec   (spec)
+import FarmCalculatorsSpec     (spec)
 
 main :: IO ()
 main = hspec $ do
@@ -22,3 +23,4 @@ main = hspec $ do
   describe "Biomass"             BiomassSpec.spec
   describe "DiseaseModels"       DiseaseModelsSpec.spec
   describe "IrrigationAdvisor"   IrrigationAdvisorSpec.spec
+  describe "FarmCalculators"     FarmCalculatorsSpec.spec

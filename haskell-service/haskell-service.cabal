@@ -19,6 +19,7 @@ library
       DiseaseModels
       DiseaseTypes
       IrrigationAdvisor
+      FarmCalculators
   other-modules:
       Main
       Paths_haskell_service
@@ -40,6 +41,7 @@ executable haskell-service-exe
       Biomass
       DiseaseModels
       DiseaseTypes
+      FarmCalculators
       IrrigationAdvisor
       SatelliteAnomaly
       SprayingWindow
@@ -67,6 +69,7 @@ test-suite haskell-service-test
   other-modules:
       BiomassSpec
       DiseaseModelsSpec
+      FarmCalculatorsSpec
       IrrigationAdvisorSpec
       SatelliteAnomalySpec
       SprayingWindowSpec
