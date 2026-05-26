@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from app.core.database import UserLocation, FieldAnalysis, get_db, WeatherHistory, WeatherMetrics
 from app.services.weather_service import current_weather_request
 from app.services.spraying_service import calculate_spraying_window
 from app.services.custom_alert_engine import build_metric_snapshot, evaluate_custom_alert_rules
 from app.events.urgent_email_alerts import deliver_pending_urgent_alerts
-from typing import Any
+from typing import Any, Literal
 
 router = APIRouter()
 
@@ -208,16 +209,19 @@ def _agg(db: Session, model, location_filter, col_name: str) -> dict:
     return {"avg": r(row.avg), "min": r(row.min), "max": r(row.max), "std": r(row.std)}
 
 
+PERIOD_HOURS = {
+    "day":  24,
+    "7d":   24 * 7,
+    "30d":  24 * 30,
+}
+
 @router.get("/location/{location_id}/weather-stats", tags=["Weather"])
 async def get_weather_stats(
     location_id: int,
     user_id: int,
+    period: str = Query("all", description="all | day | night | 7d | 30d"),
     db: Session = Depends(get_db)
 ):
-    """
-    Historical benchmark statistics for every metric of a location.
-    Used by the frontend to show avg/min/max context alongside live values.
-    """
     location = db.query(UserLocation).filter(
         UserLocation.id == location_id,
         UserLocation.user_id == user_id
@@ -226,8 +230,17 @@ async def get_weather_stats(
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
 
-    history_filter  = WeatherHistory.location_id == location_id
-    metrics_filter  = WeatherMetrics.location_id == location_id
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    history_filter = WeatherHistory.location_id == location_id
+    metrics_filter = WeatherMetrics.location_id == location_id
+
+    if period == "night":
+        history_filter = history_filter & (WeatherHistory.is_night == True)
+    elif period in PERIOD_HOURS:
+        since = now - timedelta(hours=PERIOD_HOURS[period])
+        history_filter = history_filter & (WeatherHistory.timestamp >= since)
+        metrics_filter = metrics_filter & (WeatherMetrics.window_end_date >= since)
 
     record_count = db.query(func.count(WeatherHistory.id)).filter(history_filter).scalar() or 0
 
@@ -262,6 +275,7 @@ async def get_weather_stats(
         "history": history_stats,
         "metrics": metrics_stats,
         "record_count": record_count,
+        "period": period,
     }
 
 
