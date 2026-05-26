@@ -10,7 +10,6 @@ from app.core.database import SensorsDB, WeatherSensors, Events
 from app.core.config import SENSOR_OFFLINE_INTERVAL_SAMPLE, SENSOR_OFFLINE_MULTIPLIER, SENSOR_OFFLINE_MIN_DELTA_MINUTES
 from app.core.schemas import EventType, StatusType
 from app.utils.general import _make_event_hash
-from app.api.endpoints.alert_suppression import is_suppressed
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +51,7 @@ def _create_sensor_offline_event(db: Session, sensor: SensorsDB, threshold: date
         return
 
     # ── suppression check ──────────────────────────────────────────────────
+    from app.api.endpoints.alert_suppression import is_suppressed  # lazy
     if is_suppressed(
         db,
         user_id=sensor.user_id,

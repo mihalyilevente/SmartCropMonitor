@@ -28,7 +28,6 @@ from app.core.config import (
     MIN_POINTS_FOR_ANALYSIS,
     CONFIDENCE_SCALE,
 )
-from app.api.endpoints.alert_suppression import is_suppressed
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +247,7 @@ def _create_event_if_needed(
     now: datetime.datetime,
 ):
     # ── suppression check ──────────────────────────────────────────────────
+    from app.api.endpoints.alert_suppression import is_suppressed  # lazy
     from app.core.database import FieldUnit as _FieldUnit
     _field = db.query(_FieldUnit).filter(_FieldUnit.id == field_id).first()
     _loc_id = _field.location_id if _field else None
