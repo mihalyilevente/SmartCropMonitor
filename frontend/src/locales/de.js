@@ -1155,6 +1155,34 @@ const de = {
   month_5: 'Mai', month_6: 'Jun', month_7: 'Jul', month_8: 'Aug',
   month_9: 'Sep', month_10: 'Okt', month_11: 'Nov', month_12: 'Dez',
 
+
+  // ── Wiki / Knowledge Base ──────────────────────────────────────────────────
+  tab_wiki:                         'Wissensdatenbank',
+  wiki_title:                       'Wissensdatenbank',
+  wiki_subtitle:                    'Agronomische Leitfäden, Schädlings- & Krankheitsreferenzen, Best Practices',
+  wiki_search_placeholder:          'Artikel suchen…',
+  wiki_bookmarks:                   'Lesezeichen',
+  wiki_bookmark:                    'Lesezeichen setzen',
+  wiki_bookmarked:                  'Gespeichert',
+  wiki_unbookmark:                  'Lesezeichen entfernen',
+  wiki_back:                        'Zurück zur Übersicht',
+  wiki_read:                        'Artikel lesen',
+  wiki_loading_article:             'Artikel wird geladen…',
+  wiki_load_error:                  'Artikel konnte nicht geladen werden. Bitte versuchen Sie es erneut.',
+  wiki_results_count:               (n) => `${n} Artikel`,
+  wiki_no_results:                  'Keine Artikel gefunden',
+  wiki_no_results_title:            'Keine passenden Artikel',
+  wiki_no_results_sub:              'Versuchen Sie ein anderes Suchwort oder löschen Sie den Filter.',
+  wiki_cat_all:                     'Alle',
+  wiki_cat_diseases:                'Krankheiten',
+  wiki_cat_pests:                   'Schädlinge',
+  wiki_cat_fertilizers:             'Düngemittel',
+  wiki_cat_guides:                  'Feldbauanleitungen',
+  wiki_art_downy_mildew:            'Falscher Mehltau',
+  wiki_art_english_grain_aphid:     'Englische Getreidblattlaus',
+  wiki_art_urea:                    'Harnstoffdünger',
+  wiki_art_chisel_tillage:          'Grubber-Bodenbearbeitung',
+
 };
 
 export default de;

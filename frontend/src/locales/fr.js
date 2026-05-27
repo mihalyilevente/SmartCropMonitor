@@ -1155,6 +1155,34 @@ const fr = {
   month_5: 'mai', month_6: 'jun', month_7: 'jul', month_8: 'aoû',
   month_9: 'sep', month_10: 'oct', month_11: 'nov', month_12: 'déc',
 
+
+  // ── Wiki / Knowledge Base ──────────────────────────────────────────────────
+  tab_wiki:                         'Base de connaissances',
+  wiki_title:                       'Base de connaissances',
+  wiki_subtitle:                    'Guides agronomiques, références ravageurs & maladies, bonnes pratiques',
+  wiki_search_placeholder:          'Rechercher des articles…',
+  wiki_bookmarks:                   'Favoris',
+  wiki_bookmark:                    'Ajouter aux favoris',
+  wiki_bookmarked:                  'Enregistré',
+  wiki_unbookmark:                  'Retirer des favoris',
+  wiki_back:                        'Retour aux articles',
+  wiki_read:                        "Lire l'article",
+  wiki_loading_article:             'Chargement de l’article…',
+  wiki_load_error:                  'Impossible de charger l’article. Veuillez réessayer.',
+  wiki_results_count:               (n) => `${n} article${n > 1 ? 's' : ''}`,
+  wiki_no_results:                  'Aucun article trouvé',
+  wiki_no_results_title:            'Aucun article ne correspond à votre recherche',
+  wiki_no_results_sub:              'Essayez un autre mot-clé ou effacez le filtre.',
+  wiki_cat_all:                     'Tous',
+  wiki_cat_diseases:                'Maladies',
+  wiki_cat_pests:                   'Ravageurs',
+  wiki_cat_fertilizers:             'Fertilisants',
+  wiki_cat_guides:                  'Guides de terrain',
+  wiki_art_downy_mildew:            'Mildiou',
+  wiki_art_english_grain_aphid:     'Puceron des céréales',
+  wiki_art_urea:                    'Engrais urée',
+  wiki_art_chisel_tillage:          'Travail du sol au chisel',
+
 };
 
 export default fr;

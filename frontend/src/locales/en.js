@@ -1196,6 +1196,34 @@ const en = {
   month_1: 'Jan', month_2: 'Feb', month_3: 'Mar', month_4: 'Apr',
   month_5: 'May', month_6: 'Jun', month_7: 'Jul', month_8: 'Aug',
   month_9: 'Sep', month_10: 'Oct', month_11: 'Nov', month_12: 'Dec',
+
+  // ── Wiki / Knowledge Base ──────────────────────────────────────────────────
+  tab_wiki:                        'Knowledge Base',
+  wiki_title:                      'Knowledge Base',
+  wiki_subtitle:                   'Agronomy guides, pest & disease references, and best practices',
+  wiki_search_placeholder:         'Search articles…',
+  wiki_bookmarks:                  'Bookmarks',
+  wiki_bookmark:                   'Bookmark',
+  wiki_bookmarked:                 'Bookmarked',
+  wiki_unbookmark:                 'Remove bookmark',
+  wiki_back:                       'Back to articles',
+  wiki_read:                       'Read article',
+  wiki_loading_article:            'Loading article…',
+  wiki_load_error:                 'Failed to load article. Please try again.',
+  wiki_results_count:              (n) => `${n} article${n === 1 ? '' : 's'}`,
+  wiki_no_results:                 'No articles found',
+  wiki_no_results_title:           'No articles match your search',
+  wiki_no_results_sub:             'Try a different keyword or clear the filter.',
+  wiki_cat_all:                    'All',
+  wiki_cat_diseases:               'Diseases',
+  wiki_cat_pests:                  'Pests',
+  wiki_cat_fertilizers:            'Fertilizers',
+  wiki_cat_guides:                 'Field Guides',
+  wiki_art_downy_mildew:           'Downy Mildew',
+  wiki_art_english_grain_aphid:    'English Grain Aphid',
+  wiki_art_urea:                   'Urea Fertilizer',
+  wiki_art_chisel_tillage:         'Chisel Tillage',
+
 };
 
 export default en;
