@@ -25,32 +25,33 @@ function buildImageMap(articleId) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CONTENT REGISTRY
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Все языковые файлы, которые Vite должен знать на этапе билда
-const MD_MODULES = import.meta.glob(
-  '../content/**/*.md',
-  { as: 'raw' }
-);
+const MD_MODULES = import.meta.glob('../content/**/*.md');
 
 async function loadArticle(articleId, lang) {
-  const tryLang = async (l) => {
+  const tryLoad = async (l) => {
     const key = `../content/${articleId}/${l}.md`;
     const loader = MD_MODULES[key];
     if (!loader) return null;
-    try { return await loader(); }
-    catch { return null; }
+    try {
+      const mod = await loader();
+      return typeof mod === 'string' ? mod : mod?.default ?? null;
+    } catch {
+      return null;
+    }
   };
 
   if (lang !== 'en') {
-    const result = await tryLang(lang);
+    const result = await tryLoad(lang);
     if (result) return result;
   }
-  const result = await tryLang('en');
+  const result = await tryLoad('en');
   if (result) return result;
-
   throw new Error(`No markdown found for ${articleId}`);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTENT REGISTRY
+// ─────────────────────────────────────────────────────────────────────────────
 const ARTICLES = [
   {
     id:       'diseases/downy_mildew',
@@ -104,26 +105,17 @@ function renderMarkdown(md, imageMap = {}) {
           `<td>${c.trim()}</td>`).join('') + '</tr>').join('');
       return `<div class="wiki-table-wrap"><table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table></div>`;
     })
-    // ── headings ──────────────────────────────────────────────────────────
     .replace(/^#{4} (.+)$/gm, '<h4>$1</h4>')
     .replace(/^#{3} (.+)$/gm, '<h3>$1</h3>')
     .replace(/^#{2} (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm,    '<h1>$1</h1>')
-    // ── hr ────────────────────────────────────────────────────────────────
     .replace(/^-{3,}$/gm, '<hr/>')
-    // ── unordered list items ──────────────────────────────────────────────
     .replace(/^[-*] (.+)$/gm,  '<li>$1</li>')
-    // ── ordered list items ────────────────────────────────────────────────
     .replace(/^\d+\. (.+)$/gm, '<oli>$1</oli>')
-    // ── bold italic ───────────────────────────────────────────────────────
     .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    // ── bold ──────────────────────────────────────────────────────────────
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // ── italic * ──────────────────────────────────────────────────────────
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // ── italic _  ───────────────────────────────────
     .replace(/(?<![a-zA-Z0-9])_(.+?)_(?![a-zA-Z0-9])/g, '<em>$1</em>')
-    // ── inline code ───────────────────────────────────────────────────────
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\n\n+/g, '\n\n');
 
@@ -142,7 +134,7 @@ function renderMarkdown(md, imageMap = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INLINE CSS —
+// INLINE CSS
 // ─────────────────────────────────────────────────────────────────────────────
 const WIKI_CSS = `
   .wiki-article-content .wiki-figure {
@@ -165,7 +157,6 @@ const WIKI_CSS = `
     margin-top: 5px;
     font-style: italic;
   }
-
   .wiki-article-content .wiki-table-wrap {
     overflow-x: auto;
     margin: 12px 0 16px;
@@ -173,29 +164,21 @@ const WIKI_CSS = `
     border: 1px solid #ede7df;
   }
   .wiki-article-content table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    min-width: 400px;
+    width: 100%; border-collapse: collapse;
+    font-size: 13px; min-width: 400px;
   }
   .wiki-article-content th {
     background: var(--color-bg-champagne, #f8f4ee);
-    font-weight: 700;
-    padding: 8px 10px;
-    text-align: left;
+    font-weight: 700; padding: 8px 10px; text-align: left;
     border-bottom: 2px solid var(--color-accent-soil, #c5a87a);
-    color: var(--color-accent-chernozem, #3d2b1a);
-    white-space: nowrap;
+    color: var(--color-accent-chernozem, #3d2b1a); white-space: nowrap;
   }
   .wiki-article-content td {
-    padding: 7px 10px;
-    border-bottom: 1px solid #f0ebe3;
-    color: #444;
-    vertical-align: top;
+    padding: 7px 10px; border-bottom: 1px solid #f0ebe3;
+    color: #444; vertical-align: top;
   }
   .wiki-article-content tr:last-child td { border-bottom: none; }
   .wiki-article-content tr:nth-child(even) td { background: #fafaf8; }
-
   .wiki-article-content h1 {
     font-size: 22px; font-weight: 800;
     color: var(--color-accent-chernozem, #3d2b1a);
@@ -228,7 +211,6 @@ const WIKI_CSS = `
   }
   .wiki-article-content strong { font-weight: 700; color: #222; }
   .wiki-article-content em     { font-style: italic; }
-
   @keyframes wiki-pulse {
     0%, 100% { opacity: 0.3; transform: scale(0.9); }
     50%       { opacity: 1;   transform: scale(1.1); }
@@ -243,7 +225,6 @@ function useInjectWikiCss() {
     style.id = id;
     style.textContent = WIKI_CSS;
     document.head.appendChild(style);
-    return () => { /* оставляем — переиспользуется */ };
   }, []);
 }
 
@@ -501,7 +482,10 @@ const styles = {
     color: 'var(--color-accent-chernozem)', lineHeight: 1.2,
   },
   wikiSubtitle: { fontSize: 13, color: '#888', marginTop: 3 },
-  controlsBar: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' },
+  controlsBar: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    marginBottom: 10, flexWrap: 'wrap',
+  },
   searchWrap: {
     display: 'flex', alignItems: 'center', flex: 1, minWidth: 200,
     background: '#fff', border: '1px solid var(--color-accent-soil)',
@@ -512,24 +496,37 @@ const styles = {
     flex: 1, border: 'none', outline: 'none', fontSize: 13,
     padding: '8px 4px', fontFamily: 'inherit', background: 'transparent',
   },
-  clearBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#aaa', padding: '2px 4px' },
+  clearBtn: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 13, color: '#aaa', padding: '2px 4px',
+  },
   filterChip: {
     background: '#f0ebe3', border: '1px solid var(--color-accent-soil)',
     borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700,
-    cursor: 'pointer', color: 'var(--color-accent-chernozem)', fontFamily: 'inherit',
-    transition: 'all 0.15s', whiteSpace: 'nowrap',
+    cursor: 'pointer', color: 'var(--color-accent-chernozem)',
+    fontFamily: 'inherit', transition: 'all 0.15s', whiteSpace: 'nowrap',
   },
   filterChipActive: { background: '#f5c842', border: '1px solid #d4a800', color: '#3d2e00' },
   catBar: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   catPill: {
     background: '#f0ebe3', border: '1px solid var(--color-accent-soil)',
     borderRadius: 20, padding: '5px 14px', fontSize: 12, fontWeight: 600,
-    cursor: 'pointer', color: 'var(--color-accent-chernozem)', fontFamily: 'inherit',
-    transition: 'all 0.15s', textTransform: 'capitalize',
+    cursor: 'pointer', color: 'var(--color-accent-chernozem)',
+    fontFamily: 'inherit', transition: 'all 0.15s', textTransform: 'capitalize',
   },
-  catPillActive: { background: 'var(--color-accent-chernozem)', border: '1px solid var(--color-accent-chernozem)', color: '#fff' },
-  resultsCount: { fontSize: 11, color: '#aaa', marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 },
+  catPillActive: {
+    background: 'var(--color-accent-chernozem)',
+    border: '1px solid var(--color-accent-chernozem)', color: '#fff',
+  },
+  resultsCount: {
+    fontSize: 11, color: '#aaa', marginBottom: 12, fontWeight: 600,
+    textTransform: 'uppercase', letterSpacing: '0.06em',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+    gap: 14,
+  },
   card: {
     background: '#fff', border: '1px solid var(--color-accent-soil)',
     borderRadius: 12, padding: '16px', cursor: 'pointer',
@@ -538,19 +535,34 @@ const styles = {
   },
   cardHeader: { display: 'flex', alignItems: 'flex-start', gap: 10 },
   cardIcon: { fontSize: 26, lineHeight: 1, flexShrink: 0 },
-  cardTitle: { fontWeight: 700, fontSize: 14, color: 'var(--color-accent-chernozem)', lineHeight: 1.3 },
-  cardCat: { fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 2 },
-  cardBookmark: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#f5c842', padding: 0, lineHeight: 1, flexShrink: 0 },
+  cardTitle: {
+    fontWeight: 700, fontSize: 14,
+    color: 'var(--color-accent-chernozem)', lineHeight: 1.3,
+  },
+  cardCat: {
+    fontSize: 10, color: '#aaa', textTransform: 'uppercase',
+    letterSpacing: '0.05em', marginTop: 2,
+  },
+  cardBookmark: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 18, color: '#f5c842', padding: 0, lineHeight: 1, flexShrink: 0,
+  },
   cardTags: { display: 'flex', flexWrap: 'wrap', gap: 4 },
-  tag: { fontSize: 10, background: '#f0ebe3', color: '#888', borderRadius: 10, padding: '2px 7px', fontWeight: 600 },
-  cardArrow: { fontSize: 11, color: 'var(--color-accent-chernozem)', fontWeight: 700, marginTop: 'auto', opacity: 0.7 },
+  tag: {
+    fontSize: 10, background: '#f0ebe3', color: '#888',
+    borderRadius: 10, padding: '2px 7px', fontWeight: 600,
+  },
+  cardArrow: {
+    fontSize: 11, color: 'var(--color-accent-chernozem)',
+    fontWeight: 700, marginTop: 'auto', opacity: 0.7,
+  },
   emptyState: { textAlign: 'center', padding: '50px 0', color: '#bbb', fontSize: 14 },
-
   reader: { maxWidth: 860, margin: '0 auto' },
   readerToolbar: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     background: 'var(--color-bg-magnolia)', border: '1px solid var(--color-accent-soil)',
-    borderRadius: 10, padding: '10px 16px', marginBottom: 16, flexWrap: 'wrap', gap: 8,
+    borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+    flexWrap: 'wrap', gap: 8,
   },
   backBtn: {
     background: 'none', border: '1px solid var(--color-accent-soil)',
@@ -568,12 +580,10 @@ const styles = {
     cursor: 'pointer', color: 'var(--color-accent-chernozem)', fontFamily: 'inherit',
   },
   bookmarkBtnActive: { background: '#f5c842', border: '1px solid #d4a800', color: '#3d2e00' },
-
-  // ФИX: overflow:hidden гарантирует что дочерние элементы не вылезут
   articleBody: {
     background: '#fff', border: '1px solid var(--color-accent-soil)',
     borderRadius: 12, padding: '28px 32px', minHeight: 300,
-    overflow: 'hidden',          // ← КЛЮЧЕВОЙ ФИX
+    overflow: 'hidden',
   },
   articleLoading: {
     display: 'flex', alignItems: 'center', gap: 10, color: '#aaa',
@@ -584,7 +594,10 @@ const styles = {
     background: 'var(--color-accent-chernozem)',
     animation: 'wiki-pulse 1s ease-in-out infinite', opacity: 0.5,
   },
-  articleError: { color: '#c62828', background: '#fce4ec', borderRadius: 8, padding: '12px 16px', fontSize: 13 },
+  articleError: {
+    color: '#c62828', background: '#fce4ec',
+    borderRadius: 8, padding: '12px 16px', fontSize: 13,
+  },
   mdContent: { fontSize: 14, lineHeight: 1.75, color: '#333', fontFamily: 'inherit' },
 };
 
