@@ -1181,6 +1181,34 @@ const hu = {
   month_5: 'máj', month_6: 'jún', month_7: 'júl', month_8: 'aug',
   month_9: 'szep', month_10: 'okt', month_11: 'nov', month_12: 'dec',
 
+
+  // ── Wiki / Knowledge Base ──────────────────────────────────────────────────
+  tab_wiki:                         'Tudástár',
+  wiki_title:                       'Tudástár',
+  wiki_subtitle:                    'Agronómiai útmutatók, kártevő és betegség-referenciák, bevált módszerek',
+  wiki_search_placeholder:          'Cikkek keresése…',
+  wiki_bookmarks:                   'Könyvjelzők',
+  wiki_bookmark:                    'Könyvjelző',
+  wiki_bookmarked:                  'Elmentve',
+  wiki_unbookmark:                  'Eltávolítás',
+  wiki_back:                        'Vissza a cikkekhez',
+  wiki_read:                        'Cikk olvasása',
+  wiki_loading_article:             'Cikk betöltése…',
+  wiki_load_error:                  'A cikk betöltése sikertelen. Kérjük, próbálja újra.',
+  wiki_results_count:               (n) => `${n} cikk`,
+  wiki_no_results:                  'Nincs találat',
+  wiki_no_results_title:            'Nincs egyező cikk',
+  wiki_no_results_sub:              'Próbáljon más kulcsszót, vagy törölje a szűrőt.',
+  wiki_cat_all:                     'Összes',
+  wiki_cat_diseases:                'Betegségek',
+  wiki_cat_pests:                   'Kártevők',
+  wiki_cat_fertilizers:             'Műtrágyák',
+  wiki_cat_guides:                  'Mezőgazdasági útmutatók',
+  wiki_art_downy_mildew:            'Peronoszpóra',
+  wiki_art_english_grain_aphid:     'Gabona-levéltetű',
+  wiki_art_urea:                    'Karbamid műtrágya',
+  wiki_art_chisel_tillage:          'Lazítós talajművelés',
+
 };
 
 export default hu;
