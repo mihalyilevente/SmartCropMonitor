@@ -25,6 +25,8 @@ The main agronomic objectives include:
 - Weed control (mechanical suppression)
 - Seedbed preparation (in combination systems)
 
+![Chisel](./images/scheme.png)
+
 ---
 
 # Equipment and Working Principles

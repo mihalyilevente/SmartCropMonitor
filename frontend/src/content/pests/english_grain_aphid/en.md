@@ -89,6 +89,9 @@ These alternative hosts are important for overwintering and virus persistence.
 ### Size
 - Approximately 2–3 mm long
 
+
+![English Grain Aphid adult](./images/notwing.png)
+
 ---
 
 ## Winged Forms
@@ -104,6 +107,8 @@ Winged aphids are responsible for:
 - Colonization of new fields
 - Virus transmission between crops
 
+![English Grain Aphid winged](./images/adult.png)
+
 ---
 
 # Life Cycle
@@ -117,6 +122,8 @@ Females produce live offspring without mating during much of the growing season.
 
 ### Sexual Reproduction
 Occurs in colder climates before winter.
+
+![English Grain Aphid lifecycle](./images/cycle.png)
 
 ---
 

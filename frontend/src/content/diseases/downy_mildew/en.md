@@ -14,6 +14,8 @@ Downy mildew pathogens thrive under conditions of:
 
 The disease spreads rapidly in dense canopies and can devastate crops if not detected and managed early.
 
+![Downy Mildew](./images/img.png)
+
 ---
 
 # Causal Organisms

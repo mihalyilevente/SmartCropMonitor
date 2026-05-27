@@ -22,6 +22,8 @@ However, urea is also highly sensitive to management. Misapplication leads to si
 
 After application, urea is rapidly hydrolyzed by the enzyme **urease**, converting it into ammonium forms usable by plants. 
 
+![Urea granules](./images/urea.png)
+
 ---
 
 # Transformation in Soil
@@ -46,6 +48,8 @@ Urea → ammonium carbonate (via urease activity)
 ---
 
 # Nitrogen Loss Pathways
+
+![Urea pathway](./images/img.png)
 
 ## 1. Ammonia volatilization (major loss pathway)
 
