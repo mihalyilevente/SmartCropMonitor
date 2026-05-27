@@ -20,6 +20,7 @@ import MorningBriefingPanel from './components/MorningBriefingPanel';
 import SettingsPanel from './components/SettingsPanel';
 import EgnReportPanel from './components/EgnReportPanel';
 import CalculatorsPanel from './components/CalculatorsPanel';
+import WikiPanel from './components/WikiPanel';
 import logo from './assets/logo1.png';
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ const TABS = [
   { id: 'tasks',      labelKey: 'tab_tasks',       icon: '✅' },
   { id: 'sensors',    labelKey: 'tab_sensors',     icon: '📡' },
   { id: 'tools',      labelKey: 'tab_tools',       icon: '🧮' },
+  { id: 'wiki',       labelKey: 'tab_wiki',        icon: '📚' },
 ];
 
 // ── Compact weather badge ────────────────────────────────────────────────────
@@ -487,6 +489,13 @@ const Dashboard = ({ userId, onLogout }) => {
         return (
           <FullLayout>
             <CalculatorsPanel />
+          </FullLayout>
+        );
+
+      case 'wiki':
+        return (
+          <FullLayout>
+            <WikiPanel />
           </FullLayout>
         );
 
