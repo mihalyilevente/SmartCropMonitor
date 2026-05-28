@@ -13,26 +13,6 @@ from app.core.config import STORAGE_PATH, NDVI_DIR, TOPO_DIR
 router = APIRouter()
 
 
-@router.get("/user/files", tags=["History"])
-async def get_user_files(user_id: int, db: Session = Depends(get_db)):
-    history = (
-        db.query(FieldAnalysis)
-        .join(UserLocation)
-        .filter(UserLocation.user_id == user_id)
-        .all()
-    )
-
-    return [
-        {
-            "id": h.id,
-            "location": h.location.label,
-            "filename": h.nc_filename,
-            "date": h.last_data_request_date
-        }
-        for h in history
-    ]
-
-
 @router.get("/user/locations")
 async def get_user_locations(user_id: int, db: Session = Depends(get_db)):
     from geoalchemy2.shape import to_shape

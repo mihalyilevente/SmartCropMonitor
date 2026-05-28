@@ -524,23 +524,6 @@ const en = {
   sensor_meteo_badge:    'Meteo',
   sensor_added_at:       'Added',
 
-  // ── Legacy ─────────────────────────────────────────────────────────────────
-  fh_title:              'Files',
-  fh_analyze:            'Analyze',
-  pv_no_filter:          'No filter',
-  pv_apply:              'Apply',
-  pv_loading:            'Processing…',
-  pv_invalid:            'Invalid raster',
-  pv_err_load:           'Error loading plot',
-  fp_add_field:          'Add Field',
-  fp_name:               'Name',
-  fp_lat:                'Lat',
-  fp_lon:                'Lon',
-  fp_save:               'Save',
-  fp_sync:               'Sync Sentinel',
-  fp_err_add:            'Error adding location',
-  fp_sync_started:       'Sync started',
-  fp_err_sync:           'Error starting sync',
 
   // ── WeatherMetricsPanel (full version) ─────────────────────────────────────
   wmp_click_hint:        '📊 click any card · hover for 🔔',

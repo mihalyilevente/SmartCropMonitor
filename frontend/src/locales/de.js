@@ -665,23 +665,6 @@ const de = {
   seg_err_save:          'Felder konnten nicht gespeichert werden',
   seg_close:             'Schließen',
 
-  // ── Legacy ─────────────────────────────────────────────────────────────────
-  fh_title:              'Dateien',
-  fh_analyze:            'Analysieren',
-  pv_no_filter:          'Kein Filter',
-  pv_apply:              'Anwenden',
-  pv_loading:            'Verarbeitung…',
-  pv_invalid:            'Ungültiges Raster',
-  pv_err_load:           'Ladefehler',
-  fp_add_field:          'Feld hinzufügen',
-  fp_name:               'Name',
-  fp_lat:                'Breite',
-  fp_lon:                'Länge',
-  fp_save:               'Speichern',
-  fp_sync:               'Sentinel synchronisieren',
-  fp_err_add:            'Fehler beim Hinzufügen',
-  fp_sync_started:       'Synchronisierung gestartet',
-  fp_err_sync:           'Synchronisierungsfehler',
 
   // ── Auth registration & Briefing dismiss ──────────────────────────────────
   briefing_dismiss:        'Schließen ✕',
