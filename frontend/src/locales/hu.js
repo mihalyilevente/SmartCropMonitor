@@ -525,24 +525,6 @@ const hu = {
   sensor_meteo_badge:    'Meteo',
   sensor_added_at:       'Hozzáadva',
 
-  // ── FileHistory / PlotViewer / FieldPanel (legacy) ─────────────────────────
-  fh_title:              'Fájlok',
-  fh_analyze:            'Elemzés',
-  pv_no_filter:          'Nincs szűrő',
-  pv_apply:              'Alkalmaz',
-  pv_loading:            'Feldolgozás…',
-  pv_invalid:            'Érvénytelen raszter',
-  pv_err_load:           'Hiba a diagram betöltésekor',
-  fp_add_field:          'Tábla hozzáadása',
-  fp_name:               'Név',
-  fp_lat:                'Szél.',
-  fp_lon:                'Hossz.',
-  fp_save:               'Mentés',
-  fp_sync:               'Sentinel szinkronizálás',
-  fp_err_add:            'Hiba a helyszín hozzáadásakor',
-  fp_sync_started:       'Szinkronizálás elindult',
-  fp_err_sync:           'Hiba a szinkronizálás indításakor',
-
   // ── WeatherMetricsPanel (полная версия) ────────────────────────────────────
   wmp_click_hint:        '📊 kattintson bármely kártyára · vigye az egeret a 🔔 fölé',
 

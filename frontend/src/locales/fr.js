@@ -665,23 +665,6 @@ const fr = {
   seg_err_save:          'Impossible d\'enregistrer les parcelles',
   seg_close:             'Fermer',
 
-  // ── Legacy ─────────────────────────────────────────────────────────────────
-  fh_title:              'Fichiers',
-  fh_analyze:            'Analyser',
-  pv_no_filter:          'Aucun filtre',
-  pv_apply:              'Appliquer',
-  pv_loading:            'Traitement…',
-  pv_invalid:            'Raster invalide',
-  pv_err_load:           'Erreur de chargement',
-  fp_add_field:          'Ajouter une parcelle',
-  fp_name:               'Nom',
-  fp_lat:                'Lat.',
-  fp_lon:                'Long.',
-  fp_save:               'Enregistrer',
-  fp_sync:               'Synchroniser Sentinel',
-  fp_err_add:            'Erreur d\'ajout',
-  fp_sync_started:       'Synchronisation démarrée',
-  fp_err_sync:           'Erreur de synchronisation',
 
   // ── Auth registration & Briefing dismiss ──────────────────────────────────
   briefing_dismiss:        'Masquer ✕',

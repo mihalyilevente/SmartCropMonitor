@@ -2,7 +2,10 @@ from fastapi import HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+from passlib.context import CryptContext
+from app.core.security import create_access_token
 import hashlib
+import bcrypt
 
 from app.core.database import UserDB, get_db
 
@@ -47,8 +50,15 @@ class UserUpdateProfile(BaseModel):
 # Helpers
 # =========================
 
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 def _hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    if not hashed.startswith("$2"):
+        return hashlib.sha256(plain.encode()).hexdigest() == hashed
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 def _user_profile(user: UserDB) -> dict:
@@ -99,9 +109,15 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
 @router.post("/login", summary="Вход")
 async def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.username == user.username).first()
-    if not db_user or db_user.hashed_password != _hash_password(user.password):
+    if not db_user or not _verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid username or password")
-    return {"status": "login success", **_user_profile(db_user)}
+
+    if not (db_user.hashed_password.startswith("$2b$") or db_user.hashed_password.startswith("$2a$")):
+        db_user.hashed_password = _hash_password(user.password)
+        db.commit()
+
+    token = create_access_token({"sub": str(db_user.id)})
+    return {"access_token": token, "token_type": "bearer", **_user_profile(db_user)}
 
 
 @router.get("/user/{user_id}", summary="Получить профиль")
