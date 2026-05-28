@@ -1838,3 +1838,541 @@ Within full system stack:
     
 
 This is the **lowest-level deterministic physical layer** of the system.
+
+# 16. Farm Operations Calculators
+
+## 16.1 Overview
+
+This module implements a set of deterministic agronomic calculators for operational farm management. Each calculator is a pure function mapping a validated input record to a result record. All intermediate values are preserved for traceability.
+
+The module covers:
+
+- Irrigation runtime estimation
+- Daily soil water balance simulation
+- Fertilizer rate and split planning
+- Tank mix compatibility and ordering
+- Spray water volume and field time
+- Soil nutrient balance (N, P, K)
+- Lime requirement estimation
+- Machinery operating cost
+- Seed rate calculation
+
+---
+
+## 16.2 Shared Utility Functions
+
+### Clamp
+
+Constrains a value to a closed interval:
+
+$$
+\text{clamp}(lo, hi, x) = \max(lo,\ \min(hi,\ x))
+$$
+
+### Rounding
+
+Values are rounded to $d$ decimal places using standard half-up rounding:
+
+$$
+\text{roundTo}(d, x) = \frac{\text{round}(x \cdot 10^d)}{10^d}
+$$
+
+---
+
+## 16.3 Irrigation Runtime Calculator
+
+### 16.3.1 Input Variables
+
+| Symbol | Field | Unit | Description |
+|---|---|---|---|
+| $D_{target}$ | `target_mm` | mm | Target application depth |
+| $A$ | `area_ha` | ha | Field area |
+| $Q$ | `flow_lph` | L/h | System flow rate |
+| $\eta$ | `efficiency` | — | Irrigation efficiency, clamped to $[0.1,\ 1.0]$ |
+
+### 16.3.2 Formulas
+
+**Net water volume required:**
+
+$$
+V_{net} = D_{target} \cdot (A \cdot 10000)
+$$
+
+**Gross volume accounting for losses:**
+
+$$
+V_{gross} = \frac{V_{net}}{\eta}
+$$
+
+**Runtime:**
+
+$$
+t_h = \frac{V_{gross}}{Q}, \qquad t_{min} = t_h \cdot 60
+$$
+
+**Application rate:**
+
+$$
+\dot{D} = \frac{Q \cdot \eta}{A \cdot 10000} \quad [\text{mm/h}]
+$$
+
+### 16.3.3 Output Variables
+
+- $t_h$ — runtime (hours)
+- $t_{min}$ — runtime (minutes)
+- $V_{gross}$ — total water volume (L)
+- $V_{gross}/1000$ — total volume (m³)
+- $\dot{D}$ — application rate (mm/h)
+
+---
+
+## 16.4 Soil Water Balance Model
+
+### 16.4.1 Input Variables
+
+| Symbol | Field | Unit | Description |
+|---|---|---|---|
+| $SW_0$ | `initial_sw` | mm | Initial soil water content |
+| $FC$ | `field_cap` | mm | Field capacity |
+| $WP$ | `wilting_pt` | mm | Wilting point |
+| $CN$ | `cn` | — | SCS Curve Number (default 75) |
+| — | `steps` | — | Time series of daily weather steps |
+
+Each daily step carries: precipitation $P$ (mm), irrigation $I$ (mm), reference ET $ET_0$ (mm), crop coefficient $K_c$.
+
+### 16.4.2 Derived Parameters
+
+**Total available water:**
+
+$$
+TAW = FC - WP
+$$
+
+**Maximum allowable depletion (50% RAW threshold):**
+
+$$
+MAD = 0.5 \cdot TAW
+$$
+
+### 16.4.3 SCS Curve Number Runoff (USDA, 1986)
+
+For daily precipitation $P$:
+
+$$
+S = \frac{25400}{CN} - 254
+$$
+
+$$
+I_a = 0.2 \cdot S \quad \text{(initial abstraction)}
+$$
+
+$$
+Q_{runoff} =
+\begin{cases}
+0, & P \leq I_a \\
+\dfrac{(P - I_a)^2}{P + 0.8 S}, & P > I_a
+\end{cases}
+$$
+
+### 16.4.4 Daily Water Balance Step
+
+**Crop evapotranspiration:**
+
+$$
+ET_c = ET_0 \cdot K_c
+$$
+
+**Net inflow:**
+
+$$
+\Delta W = (P - Q_{runoff}) + I - ET_c
+$$
+
+**Unconstrained soil water:**
+
+$$
+SW_{raw} = SW_{prev} + \Delta W
+$$
+
+**Percolation (drainage below field capacity):**
+
+$$
+Perc = \max(0,\ SW_{raw} - FC)
+$$
+
+**Final soil water (clamped to $[WP,\ FC]$):**
+
+$$
+SW = \text{clamp}(WP,\ FC,\ SW_{raw})
+$$
+
+**Depletion:**
+
+$$
+D = \max(0,\ FC - SW)
+$$
+
+**Water stress indicator:**
+
+$$
+stress = D > MAD
+$$
+
+### 16.4.5 Aggregated Outputs
+
+$$
+\overline{D} = \frac{1}{n}\sum_{k=1}^{n} D_k
+$$
+
+$$
+ET_{c,total} = \sum ET_{c,k}, \quad P_{total} = \sum P_k, \quad I_{total} = \sum I_k
+$$
+
+$$
+N_{stress} = \left|\{k : stress_k = \text{true}\}\right|
+$$
+
+---
+
+## 16.5 Fertilizer Rate Calculator
+
+### 16.5.1 Input Variables
+
+| Symbol | Description | Unit |
+|---|---|---|
+| $n_N, n_P, n_K$ | Nutrient needs | kg/ha |
+| $A$ | Field area | ha |
+| $f_N, f_P, f_K$ | Best-product nutrient fractions | % |
+| $n_{splits}$ | Number of application splits | — |
+| $c$ | Product cost | currency/kg |
+
+### 16.5.2 Product Selection
+
+For each nutrient, the product with the highest declared content percentage is selected:
+
+$$
+\text{bestN} = \arg\max_p f_N(p), \quad \text{bestP} = \arg\max_p f_P(p), \quad \text{bestK} = \arg\max_p f_K(p)
+$$
+
+### 16.5.3 Application Rate per Split
+
+For a given nutrient need $n$ (kg/ha) and product total nutrient fraction $f_{tot} = f_N + f_P + f_K$:
+
+$$
+\text{frac} = \frac{1}{n_{splits}}
+$$
+
+$$
+r_{kg/ha} = \frac{n \cdot \text{frac}}{f_{tot}/100}
+$$
+
+$$
+r_{total} = r_{kg/ha} \cdot A
+$$
+
+$$
+\text{cost} = r_{total} \cdot c
+$$
+
+### 16.5.4 Totals
+
+$$
+N_{total} = n_N \cdot A, \quad P_{total} = n_P \cdot A, \quad K_{total} = n_K \cdot A
+$$
+
+$$
+\text{cost}_{total} = \sum \text{cost}_i
+$$
+
+---
+
+## 16.6 Tank Mix Calculator
+
+### 16.6.1 Input Variables
+
+- Field area $A$ (ha)
+- Water volume per hectare $V_w$ (L/ha)
+- Water pH $pH_w$
+- List of products with: application rate (L/ha), formulation type, pH compatibility range $[pH_{min},\ pH_{max}]$
+
+### 16.6.2 Total Water Volume
+
+$$
+V_{total} = A \cdot V_w \quad [\text{L}]
+$$
+
+### 16.6.3 Product Amount
+
+$$
+a_p = r_p \cdot A \quad [\text{L}]
+$$
+
+### 16.6.4 pH Compatibility Check
+
+$$
+pH_{ok} = pH_{min} \leq pH_w \leq pH_{max}
+$$
+
+$$
+pH_{risk} = \exists\, p : pH_{ok}(p) = \text{false}
+$$
+
+### 16.6.5 Mixing Order
+
+Products are ordered by formulation type following standard tank mix compatibility practice:
+
+| Order | Type |
+|---|---|
+| 1 | adjuvant |
+| 2 | WP (wettable powder) |
+| 3 | SC, flowable |
+| 4 | EC, SL |
+| 5 | surfactant |
+
+---
+
+## 16.7 Spray Water Volume Calculator
+
+### 16.7.1 Input Variables
+
+| Symbol | Field | Unit |
+|---|---|---|
+| $q$ | `nozzle_l_min` | L/min per nozzle |
+| $N$ | `nozzles` | count |
+| $v$ | `speed_km_h` | km/h |
+| $B$ | `boom_m` | m |
+| $A$ | `area_ha` | ha |
+
+### 16.7.2 Formulas
+
+**Application volume:**
+
+$$
+V_{L/ha} = \frac{q \cdot N \cdot 600}{v \cdot B}
+$$
+
+(factor 600 = 60 min/h × 10 m·km conversion)
+
+**Total volume:**
+
+$$
+V_{total} = V_{L/ha} \cdot A
+$$
+
+**Field coverage rate:**
+
+$$
+\dot{A} = v_{m/s} \cdot B \cdot \frac{3600}{10000} \quad [\text{ha/h}]
+$$
+
+where $v_{m/s} = v \cdot \frac{1000}{3600}$
+
+**Time to complete field:**
+
+$$
+t_h = \frac{A}{\dot{A}}, \qquad t_{min} = t_h \cdot 60
+$$
+
+---
+
+## 16.8 Soil Nutrient Balance
+
+### 16.8.1 Model
+
+For each nutrient the balance is computed as inputs minus crop removal:
+
+**Nitrogen:**
+
+$$
+B_N = N_{soil} + N_{fert} + N_{atm} + N_{fix} - N_{crop}
+$$
+
+where $N_{atm}$ is atmospheric deposition (default 10 kg/ha) and $N_{fix}$ is biological fixation.
+
+**Phosphorus and Potassium:**
+
+$$
+B_P = P_{soil} + P_{fert} - P_{crop}
+$$
+
+$$
+B_K = K_{soil} + K_{fert} - K_{crop}
+$$
+
+### 16.8.2 Status Classification
+
+$$
+\text{status}(B) =
+\begin{cases}
+\text{surplus},  & B > 10 \\
+\text{deficit},  & B < -10 \\
+\text{balanced}, & \text{otherwise}
+\end{cases}
+$$
+
+---
+
+## 16.9 Lime Requirement Calculator
+
+### 16.9.1 Soil Buffer Factor
+
+$$
+SF(\text{texture}, \%OM) = base(\text{texture}) \cdot \left(1 + \frac{\%OM}{100} \cdot 2\right)
+$$
+
+where:
+
+$$
+base(\text{texture}) =
+\begin{cases}
+1.5, & \text{sandy} \\
+4.5, & \text{clay} \\
+3.0, & \text{loam (default)}
+\end{cases}
+$$
+
+### 16.9.2 Lime Rate
+
+**pH correction required:**
+
+$$
+\Delta pH = \max(0,\ pH_{target} - pH_{current})
+$$
+
+**Raw lime rate:**
+
+$$
+L_{t/ha} = \frac{\Delta pH \cdot SF}{ECCE}
+$$
+
+where $ECCE$ is the effective calcium carbonate equivalent of the lime product (default 0.90).
+
+**Total lime:**
+
+$$
+L_{total} = L_{t/ha} \cdot A
+$$
+
+### 16.9.3 Application Recommendation
+
+$$
+\text{rec} =
+\begin{cases}
+\text{No lime required}, & L_{t/ha} \leq 0 \\
+\text{Light — split over 2 seasons}, & L_{t/ha} < 1 \\
+\text{Moderate — incorporate before tillage}, & L_{t/ha} < 3 \\
+\text{Heavy — split over 2 years}, & L_{t/ha} \geq 3
+\end{cases}
+$$
+
+---
+
+## 16.10 Machinery Cost Calculator
+
+### 16.10.1 Fixed Costs (per hour)
+
+**Straight-line depreciation:**
+
+$$
+C_{depr} = \frac{P_{purchase} - P_{salvage}}{Y_{life} \cdot H_{annual}}
+$$
+
+### 16.10.2 Variable Costs (per hour)
+
+**Fuel:**
+
+$$
+C_{fuel} = q_{fuel} \cdot p_{fuel}
+$$
+
+**Lubricants (fraction of fuel cost):**
+
+$$
+C_{oil} = C_{fuel} \cdot r_{oil}
+$$
+
+**Repairs and maintenance:**
+
+$$
+C_{repair} = \frac{P_{purchase} \cdot r_{repair}}{H_{annual}}
+$$
+
+**Labour:**
+
+$$
+C_{labour} = w_h \quad \text{(direct input, currency/h)}
+$$
+
+### 16.10.3 Total Cost
+
+$$
+C_{h} = C_{depr} + C_{fuel} + C_{oil} + C_{repair} + C_{labour}
+$$
+
+$$
+C_{ha} = \frac{C_h}{\dot{A}_{cap}} \quad [\text{currency/ha}]
+$$
+
+$$
+C_{field} = C_{ha} \cdot A
+$$
+
+where $\dot{A}_{cap}$ is machine field capacity (ha/h).
+
+---
+
+## 16.11 Seed Rate Calculator
+
+### 16.11.1 Input Variables
+
+| Symbol | Field | Unit | Description |
+|---|---|---|---|
+| $\rho$ | `target_plants_m2` | plants/m² | Target plant density |
+| $g$ | `germination_pct` | % | Lab germination, clamped to $[0.01,\ 1.0]$ |
+| $e$ | `field_emergence` | — | Field emergence factor, clamped to $[0.01,\ 1.0]$ |
+| $TKW$ | `tkw_g` | g | Thousand kernel weight |
+| $A$ | `area_ha` | ha | Field area |
+| $d_r$ | `row_spacing_cm` | cm | Row spacing |
+
+### 16.11.2 Formulas
+
+**Seeds required per m² (compensating for losses):**
+
+$$
+s_{m^2} = \frac{\rho}{g \cdot e}
+$$
+
+**Seeds per hectare:**
+
+$$
+s_{ha} = s_{m^2} \cdot 10000
+$$
+
+**Seed rate (kg/ha):**
+
+$$
+r_{kg/ha} = \frac{s_{ha} \cdot TKW}{10^6}
+$$
+
+**Total seed quantity:**
+
+$$
+r_{total} = r_{kg/ha} \cdot A
+$$
+
+**Seeds per metre of row:**
+
+$$
+s_{row} = s_{m^2} \cdot \frac{d_r}{100}
+$$
+
+---
+
+## 16.12 References
+
+- Allen, R.G., Pereira, L.S., Raes, D., Smith, M. (1998). *Crop Evapotranspiration — Guidelines for Computing Crop Water Requirements*. FAO Irrigation and Drainage Paper 56. FAO, Rome.
+- USDA Natural Resources Conservation Service (1986). *Urban Hydrology for Small Watersheds*, Technical Release 55. SCS Curve Number runoff model.
+- Doorenbos, J., Pruitt, W.O. (1977). *Guidelines for Predicting Crop Water Requirements*. FAO Irrigation and Drainage Paper 24. FAO, Rome.
+- Bauer, A., Black, A.L. (1994). Quantification of the effect of soil organic matter content on soil productivity. *Soil Science Society of America Journal*, 58(1), 185–193. *(soil buffer factor calibration)*
+- Holland, J.M. (2004). The environmental consequences of adopting conservation tillage in Europe. *Agriculture, Ecosystems & Environment*, 103(1), 1–25. *(machinery cost framework)*
+- Fleisher, D.H., Timlin, D.J., Reddy, V.R. (2006). Temperature influence on potato leaf and branch distribution and on canopy photosynthesis. *Agronomy Journal*, 98(6), 1442–1452. *(seed rate and plant density models)*
