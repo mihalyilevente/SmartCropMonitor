@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
 
 const BASE      = '/api/v1/egn';
@@ -139,10 +139,6 @@ const FLOAT_FIELDS = new Set(['power_kw','working_width_m','tank_capacity_l','we
   'pay_rate','labour_cost','n_kg_ha','p2o5_kg_ha','k2o_kg_ha','s_kg_ha','mg_kg_ha',
   'dose_kg_ha','dose_l_ha','water_volume_l_ha','total_product_used','total_dose_kg',
   'sowing_rate_kg_ha','work_cost','harvest_ton']);
-const DATE_FIELDS  = new Set(['purchase_date','insurance_expiry','next_service_date',
-  'hire_date','termination_date','issue_date','expiry_date','maintenance_date',
-  'used_date','work_date','harvest_date','sowing_date','application_date']);
-
 function sanitise(obj) {
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -298,7 +294,7 @@ const CertBadge = ({ cert }) => {
   );
 };
 
-const PersonForm = ({ initial, fields_ref, onSave, onClose, busy }) => {
+const PersonForm = ({ initial, onSave, onClose, busy }) => {
   const [f, setF] = useState(initial || {
     first_name:'', last_name:'', role:'FIELD_OPERATOR',
     employment_type:'FULL_TIME', status:'ACTIVE',
@@ -454,7 +450,7 @@ const WorkLogForm = ({ onSave, onClose, busy }) => {
   );
 };
 
-const PersonCard = ({ person, onEdit, onDelete, onAddCert, onAddLog, onRefresh }) => {
+const PersonCard = ({ person, onEdit, onDelete, onRefresh }) => {
   const [expanded, setExpanded] = useState(false);
   const [showCertForm, setShowCertForm] = useState(false);
   const [showLogForm,  setShowLogForm]  = useState(false);
@@ -1006,7 +1002,6 @@ const EquipmentCard = ({ eq, onEdit, onDelete, onRefresh, userId }) => {
     setLoadedSub(false); loadSub();
   };
 
-  const statusColor = EQ_STATUS_COLOR[eq.status] || '#9e9e9e';
   const serviceOverdue = eq.next_service_date && new Date(eq.next_service_date) < new Date();
 
   return (
