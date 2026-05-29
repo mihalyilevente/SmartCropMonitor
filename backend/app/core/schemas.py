@@ -273,3 +273,74 @@ class HarvestQualityUnit(str, enum.Enum):
     MG_KG = "MG_KG"
     KG_HL = "KG_HL"
     OTHER = "OTHER"
+
+
+class EquipmentType(str, enum.Enum):
+    # Tillage
+    TRACTOR          = "TRACTOR"
+    PLOW             = "PLOW"
+    DISC_HARROW      = "DISC_HARROW"
+    CULTIVATOR       = "CULTIVATOR"
+    SUBSOILER        = "SUBSOILER"
+    ROLLER           = "ROLLER"
+
+    # Sowing / planting
+    SEEDER           = "SEEDER"
+    TRANSPLANTER     = "TRANSPLANTER"
+    POTATO_PLANTER   = "POTATO_PLANTER"
+
+    # Crop care
+    SPRAYER          = "SPRAYER"
+    FERTILIZER_SPREADER = "FERTILIZER_SPREADER"
+    IRRIGATION_SYSTEM   = "IRRIGATION_SYSTEM"
+    MOWER            = "MOWER"
+    BALER            = "BALER"
+    RAKE             = "RAKE"
+
+    # Harvest
+    COMBINE_HARVESTER = "COMBINE_HARVESTER"
+    FORAGE_HARVESTER  = "FORAGE_HARVESTER"
+    GRAIN_CART        = "GRAIN_CART"
+    TRAILER           = "TRAILER"
+
+    # Transport / utility
+    LOADER            = "LOADER"
+    TELEHANDLER       = "TELEHANDLER"
+    ATV               = "ATV"
+    TRUCK             = "TRUCK"
+
+    # Other
+    DRONE             = "DRONE"
+    OTHER             = "OTHER"
+
+
+class EquipmentStatus(str, enum.Enum):
+    OPERATIONAL   = "OPERATIONAL"
+    IN_USE        = "IN_USE"
+    MAINTENANCE   = "MAINTENANCE"
+    REPAIR        = "REPAIR"
+    IDLE          = "IDLE"
+    RETIRED       = "RETIRED"
+
+
+class FuelType(str, enum.Enum):
+    DIESEL   = "DIESEL"
+    PETROL   = "PETROL"
+    ELECTRIC = "ELECTRIC"
+    LPG      = "LPG"
+    NONE     = "NONE"           # non-motorised implements
+
+
+class MaintenanceType(str, enum.Enum):
+    OIL_CHANGE       = "OIL_CHANGE"
+    FILTER_CHANGE    = "FILTER_CHANGE"
+    TYRE_SERVICE     = "TYRE_SERVICE"
+    BRAKE_SERVICE    = "BRAKE_SERVICE"
+    BELT_REPLACEMENT = "BELT_REPLACEMENT"
+    BLADE_SHARPENING = "BLADE_SHARPENING"
+    HYDRAULIC_SERVICE= "HYDRAULIC_SERVICE"
+    ELECTRICAL       = "ELECTRICAL"
+    ANNUAL_SERVICE   = "ANNUAL_SERVICE"
+    REPAIR           = "REPAIR"
+    INSPECTION       = "INSPECTION"
+    OTHER            = "OTHER"
