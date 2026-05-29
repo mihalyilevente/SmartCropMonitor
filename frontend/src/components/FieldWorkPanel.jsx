@@ -75,7 +75,7 @@ const PALETTE = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const fmtEur = v => `${Number(v || 0).toFixed(0)} €`;
+const fmtEur = v => `${Number(v || 0).toFixed(0)} € total`;
 const fmtTon = v => `${Number(v || 0).toFixed(2)} t`;
 const fmtPct = v => `${Math.round((v || 0) * 100)}%`;
 const fmtHa  = v => v != null ? `${Number(v).toFixed(1)} ha` : '—';
@@ -242,7 +242,7 @@ const GenericForm = ({ userId, fields, onCreated, onSwitchTab }) => {
           </select>
         </FL>
         <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
-        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 250"/></FL>
         <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
@@ -273,18 +273,8 @@ const SowingForm = ({ userId, fields, onCreated }) => {
     sowing_date: todayDate(), sowing_rate_kg_ha:'',
     seed_treatment:'NONE', seed_treatment_note:'',
     tillage_type:'MINIMUM', operator_name:'', equipment:'', work_cost:'', notes:'',
-    _sowingDateTouched: false,
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  // When work_date changes, keep sowing_date in sync unless user already
-  // explicitly edited sowing_date separately.
-  const setWorkDate = v => setForm(f=>({
-    ...f,
-    work_date: v,
-    sowing_date: f._sowingDateTouched ? f.sowing_date : v.slice(0,10),
-    season_year: f._sowingDateTouched ? f.season_year : new Date(v).getFullYear() || f.season_year,
-  }));
-  const setSowingDate = v => setForm(f=>({...f, sowing_date:v, _sowingDateTouched:true}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
   const submit = async () => {
@@ -317,9 +307,6 @@ const SowingForm = ({ userId, fields, onCreated }) => {
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-        <FL label="Operation date &amp; time">
-          <Inp type="datetime-local" value={form.work_date} onChange={e=>setWorkDate(e.target.value)}/>
-        </FL>
         <FL label="Season year"><Inp type="number" value={form.season_year} onChange={e=>set('season_year',e.target.value)} style={{width:90}}/></FL>
         <FL label="Crop">
           <select value={form.crop} onChange={e=>set('crop',e.target.value)} style={inp}>
@@ -327,9 +314,7 @@ const SowingForm = ({ userId, fields, onCreated }) => {
           </select>
         </FL>
         <FL label="Variety / hybrid"><Inp value={form.variety} onChange={e=>set('variety',e.target.value)} style={{width:160}} placeholder="e.g. DKC 3939"/></FL>
-        <FL label="Sowing date" title="Defaults to operation date; edit separately if needed">
-          <Inp type="date" value={form.sowing_date} onChange={e=>setSowingDate(e.target.value)}/>
-        </FL>
+        <FL label="Sowing date"><Inp type="date" value={form.sowing_date} onChange={e=>set('sowing_date',e.target.value)}/></FL>
         <FL label="Sowing rate (kg/ha)"><Inp type="number" value={form.sowing_rate_kg_ha} onChange={e=>set('sowing_rate_kg_ha',e.target.value)} style={{width:120}}/></FL>
         <FL label="Seed treatment">
           <select value={form.seed_treatment} onChange={e=>set('seed_treatment',e.target.value)} style={inp}>
@@ -346,7 +331,7 @@ const SowingForm = ({ userId, fields, onCreated }) => {
         </FL>
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 180"/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
@@ -366,17 +351,8 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
     n_kg_ha:'', p2o5_kg_ha:'', k2o_kg_ha:'', s_kg_ha:'', mg_kg_ha:'',
     dose_kg_ha:'', total_dose_kg:'', application_method:'BROADCAST',
     operator_name:'', equipment:'', work_cost:'', notes:'',
-    _appDateTouched: false,
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  // Keep application_date in sync with work_date date-part unless explicitly
-  // changed by the user (historical backfill: set work_date, app_date follows).
-  const setWorkDate = v => setForm(f=>({
-    ...f,
-    work_date: v,
-    application_date: f._appDateTouched ? f.application_date : v.slice(0,10),
-  }));
-  const setAppDate = v => setForm(f=>({...f, application_date:v, _appDateTouched:true}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
   const submit = async () => {
@@ -416,12 +392,7 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-        <FL label="Operation date &amp; time">
-          <Inp type="datetime-local" value={form.work_date} onChange={e=>setWorkDate(e.target.value)}/>
-        </FL>
-        <FL label="Application date" title="Defaults to operation date; edit separately if needed">
-          <Inp type="date" value={form.application_date} onChange={e=>setAppDate(e.target.value)}/>
-        </FL>
+        <FL label="Application date"><Inp type="date" value={form.application_date} onChange={e=>set('application_date',e.target.value)}/></FL>
         <FL label="Product name"><Inp value={form.product_name} onChange={e=>set('product_name',e.target.value)} style={{width:180}} placeholder="e.g. Urea 46%"/></FL>
         <FL label="Product type"><Inp value={form.product_type} onChange={e=>set('product_type',e.target.value)} style={{width:120}} placeholder="NPK / organic / N"/></FL>
         <FL label="Organic">
@@ -457,7 +428,7 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
 
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 420"/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
@@ -479,15 +450,8 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
     wind_speed_ms:'', temperature_c:'', bbch_stage:'',
     pre_harvest_interval_days:'',
     operator_name:'', operator_cert:'', equipment:'', work_cost:'', notes:'',
-    _appDateTouched: false,
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
-  const setWorkDate = v => setForm(f=>({
-    ...f,
-    work_date: v,
-    application_date: f._appDateTouched ? f.application_date : v.slice(0,10),
-  }));
-  const setAppDate = v => setForm(f=>({...f, application_date:v, _appDateTouched:true}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
   const submit = async () => {
@@ -532,12 +496,7 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-        <FL label="Operation date &amp; time">
-          <Inp type="datetime-local" value={form.work_date} onChange={e=>setWorkDate(e.target.value)}/>
-        </FL>
-        <FL label="Application date" title="Defaults to operation date; edit separately if needed">
-          <Inp type="date" value={form.application_date} onChange={e=>setAppDate(e.target.value)}/>
-        </FL>
+        <FL label="Application date"><Inp type="date" value={form.application_date} onChange={e=>set('application_date',e.target.value)}/></FL>
         <FL label="Product trade name *"><Inp value={form.product_trade_name} onChange={e=>set('product_trade_name',e.target.value)} style={{width:200}} placeholder="e.g. Roundup 360"/></FL>
         <FL label="Active substance"><Inp value={form.active_substance} onChange={e=>set('active_substance',e.target.value)} style={{width:180}} placeholder="e.g. Glyphosate"/></FL>
         <FL label="Reg. number"><Inp value={form.registration_number} onChange={e=>set('registration_number',e.target.value)} style={{width:130}}/></FL>
@@ -578,7 +537,7 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cert. number"><Inp value={form.operator_cert} onChange={e=>set('operator_cert',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 95"/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
@@ -789,6 +748,7 @@ const HarvestModal = ({ season, onClose, onSaved }) => {
         moisture_pct:    form.moisture_pct    ? Number(form.moisture_pct)    : null,
         protein_pct:     form.protein_pct     ? Number(form.protein_pct)     : null,
         operator_name: form.operator_name || null, notes: form.notes || null,
+        work_cost: form.work_cost ? Number(form.work_cost) : null,
       });
       onSaved();
     } catch { alert('Failed to save harvest'); }
@@ -812,6 +772,7 @@ const HarvestModal = ({ season, onClose, onSaved }) => {
           <FL label="Yield t/ha"><Inp type="number" value={form.yield_t_ha} onChange={e=>set('yield_t_ha',e.target.value)} style={{width:100}} placeholder="auto"/></FL>
           <FL label="Moisture %"><Inp type="number" value={form.moisture_pct} onChange={e=>set('moisture_pct',e.target.value)} style={{width:100}}/></FL>
           <FL label="Protein %"><Inp type="number" value={form.protein_pct} onChange={e=>set('protein_pct',e.target.value)} style={{width:100}}/></FL>
+          <FL label="Harvesting cost (€ total)" title="Total harvesting operation cost in euros — not per-tonne or per-hectare"><Inp type="number" value={form.work_cost||''} onChange={e=>set('work_cost',e.target.value)} style={{width:110}} placeholder="e.g. 1200"/></FL>
           <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:160}}/></FL>
           <FL label="Notes" style={{flex:1,minWidth:200}}><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:'100%'}}/></FL>
         </div>
@@ -1011,7 +972,7 @@ const WorkRow = ({ record, onUpdate }) => {
           <div style={{ fontSize:11, color:'#aaa', marginTop:2, display:'flex', gap:12, flexWrap:'wrap' }}>
             <span>📅 {ts}</span>
             {record.operator_name && <span>👤 {record.operator_name}</span>}
-            {record.work_cost != null && <span>💶 {Number(record.work_cost).toFixed(2)} €</span>}
+            {record.work_cost != null && <span title="Total operation cost">💶 {Number(record.work_cost).toFixed(2)} € total</span>}
             {record.harvest_ton != null && <span>🌾 {Number(record.harvest_ton).toFixed(3)} t</span>}
             {fert && fert.n_kg_ha != null && (
               <span>N {fert.n_kg_ha} · P {fert.p2o5_kg_ha||'—'} · K {fert.k2o_kg_ha||'—'} kg/ha</span>
