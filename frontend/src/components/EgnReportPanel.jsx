@@ -750,10 +750,6 @@ const EQ_ICONS = {
   DRONE:'🛸', OTHER:'🔧',
 };
 
-const EQ_STATUS_COLOR = {
-  OPERATIONAL:'#2e7d32', IN_USE:'#0d47a1', MAINTENANCE:'#f57f17',
-  REPAIR:'#c62828', IDLE:'#9e9e9e', RETIRED:'#9e9e9e',
-};
 
 const EquipmentForm = ({ initial, onSave, onClose, busy }) => {
   const EQ_TYPES = ['TRACTOR','PLOW','DISC_HARROW','CULTIVATOR','SUBSOILER','ROLLER',
