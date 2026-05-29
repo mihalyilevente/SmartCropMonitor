@@ -18,6 +18,9 @@ from app.api.endpoints.rotation_router import router as rotation_router
 from app.api.endpoints.egn_report_router import router as egn_router
 from app.api.endpoints.calculator_router import router as calc_router
 from app.api.endpoints.alert_suppression import router as alert_suppression_router
+from app.api.endpoints.equipment_router import router as equipment_router
+from app.api.endpoints.personnel_router import router as personnel_router
+
 
 from app.tasks.scheduler import scheduler
 
@@ -76,7 +79,8 @@ app.include_router(rotation_router, prefix="/api/v1/rotation",tags=["Pasture Rot
 app.include_router(egn_router, prefix="/api/v1")
 app.include_router(calc_router, prefix="/api/v1")
 app.include_router(alert_suppression_router, prefix="/api/v1")
-
+app.include_router(equipment_router, prefix="/api/v1/equipment", tags=["Equipment"])
+app.include_router(personnel_router, prefix="/api/v1/personnel", tags=["Personnel"])
 # =========================
 # Health Check
 # =========================

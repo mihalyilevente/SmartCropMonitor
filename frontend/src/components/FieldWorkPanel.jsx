@@ -6,7 +6,9 @@ import {
 } from 'recharts';
 import api from '../api/client';
 
-const BASE = '/api/v1/fieldwork';
+const BASE      = '/api/v1/fieldwork';
+const BASE_EQ   = '/api/v1/equipment';
+const BASE_PERS = '/api/v1/personnel';
 
 // WORK_TYPES used in the Generic form.
 // SOWING → use the 🌾 Sowing tab  (creates a SeasonRecord, eGN 3.3)
@@ -1135,14 +1137,32 @@ const WorkTypeAnalytics = ({ userId }) => {
   const { types, summary } = data;
   const sel = selected ? types.find(t=>t.work_type===selected) : null;
   const top8 = types.slice(0,8);
-  const maxCount = Math.max(...top8.map(t=>t.count),1);
-  const maxCost  = Math.max(...top8.map(t=>t.avg_cost),1);
-  const radarData = top8.map(t=>({
-    type: (WORK_ICONS[t.work_type]||'')+' '+t.work_type.replace(/_/g,' ').toLowerCase(),
-    Frequency:      Math.round(t.count/maxCount*100),
-    Completion:     Math.round(t.completion_rate*100),
-    CostEfficiency: Math.round((1-t.avg_cost/maxCost)*100),
-  }));
+  // Top-3 comparison radar: one polygon per operation type across 5 real dimensions.
+  // Each axis is normalised 0–100 relative to the max in that dimension.
+  const top3 = types.slice(0,3);
+  const maxCount   = Math.max(...types.map(t=>t.count),1);
+  const maxCost    = Math.max(...types.map(t=>t.avg_cost||0),1);
+  const maxHarvest = Math.max(...types.map(t=>t.total_harvest_ton||0),1);
+  const maxFields  = Math.max(...types.map(t=>t.fields_involved||0),1);
+  // Radar format: rows are axes, each series key is a type name
+  const RADAR_AXES = ['Frequency','Completion %','Cost efficiency','Fields covered','Harvest vol.'];
+  const radarData = RADAR_AXES.map(axis => {
+    const row = { axis };
+    top3.forEach(t => {
+      const name = (WORK_ICONS[t.work_type]||'') + ' ' + t.work_type.replace(/_/g,' ').toLowerCase();
+      row[name] = axis === 'Frequency'
+        ? Math.round(t.count / maxCount * 100)
+        : axis === 'Completion %'
+        ? Math.round((t.completion_rate||0) * 100)
+        : axis === 'Cost efficiency'
+        ? Math.round((1 - (t.avg_cost||0) / maxCost) * 100)
+        : axis === 'Fields covered'
+        ? Math.round((t.fields_involved||0) / maxFields * 100)
+        : Math.round((t.total_harvest_ton||0) / maxHarvest * 100);
+    });
+    return row;
+  });
+  const RADAR_COLORS = ['#6b4c2a','#054e05','#0d47a1'];
 
   return (
     <div>
@@ -1231,21 +1251,69 @@ const WorkTypeAnalytics = ({ userId }) => {
           </ResponsiveContainer>
         </ChartBox>
       </div>
-      {radarData.length >= 3 && (
+      {top3.length >= 2 && (
         <ChartBox style={{ marginBottom:14 }}>
-          <Sec>Multi-metric radar — top {top8.length} operation types</Sec>
-          <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={radarData} margin={{top:8,right:30,bottom:8,left:30}}>
-              <PolarGrid stroke="#e0d8cf"/>
-              <PolarAngleAxis dataKey="type" tick={{fontSize:10}}/>
-              <PolarRadiusAxis angle={30} domain={[0,100]} tick={{fontSize:9}} tickCount={3}/>
-              <Radar name="Frequency"       dataKey="Frequency"       stroke="#6b4c2a" fill="#6b4c2a" fillOpacity={0.18}/>
-              <Radar name="Completion"      dataKey="Completion"      stroke="#054e05" fill="#054e05" fillOpacity={0.18}/>
-              <Radar name="Cost Efficiency" dataKey="CostEfficiency"  stroke="#e65100" fill="#e65100" fillOpacity={0.12}/>
-              <Legend iconSize={10} wrapperStyle={{fontSize:11}}/>
-              <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v}`,'']}/>
-            </RadarChart>
-          </ResponsiveContainer>
+          <Sec>Top-3 operation types — 5-axis comparison radar</Sec>
+          <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+            {top3.map((t,i) => (
+              <div key={t.work_type} style={{ display:'flex', alignItems:'center', gap:6,
+                background:'#fafaf8', borderRadius:6, padding:'5px 10px',
+                border:`2px solid ${RADAR_COLORS[i]}22` }}>
+                <span style={{ width:10, height:10, borderRadius:'50%',
+                  background:RADAR_COLORS[i], display:'inline-block', flexShrink:0 }}/>
+                <span style={{ fontSize:12, fontWeight:700, color:'#444' }}>
+                  {WORK_ICONS[t.work_type]||''} {t.work_type.replace(/_/g,' ')}
+                </span>
+                <span style={{ fontSize:10, color:'#aaa' }}>
+                  {t.count} ops · {Math.round(t.completion_rate*100)}% done
+                  {t.avg_cost ? ` · ${fmtEur(t.avg_cost)} avg` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, alignItems:'start' }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <RadarChart data={radarData} margin={{top:10,right:30,bottom:10,left:30}}>
+                <PolarGrid stroke="#e0d8cf"/>
+                <PolarAngleAxis dataKey="axis" tick={{fontSize:10}}/>
+                <PolarRadiusAxis angle={72} domain={[0,100]} tick={{fontSize:8}} tickCount={4}/>
+                {top3.map((t,i) => {
+                  const name = (WORK_ICONS[t.work_type]||'') + ' ' + t.work_type.replace(/_/g,' ').toLowerCase();
+                  return (
+                    <Radar key={t.work_type} name={name} dataKey={name}
+                      stroke={RADAR_COLORS[i]} fill={RADAR_COLORS[i]} fillOpacity={0.15}/>
+                  );
+                })}
+                <Legend iconSize={9} wrapperStyle={{fontSize:10}}/>
+                <Tooltip contentStyle={{fontSize:11}} formatter={(v,n)=>[`${v} / 100`,n]}/>
+              </RadarChart>
+            </ResponsiveContainer>
+            {/* Axis explanation */}
+            <div style={{ display:'flex', flexDirection:'column', gap:8, paddingTop:8 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+                letterSpacing:'0.06em', marginBottom:4 }}>How to read this chart</div>
+              {[
+                ['Frequency',       '#6b4c2a', 'How often this operation is performed relative to the most frequent type.'],
+                ['Completion %',    '#054e05', 'Share of operations reaching COMPLETED or VERIFIED status.'],
+                ['Cost efficiency', '#e65100', 'Inverse of average cost — higher means cheaper per operation.'],
+                ['Fields covered',  '#0d47a1', 'Number of distinct fields this operation type has been applied to.'],
+                ['Harvest vol.',    '#388e3c', 'Total harvest tonnage associated with this operation type.'],
+              ].map(([axis,color,desc]) => (
+                <div key={axis} style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                  <span style={{ width:8, height:8, borderRadius:2, background:color,
+                    flexShrink:0, marginTop:3 }}/>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#444' }}>{axis}</div>
+                    <div style={{ fontSize:10, color:'#888' }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop:4, fontSize:10, color:'#bbb', fontStyle:'italic' }}>
+                All axes normalised 0–100 relative to your data.
+                A larger polygon means stronger performance across dimensions.
+              </div>
+            </div>
+          </div>
         </ChartBox>
       )}
       {sel && (
@@ -1497,6 +1565,460 @@ const LocationAnalytics = ({ userId }) => {
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ANALYTICS TAB 3 – Equipment usage
+// ══════════════════════════════════════════════════════════════════════════════
+const EQ_ICONS_FW = {
+  TRACTOR:'🚜', PLOW:'🔧', DISC_HARROW:'⚙️', CULTIVATOR:'⚙️', SUBSOILER:'🔩',
+  ROLLER:'🔄', SEEDER:'🌱', TRANSPLANTER:'🌿', POTATO_PLANTER:'🥔',
+  SPRAYER:'💧', FERTILIZER_SPREADER:'🧪', IRRIGATION_SYSTEM:'💦',
+  MOWER:'✂️', BALER:'📦', RAKE:'🌾', COMBINE_HARVESTER:'🌾',
+  FORAGE_HARVESTER:'🌿', GRAIN_CART:'🛒', TRAILER:'🚛',
+  LOADER:'🏗', TELEHANDLER:'🏗', ATV:'🏎', TRUCK:'🚛',
+  DRONE:'🛸', OTHER:'🔧',
+};
+
+const EQ_STATUS_COLORS_FW = {
+  OPERATIONAL:'#2e7d32', IN_USE:'#0d47a1', MAINTENANCE:'#f57f17',
+  REPAIR:'#c62828', IDLE:'#9e9e9e', RETIRED:'#bdbdbd',
+};
+
+const EquipmentAnalytics = ({ userId }) => {
+  const [fleet,   setFleet]   = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selEq,   setSelEq]   = useState(null);
+  const [usage,   setUsage]   = useState([]);
+  const [loadingUsage, setLoadingUsage] = useState(false);
+
+  const load = useCallback(() => {
+    if (!userId) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`${BASE_EQ}/user/${userId}`),
+      api.get(`${BASE_EQ}/summary/user/${userId}`),
+    ])
+      .then(([f, s]) => {
+        setFleet(Array.isArray(f.data) ? f.data : []);
+        setSummary(s.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const selectEq = (eq) => {
+    if (selEq?.id === eq.id) { setSelEq(null); setUsage([]); return; }
+    setSelEq(eq);
+    setLoadingUsage(true);
+    api.get(`${BASE_EQ}/${eq.id}/usage?user_id=${userId}`)
+      .then(r => setUsage(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setUsage([]))
+      .finally(() => setLoadingUsage(false));
+  };
+
+  if (loading) return <EmptyState text="Loading fleet data…"/>;
+  if (!fleet.length) return (
+    <div style={{ textAlign:'center', padding:'32px 0', color:'#bbb' }}>
+      <div style={{ fontSize:32, marginBottom:8 }}>🚜</div>
+      <div style={{ fontSize:13, marginBottom:6 }}>No equipment registered yet.</div>
+      <div style={{ fontSize:11 }}>Add machines in the Farm Management → Equipment tab.</div>
+    </div>
+  );
+
+  // ── derived data for charts ──────────────────────────────────────────────
+  const byStatus = Object.entries(
+    fleet.reduce((acc, e) => { acc[e.status] = (acc[e.status]||0)+1; return acc; }, {})
+  ).map(([status, count]) => ({ status, count }));
+
+  const hoursData = fleet
+    .filter(e => (e.total_hours_logged||0) > 0)
+    .sort((a, b) => (b.total_hours_logged||0) - (a.total_hours_logged||0))
+    .map(e => ({
+      name: e.name,
+      hours: Number(e.total_hours_logged||0),
+      type:  e.equipment_type,
+    }));
+
+  const fuelData = fleet
+    .filter(e => (e.total_fuel_logged_l||0) > 0)
+    .sort((a, b) => (b.total_fuel_logged_l||0) - (a.total_fuel_logged_l||0))
+    .map(e => ({
+      name: e.name,
+      fuel: Number(e.total_fuel_logged_l||0).toFixed(0),
+    }));
+
+  const areaData = fleet
+    .filter(e => (e.total_area_logged_ha||0) > 0)
+    .sort((a, b) => (b.total_area_logged_ha||0) - (a.total_area_logged_ha||0))
+    .map(e => ({
+      name: e.name,
+      area_ha: Number(e.total_area_logged_ha||0).toFixed(1),
+    }));
+
+  const serviceData = fleet
+    .filter(e => e.next_service_date)
+    .sort((a, b) => new Date(a.next_service_date) - new Date(b.next_service_date))
+    .slice(0, 8);
+
+  const today = new Date();
+
+  // Usage aggregation for selected machine
+  const usageByMonth = usage.reduce((acc, u) => {
+    const m = String(u.used_date).slice(0, 7);
+    if (!acc[m]) acc[m] = { month: m, hours: 0, fuel: 0, area: 0 };
+    acc[m].hours += Number(u.hours_worked||0);
+    acc[m].fuel  += Number(u.fuel_consumed_l||0);
+    acc[m].area  += Number(u.area_ha||0);
+    return acc;
+  }, {});
+  const usageMonthly = Object.values(usageByMonth).sort((a,b)=>a.month.localeCompare(b.month));
+
+  return (
+    <div>
+      {/* Summary KPI cards */}
+      {summary && (
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+          <Card icon="🚜" label="Fleet total"      value={summary.total}                color="#6b4c2a"/>
+          <Card icon="✅" label="Operational"
+            value={(summary.by_status?.OPERATIONAL||0)+(summary.by_status?.IN_USE||0)}  color="#2e7d32"/>
+          <Card icon="⏱"  label="Hours logged (YTD)"
+            value={summary.year_hours_logged ? `${Number(summary.year_hours_logged).toFixed(0)} h` : '—'}
+            color="#0d47a1"/>
+          {summary.overdue_service > 0 && (
+            <Card icon="⚠️" label="Service overdue"  value={summary.overdue_service}    color="#c62828"/>
+          )}
+        </div>
+      )}
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+        {/* Fleet status distribution */}
+        <ChartBox>
+          <Sec>Fleet status distribution</Sec>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <ResponsiveContainer width={140} height={140}>
+              <PieChart>
+                <Pie data={byStatus} dataKey="count" nameKey="status"
+                  cx="50%" cy="50%" outerRadius={60} innerRadius={28}
+                  label={({percent})=>percent>0.08?`${(percent*100).toFixed(0)}%`:''} labelLine={false}>
+                  {byStatus.map(d=>(
+                    <Cell key={d.status} fill={EQ_STATUS_COLORS_FW[d.status]||'#9e9e9e'}/>
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{fontSize:11}} formatter={(v,n)=>[v,n]}/>
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {byStatus.map(d => (
+                <div key={d.status} style={{ display:'flex', alignItems:'center', gap:7 }}>
+                  <span style={{ width:10, height:10, borderRadius:3, flexShrink:0,
+                    background: EQ_STATUS_COLORS_FW[d.status]||'#9e9e9e' }}/>
+                  <span style={{ fontSize:11, color:'#555', fontWeight:600 }}>
+                    {d.status.replace(/_/g,' ')}
+                  </span>
+                  <span style={{ fontSize:11, color:'#aaa', marginLeft:4 }}>{d.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ChartBox>
+
+        {/* Next service schedule */}
+        <ChartBox>
+          <Sec>Service schedule (next 8 due)</Sec>
+          {serviceData.length === 0
+            ? <EmptyState text="No service dates set"/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                {serviceData.map(e => {
+                  const due   = new Date(e.next_service_date);
+                  const days  = Math.round((due - today) / 86400000);
+                  const color = days < 0 ? '#c62828' : days <= 14 ? '#f57f17' : '#2e7d32';
+                  const bg    = days < 0 ? '#fce4ec' : days <= 14 ? '#fff8e1' : '#e8f5e9';
+                  return (
+                    <div key={e.id} style={{ display:'flex', alignItems:'center', gap:10,
+                      padding:'5px 8px', borderRadius:6, background:bg }}>
+                      <span style={{ fontSize:16 }}>{EQ_ICONS_FW[e.equipment_type]||'🔧'}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:'#333',
+                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                          {e.name}
+                        </div>
+                        <div style={{ fontSize:10, color:'#aaa' }}>
+                          {e.equipment_type.replace(/_/g,' ')}
+                          {e.hours_current != null ? ` · ${Number(e.hours_current).toFixed(0)} h` : ''}
+                        </div>
+                      </div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color }}>
+                          {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d`}
+                        </div>
+                        <div style={{ fontSize:10, color:'#aaa' }}>{e.next_service_date}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          }
+        </ChartBox>
+      </div>
+
+      {/* Hours logged per machine */}
+      {hoursData.length > 0 && (
+        <ChartBox style={{ marginBottom:14 }}>
+          <Sec>Hours logged per machine (click to drill down)</Sec>
+          <ResponsiveContainer width="100%" height={Math.max(140, hoursData.length*28)}>
+            <BarChart layout="vertical" data={hoursData}
+              margin={{top:0,right:60,left:4,bottom:0}}
+              onClick={e => {
+                if (!e?.activePayload) return;
+                const name = e.activePayload[0]?.payload?.name;
+                const eq = fleet.find(x => x.name === name);
+                if (eq) selectEq(eq);
+              }}>
+              <XAxis type="number" tick={{fontSize:10}} unit=" h"/>
+              <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={130}/>
+              <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v} h`,'Hours logged']}/>
+              <Bar dataKey="hours" radius={[0,4,4,0]} cursor="pointer">
+                {hoursData.map((d, i) => (
+                  <Cell key={i}
+                    fill={selEq?.name === d.name ? '#6b4c2a' : PALETTE[i % PALETTE.length]}
+                    opacity={selEq && selEq.name !== d.name ? 0.4 : 1}/>
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartBox>
+      )}
+
+      {/* Fuel and area side by side */}
+      {(fuelData.length > 0 || areaData.length > 0) && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+          {fuelData.length > 0 && (
+            <ChartBox>
+              <Sec>Fuel consumed per machine (L)</Sec>
+              <ResponsiveContainer width="100%" height={Math.max(120, fuelData.length*26)}>
+                <BarChart layout="vertical" data={fuelData} margin={{top:0,right:50,left:4,bottom:0}}>
+                  <XAxis type="number" tick={{fontSize:10}} unit=" L"/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={120}/>
+                  <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v} L`,'Fuel']}/>
+                  <Bar dataKey="fuel" radius={[0,4,4,0]}>
+                    {fuelData.map((_, i) => <Cell key={i} fill={PALETTE[(i+4)%PALETTE.length]}/>)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartBox>
+          )}
+          {areaData.length > 0 && (
+            <ChartBox>
+              <Sec>Area covered per machine (ha)</Sec>
+              <ResponsiveContainer width="100%" height={Math.max(120, areaData.length*26)}>
+                <BarChart layout="vertical" data={areaData} margin={{top:0,right:50,left:4,bottom:0}}>
+                  <XAxis type="number" tick={{fontSize:10}} unit=" ha"/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={120}/>
+                  <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v} ha`,'Area']}/>
+                  <Bar dataKey="area_ha" radius={[0,4,4,0]}>
+                    {areaData.map((_,i) => <Cell key={i} fill={PALETTE[(i+7)%PALETTE.length]}/>)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartBox>
+          )}
+        </div>
+      )}
+
+      {/* Drill-down: selected machine monthly usage */}
+      {selEq && (
+        <ChartBox style={{ border:'2px solid #6b4c2a', marginBottom:14 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:22 }}>{EQ_ICONS_FW[selEq.equipment_type]||'🔧'}</span>
+              <div>
+                <Sec style={{ margin:0 }}>{selEq.name} — usage detail</Sec>
+                <div style={{ fontSize:11, color:'#aaa' }}>
+                  {selEq.equipment_type.replace(/_/g,' ')}
+                  {selEq.manufacturer ? ` · ${selEq.manufacturer} ${selEq.model||''}` : ''}
+                  {selEq.hours_current != null ? ` · ${Number(selEq.hours_current).toFixed(0)} h current` : ''}
+                </div>
+              </div>
+            </div>
+            <button onClick={()=>{setSelEq(null);setUsage([]);}}
+              style={{ background:'none', border:'1px solid #e0d8cf', borderRadius:6,
+                padding:'3px 10px', fontSize:11, cursor:'pointer', color:'#888' }}>✕ Close</button>
+          </div>
+
+          {/* KPI row */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+            <Card icon="⏱"  label="Total hours logged"
+              value={`${Number(selEq.total_hours_logged||0).toFixed(0)} h`}   color="#0d47a1"/>
+            <Card icon="⛽"  label="Total fuel logged"
+              value={selEq.total_fuel_logged_l ? `${Number(selEq.total_fuel_logged_l).toFixed(0)} L` : '—'}
+              color="#e65100"/>
+            <Card icon="🗺️"  label="Total area covered"
+              value={selEq.total_area_logged_ha ? `${Number(selEq.total_area_logged_ha).toFixed(1)} ha` : '—'}
+              color="#054e05"/>
+            {selEq.last_maintenance_date && (
+              <Card icon="🔧" label="Last service"
+                value={selEq.last_maintenance_date}                            color="#5d4037"/>
+            )}
+          </div>
+
+          {loadingUsage
+            ? <EmptyState text="Loading usage log…"/>
+            : usageMonthly.length === 0
+              ? <EmptyState text="No usage sessions logged yet for this machine."/>
+              : (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                  <div>
+                    <Sec>Hours per month</Sec>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={usageMonthly} margin={{top:2,right:8,left:-18,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe3"/>
+                        <XAxis dataKey="month" tick={{fontSize:9}} tickFormatter={v=>v.slice(5)}/>
+                        <YAxis tick={{fontSize:9}}/>
+                        <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${Number(v).toFixed(1)} h`,'Hours']}/>
+                        <Bar dataKey="hours" fill="#0d47a1" radius={[2,2,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div>
+                    <Sec>Fuel per month (L)</Sec>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={usageMonthly} margin={{top:2,right:8,left:-18,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe3"/>
+                        <XAxis dataKey="month" tick={{fontSize:9}} tickFormatter={v=>v.slice(5)}/>
+                        <YAxis tick={{fontSize:9}}/>
+                        <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${Number(v).toFixed(0)} L`,'Fuel']}/>
+                        <Bar dataKey="fuel" fill="#e65100" radius={[2,2,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div>
+                    <Sec>Area per month (ha)</Sec>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={usageMonthly} margin={{top:2,right:8,left:-18,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe3"/>
+                        <XAxis dataKey="month" tick={{fontSize:9}} tickFormatter={v=>v.slice(5)}/>
+                        <YAxis tick={{fontSize:9}}/>
+                        <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${Number(v).toFixed(1)} ha`,'Area']}/>
+                        <Bar dataKey="area" fill="#054e05" radius={[2,2,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )
+          }
+
+          {/* Raw sessions table */}
+          {usage.length > 0 && (
+            <div style={{ marginTop:14 }}>
+              <Sec>Usage sessions ({usage.length} total)</Sec>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                  <thead>
+                    <tr style={{ background:'#f5f0ea', textAlign:'left' }}>
+                      {['Date','Hours','Area (ha)','Fuel (L)','Fuel cost','Operator','Field','Work type'].map(h=>(
+                        <th key={h} style={{ padding:'5px 8px', fontWeight:700, color:'#888',
+                          borderBottom:'1px solid #e0d8cf', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usage.map((u,i)=>(
+                      <tr key={u.id}
+                        style={{ background:i%2===0?'#fff':'#fafaf8' }}>
+                        <td style={{ padding:'5px 8px', fontWeight:600 }}>{u.used_date}</td>
+                        <td style={{ padding:'5px 8px', textAlign:'right' }}>
+                          {u.hours_worked ? `${Number(u.hours_worked).toFixed(1)} h` : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', textAlign:'right', color:'#388e3c' }}>
+                          {u.area_ha ? `${Number(u.area_ha).toFixed(1)}` : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', textAlign:'right', color:'#e65100' }}>
+                          {u.fuel_consumed_l ? `${Number(u.fuel_consumed_l).toFixed(0)}` : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', textAlign:'right' }}>
+                          {u.fuel_cost ? fmtEur(u.fuel_cost) : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', color:'#888' }}>{u.operator_name||'—'}</td>
+                        <td style={{ padding:'5px 8px', color:'#888' }}>{u.field_label||'—'}</td>
+                        <td style={{ padding:'5px 8px', color:'#888' }}>
+                          {u.work_type ? u.work_type.replace(/_/g,' ') : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </ChartBox>
+      )}
+
+      {/* Fleet table */}
+      <ChartBox>
+        <Sec>Full fleet register</Sec>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+            <thead>
+              <tr style={{ background:'#f5f0ea', textAlign:'left' }}>
+                {['Machine','Type','Status','Year','Power','Hours (cur)','Hours logged','Fuel logged','Area logged','Next service'].map(h=>(
+                  <th key={h} style={{ padding:'6px 8px', fontWeight:700, color:'#888',
+                    borderBottom:'1px solid #e0d8cf', whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {fleet.map((e,i)=>{
+                const due   = e.next_service_date ? new Date(e.next_service_date) : null;
+                const days  = due ? Math.round((due-today)/86400000) : null;
+                const dcol  = days==null?'#aaa':days<0?'#c62828':days<=14?'#f57f17':'#2e7d32';
+                return (
+                  <tr key={e.id} onClick={()=>selectEq(e)}
+                    style={{ background:selEq?.id===e.id?'#fdf6ef':i%2===0?'#fff':'#fafaf8',
+                      cursor:'pointer', transition:'background 0.1s' }}>
+                    <td style={{ padding:'6px 8px', fontWeight:700 }}>
+                      {EQ_ICONS_FW[e.equipment_type]||'🔧'} {e.name}
+                    </td>
+                    <td style={{ padding:'6px 8px', color:'#888' }}>{e.equipment_type.replace(/_/g,' ')}</td>
+                    <td style={{ padding:'6px 8px' }}>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:10,
+                        background:(EQ_STATUS_COLORS_FW[e.status]||'#9e9e9e')+'22',
+                        color: EQ_STATUS_COLORS_FW[e.status]||'#9e9e9e', border:'1px solid currentColor' }}>
+                        {e.status.replace(/_/g,' ')}
+                      </span>
+                    </td>
+                    <td style={{ padding:'6px 8px', color:'#aaa' }}>{e.year_of_manufacture||'—'}</td>
+                    <td style={{ padding:'6px 8px', color:'#aaa' }}>{e.power_kw ? `${e.power_kw} kW` : '—'}</td>
+                    <td style={{ padding:'6px 8px', textAlign:'right' }}>
+                      {e.hours_current != null ? `${Number(e.hours_current).toFixed(0)} h` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', textAlign:'right', fontWeight:600, color:'#0d47a1' }}>
+                      {e.total_hours_logged ? `${Number(e.total_hours_logged).toFixed(0)} h` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', textAlign:'right', color:'#e65100' }}>
+                      {e.total_fuel_logged_l ? `${Number(e.total_fuel_logged_l).toFixed(0)} L` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', textAlign:'right', color:'#388e3c' }}>
+                      {e.total_area_logged_ha ? `${Number(e.total_area_logged_ha).toFixed(1)} ha` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', fontWeight:700, color:dcol }}>
+                      {days==null ? '—' : days<0 ? `${Math.abs(days)}d overdue` : days===0 ? 'Today' : `${days}d`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </ChartBox>
+    </div>
+  );
+};
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN EXPORT
 // ══════════════════════════════════════════════════════════════════════════════
 const FieldWorkPanel = ({ userId, locationId }) => {
@@ -1533,6 +2055,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
     ['seasons',    '🌱 Seasons'],
     ['by_type',    '📊 By Operation'],
     ['by_location','📍 By Location'],
+    ['by_equipment','🚜 Equipment'],
   ];
 
   return (
@@ -1573,7 +2096,8 @@ const FieldWorkPanel = ({ userId, locationId }) => {
           )}
           {tab === 'seasons' && <SeasonsTab fields={fields}/>}
           {tab === 'by_type'     && <WorkTypeAnalytics userId={userId}/>}
-          {tab === 'by_location' && <LocationAnalytics userId={userId}/>}
+          {tab === 'by_location'  && <LocationAnalytics  userId={userId}/>}
+          {tab === 'by_equipment' && <EquipmentAnalytics userId={userId}/>}
         </div>
       )}
     </div>
