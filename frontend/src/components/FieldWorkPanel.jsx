@@ -8,7 +8,6 @@ import api from '../api/client';
 
 const BASE      = '/api/v1/fieldwork';
 const BASE_EQ   = '/api/v1/equipment';
-const BASE_PERS = '/api/v1/personnel';
 
 // WORK_TYPES used in the Generic form.
 // SOWING → use the 🌾 Sowing tab  (creates a SeasonRecord, eGN 3.3)
@@ -1136,7 +1135,6 @@ const WorkTypeAnalytics = ({ userId }) => {
   if(!data||!data.types.length) return <EmptyState text="No data for this period."/>;
   const { types, summary } = data;
   const sel = selected ? types.find(t=>t.work_type===selected) : null;
-  const top8 = types.slice(0,8);
   // Top-3 comparison radar: one polygon per operation type across 5 real dimensions.
   // Each axis is normalised 0–100 relative to the max in that dimension.
   const top3 = types.slice(0,3);
