@@ -273,8 +273,18 @@ const SowingForm = ({ userId, fields, onCreated }) => {
     sowing_date: todayDate(), sowing_rate_kg_ha:'',
     seed_treatment:'NONE', seed_treatment_note:'',
     tillage_type:'MINIMUM', operator_name:'', equipment:'', work_cost:'', notes:'',
+    _sowingDateTouched: false,
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  // When work_date changes, keep sowing_date in sync unless user already
+  // explicitly edited sowing_date separately.
+  const setWorkDate = v => setForm(f=>({
+    ...f,
+    work_date: v,
+    sowing_date: f._sowingDateTouched ? f.sowing_date : v.slice(0,10),
+    season_year: f._sowingDateTouched ? f.season_year : new Date(v).getFullYear() || f.season_year,
+  }));
+  const setSowingDate = v => setForm(f=>({...f, sowing_date:v, _sowingDateTouched:true}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
   const submit = async () => {
@@ -307,6 +317,9 @@ const SowingForm = ({ userId, fields, onCreated }) => {
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
+        <FL label="Operation date &amp; time">
+          <Inp type="datetime-local" value={form.work_date} onChange={e=>setWorkDate(e.target.value)}/>
+        </FL>
         <FL label="Season year"><Inp type="number" value={form.season_year} onChange={e=>set('season_year',e.target.value)} style={{width:90}}/></FL>
         <FL label="Crop">
           <select value={form.crop} onChange={e=>set('crop',e.target.value)} style={inp}>
@@ -314,7 +327,9 @@ const SowingForm = ({ userId, fields, onCreated }) => {
           </select>
         </FL>
         <FL label="Variety / hybrid"><Inp value={form.variety} onChange={e=>set('variety',e.target.value)} style={{width:160}} placeholder="e.g. DKC 3939"/></FL>
-        <FL label="Sowing date"><Inp type="date" value={form.sowing_date} onChange={e=>set('sowing_date',e.target.value)}/></FL>
+        <FL label="Sowing date" title="Defaults to operation date; edit separately if needed">
+          <Inp type="date" value={form.sowing_date} onChange={e=>setSowingDate(e.target.value)}/>
+        </FL>
         <FL label="Sowing rate (kg/ha)"><Inp type="number" value={form.sowing_rate_kg_ha} onChange={e=>set('sowing_rate_kg_ha',e.target.value)} style={{width:120}}/></FL>
         <FL label="Seed treatment">
           <select value={form.seed_treatment} onChange={e=>set('seed_treatment',e.target.value)} style={inp}>
@@ -351,8 +366,17 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
     n_kg_ha:'', p2o5_kg_ha:'', k2o_kg_ha:'', s_kg_ha:'', mg_kg_ha:'',
     dose_kg_ha:'', total_dose_kg:'', application_method:'BROADCAST',
     operator_name:'', equipment:'', work_cost:'', notes:'',
+    _appDateTouched: false,
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  // Keep application_date in sync with work_date date-part unless explicitly
+  // changed by the user (historical backfill: set work_date, app_date follows).
+  const setWorkDate = v => setForm(f=>({
+    ...f,
+    work_date: v,
+    application_date: f._appDateTouched ? f.application_date : v.slice(0,10),
+  }));
+  const setAppDate = v => setForm(f=>({...f, application_date:v, _appDateTouched:true}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
   const submit = async () => {
@@ -392,7 +416,12 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-        <FL label="Application date"><Inp type="date" value={form.application_date} onChange={e=>set('application_date',e.target.value)}/></FL>
+        <FL label="Operation date &amp; time">
+          <Inp type="datetime-local" value={form.work_date} onChange={e=>setWorkDate(e.target.value)}/>
+        </FL>
+        <FL label="Application date" title="Defaults to operation date; edit separately if needed">
+          <Inp type="date" value={form.application_date} onChange={e=>setAppDate(e.target.value)}/>
+        </FL>
         <FL label="Product name"><Inp value={form.product_name} onChange={e=>set('product_name',e.target.value)} style={{width:180}} placeholder="e.g. Urea 46%"/></FL>
         <FL label="Product type"><Inp value={form.product_type} onChange={e=>set('product_type',e.target.value)} style={{width:120}} placeholder="NPK / organic / N"/></FL>
         <FL label="Organic">
@@ -450,8 +479,15 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
     wind_speed_ms:'', temperature_c:'', bbch_stage:'',
     pre_harvest_interval_days:'',
     operator_name:'', operator_cert:'', equipment:'', work_cost:'', notes:'',
+    _appDateTouched: false,
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const setWorkDate = v => setForm(f=>({
+    ...f,
+    work_date: v,
+    application_date: f._appDateTouched ? f.application_date : v.slice(0,10),
+  }));
+  const setAppDate = v => setForm(f=>({...f, application_date:v, _appDateTouched:true}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
   const submit = async () => {
@@ -496,7 +532,12 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
       </div>
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-        <FL label="Application date"><Inp type="date" value={form.application_date} onChange={e=>set('application_date',e.target.value)}/></FL>
+        <FL label="Operation date &amp; time">
+          <Inp type="datetime-local" value={form.work_date} onChange={e=>setWorkDate(e.target.value)}/>
+        </FL>
+        <FL label="Application date" title="Defaults to operation date; edit separately if needed">
+          <Inp type="date" value={form.application_date} onChange={e=>setAppDate(e.target.value)}/>
+        </FL>
         <FL label="Product trade name *"><Inp value={form.product_trade_name} onChange={e=>set('product_trade_name',e.target.value)} style={{width:200}} placeholder="e.g. Roundup 360"/></FL>
         <FL label="Active substance"><Inp value={form.active_substance} onChange={e=>set('active_substance',e.target.value)} style={{width:180}} placeholder="e.g. Glyphosate"/></FL>
         <FL label="Reg. number"><Inp value={form.registration_number} onChange={e=>set('registration_number',e.target.value)} style={{width:130}}/></FL>
