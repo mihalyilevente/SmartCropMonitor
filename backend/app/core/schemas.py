@@ -275,6 +275,10 @@ class HarvestQualityUnit(str, enum.Enum):
     OTHER = "OTHER"
 
 
+# =============================================================================
+# Equipment / Machinery
+# =============================================================================
+
 class EquipmentType(str, enum.Enum):
     # Tillage
     TRACTOR          = "TRACTOR"
@@ -315,12 +319,12 @@ class EquipmentType(str, enum.Enum):
 
 
 class EquipmentStatus(str, enum.Enum):
-    OPERATIONAL   = "OPERATIONAL"
-    IN_USE        = "IN_USE"
-    MAINTENANCE   = "MAINTENANCE"
-    REPAIR        = "REPAIR"
-    IDLE          = "IDLE"
-    RETIRED       = "RETIRED"
+    OPERATIONAL   = "OPERATIONAL"   # ready to work
+    IN_USE        = "IN_USE"        # currently deployed
+    MAINTENANCE   = "MAINTENANCE"   # scheduled maintenance
+    REPAIR        = "REPAIR"        # broken / being repaired
+    IDLE          = "IDLE"          # available but unused
+    RETIRED       = "RETIRED"       # decommissioned
 
 
 class FuelType(str, enum.Enum):
@@ -344,3 +348,65 @@ class MaintenanceType(str, enum.Enum):
     REPAIR           = "REPAIR"
     INSPECTION       = "INSPECTION"
     OTHER            = "OTHER"
+
+class PersonnelRole(str, enum.Enum):
+    FARM_MANAGER      = "FARM_MANAGER"
+    AGRONOMIST        = "AGRONOMIST"
+    FIELD_OPERATOR    = "FIELD_OPERATOR"
+    SPRAYER_OPERATOR  = "SPRAYER_OPERATOR"
+    HARVESTER_OPERATOR= "HARVESTER_OPERATOR"
+    IRRIGATOR         = "IRRIGATOR"
+    LIVESTOCK_WORKER  = "LIVESTOCK_WORKER"
+    SEASONAL_WORKER   = "SEASONAL_WORKER"
+    CONTRACTOR        = "CONTRACTOR"
+    DRIVER            = "DRIVER"
+    TECHNICIAN        = "TECHNICIAN"
+    ADMIN             = "ADMIN"
+    OTHER             = "OTHER"
+
+
+class EmploymentType(str, enum.Enum):
+    FULL_TIME    = "FULL_TIME"
+    PART_TIME    = "PART_TIME"
+    SEASONAL     = "SEASONAL"
+    CONTRACTOR   = "CONTRACTOR"
+    VOLUNTEER    = "VOLUNTEER"
+
+
+class PersonnelStatus(str, enum.Enum):
+    ACTIVE       = "ACTIVE"
+    ON_LEAVE     = "ON_LEAVE"
+    INACTIVE     = "INACTIVE"
+    TERMINATED   = "TERMINATED"
+
+
+class CertificationType(str, enum.Enum):
+    PESTICIDE_APPLICATOR  = "PESTICIDE_APPLICATOR"
+    PESTICIDE_ADVISOR     = "PESTICIDE_ADVISOR"
+
+    # Machinery
+    TRACTOR_LICENCE       = "TRACTOR_LICENCE"
+    FORKLIFT_LICENCE      = "FORKLIFT_LICENCE"
+    CRANE_LICENCE         = "CRANE_LICENCE"
+    CHAINSAW_LICENCE      = "CHAINSAW_LICENCE"
+    DRONE_OPERATOR        = "DRONE_OPERATOR"
+
+    # Safety
+    FIRST_AID             = "FIRST_AID"
+    FIRE_SAFETY           = "FIRE_SAFETY"
+    HAZMAT                = "HAZMAT"
+
+    # Agricultural professional
+    AGRONOMIST_LICENCE    = "AGRONOMIST_LICENCE"
+    IRRIGATION_TECHNICIAN = "IRRIGATION_TECHNICIAN"
+    ORGANIC_FARMING_CERT  = "ORGANIC_FARMING_CERT"
+
+    OTHER                 = "OTHER"
+
+
+class PayRateUnit(str, enum.Enum):
+    PER_HOUR  = "PER_HOUR"
+    PER_DAY   = "PER_DAY"
+    PER_MONTH = "PER_MONTH"
+    PER_SEASON= "PER_SEASON"
+    FIXED     = "FIXED"

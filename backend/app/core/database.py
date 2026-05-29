@@ -18,6 +18,7 @@ from app.core.schemas import (
     FertilizationMethod, PesticideTargetType, HarvestQualityUnit,
     SeedTreatmentType, TillageType,
     EquipmentType, EquipmentStatus, FuelType, MaintenanceType,
+    PersonnelRole, EmploymentType, PersonnelStatus, CertificationType, PayRateUnit,
 )
 import enum
 from geoalchemy2 import Geometry
@@ -824,6 +825,7 @@ class AlertSuppressionRule(Base):
 # =============================================================================
 
 class Equipment(Base):
+    """Master registry of a user's machines and implements."""
     __tablename__ = "equipment"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -886,6 +888,7 @@ class Equipment(Base):
 
 
 class EquipmentMaintenance(Base):
+    """Service / repair log for a piece of equipment."""
     __tablename__ = "equipment_maintenance"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -919,6 +922,8 @@ class EquipmentMaintenance(Base):
 
 
 class EquipmentUsageLog(Base):
+    """Per-operation usage record linking equipment → field_work.
+    Tracks hours consumed, fuel used and operator for each deployment."""
     __tablename__ = "equipment_usage_log"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -957,6 +962,140 @@ class EquipmentUsageLog(Base):
         Index("ix_usage_equipment_date", "equipment_id", "used_date"),
         Index("ix_usage_user_date", "user_id", "used_date"),
         Index("ix_usage_field_work", "field_work_id"),
+    )
+
+
+class Personnel(Base):
+    __tablename__ = "personnel"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Identity
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    middle_name = Column(String(100), nullable=True)
+
+    # Role & employment
+    role = Column(Enum(PersonnelRole), nullable=False, index=True)
+    employment_type = Column(Enum(EmploymentType), nullable=False,
+                             default=EmploymentType.FULL_TIME)
+    status = Column(Enum(PersonnelStatus), nullable=False,
+                    default=PersonnelStatus.ACTIVE, index=True)
+
+    # Contact
+    phone = Column(String(30), nullable=True)
+    email = Column(String(200), nullable=True)
+    address = Column(String(300), nullable=True)
+
+    # Employment dates
+    hire_date = Column(Date, nullable=True)
+    termination_date = Column(Date, nullable=True)
+
+    # Pay
+    pay_rate = Column(Numeric(10, 2), nullable=True)
+    pay_rate_unit = Column(Enum(PayRateUnit), nullable=True)
+
+    # Regulatory identifiers
+    national_id = Column(String(64), nullable=True)  # national ID / tax number
+    social_sec_no = Column(String(64), nullable=True)
+    driving_licence = Column(String(64), nullable=True)  # licence number
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(),
+                        nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    owner = relationship("UserDB")
+    certifications = relationship(
+        "PersonnelCertification",
+        back_populates="person",
+        order_by="PersonnelCertification.expiry_date",
+        cascade="all, delete-orphan",
+    )
+    work_logs = relationship(
+        "PersonnelWorkLog",
+        back_populates="person",
+        order_by="PersonnelWorkLog.work_date.desc()",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_personnel_user_status", "user_id", "status"),
+        Index("ix_personnel_user_role", "user_id", "role"),
+    )
+
+
+class PersonnelCertification(Base):
+    __tablename__ = "personnel_certifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    personnel_id = Column(Integer, ForeignKey("personnel.id", ondelete="CASCADE"),
+                          nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    cert_type = Column(Enum(CertificationType), nullable=False, index=True)
+    cert_number = Column(String(128), nullable=True)  # official certificate number
+    issued_by = Column(String(200), nullable=True)  # issuing authority
+    issue_date = Column(Date, nullable=True)
+    expiry_date = Column(Date, nullable=True, index=True)  # NULL = no expiry
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    person = relationship("Personnel", back_populates="certifications")
+
+    __table_args__ = (
+        Index("ix_cert_personnel_type", "personnel_id", "cert_type"),
+        Index("ix_cert_expiry", "expiry_date"),
+        Index("ix_cert_user_expiry", "user_id", "expiry_date"),
+    )
+
+
+class PersonnelWorkLog(Base):
+    __tablename__ = "personnel_work_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    personnel_id = Column(Integer, ForeignKey("personnel.id", ondelete="CASCADE"),
+                          nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Optional structured links
+    field_work_id = Column(Integer, ForeignKey("field_work.id"),
+                           nullable=True, index=True)
+    equipment_usage_id = Column(Integer, ForeignKey("equipment_usage_log.id"),
+                                nullable=True, index=True)
+    field_id = Column(Integer, ForeignKey("field_units.id"),
+                      nullable=True, index=True)
+
+    work_date = Column(Date, nullable=False, index=True)
+
+    # Time tracking
+    hours_worked = Column(Numeric(6, 2), nullable=True)
+    start_time = Column(String(5), nullable=True)  # "08:00" – lightweight, no TZ issues
+    end_time = Column(String(5), nullable=True)  # "17:30"
+
+    # Area (for piece-rate work)
+    area_ha = Column(Numeric(10, 2), nullable=True)
+
+    # Labour cost
+    labour_cost = Column(Numeric(10, 2), nullable=True)  # actual cost this session
+
+    task_description = Column(String(512), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    person = relationship("Personnel", back_populates="work_logs")
+    field_work = relationship("FieldWork")
+    equipment_usage = relationship("EquipmentUsageLog")
+    field = relationship("FieldUnit")
+
+    __table_args__ = (
+        Index("ix_pwl_personnel_date", "personnel_id", "work_date"),
+        Index("ix_pwl_user_date", "user_id", "work_date"),
+        Index("ix_pwl_field_work", "field_work_id"),
     )
 
 
