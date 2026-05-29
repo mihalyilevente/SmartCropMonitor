@@ -8,13 +8,25 @@ import api from '../api/client';
 
 const BASE = '/api/v1/fieldwork';
 
+// WORK_TYPES used in the Generic form.
+// SOWING → use the 🌾 Sowing tab  (creates a SeasonRecord, eGN 3.3)
+// FERTILIZATION → use the 🧪 Fertilization tab  (captures NPK detail, eGN 3.4)
+// SPRAYING → use the 💧 Spraying tab  (captures pesticide/PPP detail, eGN 3.5)
+// PLANTING is kept here because it does NOT create a SeasonRecord.
 const WORK_TYPES = [
   'PLOWING','SUBSOILING','DISCING','HARROWING','CULTIVATION','ROLLING',
-  'SOWING','PLANTING','FERTILIZATION','SPRAYING','IRRIGATION','WEEDING',
+  'PLANTING','IRRIGATION','WEEDING',
   'PRUNING','GRAFTING','MULCHING','THINNING','TRELLIS_REPAIR',
   'MOWING','RAKING','BALING','GRAZING','HARVESTING','DESICCATION',
   'SOIL_SAMPLING','MAINTENANCE',
 ];
+
+// The three specialist types that must go through their own dedicated forms.
+const SPECIALIST_TYPES = {
+  SOWING:        { tab: 'sowing',        label: '🌾 Sowing',        reason: 'Creates a Season Record (eGN 3.3). Use the Sowing tab.' },
+  FERTILIZATION: { tab: 'fertilization', label: '🧪 Fertilization', reason: 'Requires NPK detail (eGN 3.4). Use the Fertilization tab.' },
+  SPRAYING:      { tab: 'spraying',      label: '💧 Spraying',      reason: 'Requires pesticide/PPP data (eGN 3.5). Use the Spraying tab.' },
+};
 
 const CROPS = [
   'WHEAT_WINTER','WHEAT_SPRING','BARLEY','CORN','OATS','RYE','RICE',
@@ -161,7 +173,7 @@ const CreateTabs = ({ active, setActive }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Generic ──────────────────────────────────────────────────────────────────────
-const GenericForm = ({ userId, fields, onCreated }) => {
+const GenericForm = ({ userId, fields, onCreated, onSwitchTab }) => {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     field_id:'', work_type:'PLOWING', work_status:'PLANNED',
@@ -171,8 +183,10 @@ const GenericForm = ({ userId, fields, onCreated }) => {
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
+  const specialist = SPECIALIST_TYPES[form.work_type];
+
   const submit = async () => {
-    if (!form.field_id) return;
+    if (!form.field_id || specialist) return;
     setBusy(true);
     try {
       await api.post(`${BASE}/create`, {
@@ -192,11 +206,34 @@ const GenericForm = ({ userId, fields, onCreated }) => {
 
   return (
     <div>
+      {specialist && (
+        <div style={{ marginBottom:12, background:'#fff8e1', border:'1px solid #ffe082',
+          borderLeft:'4px solid #f9a825', borderRadius:8, padding:'10px 14px',
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#333', marginBottom:2 }}>
+              {specialist.label} requires a dedicated form
+            </div>
+            <div style={{ fontSize:11, color:'#888' }}>{specialist.reason}</div>
+          </div>
+          <button onClick={()=>onSwitchTab(specialist.tab)} style={{
+            background:'#f9a825', color:'#fff', border:'none', borderRadius:6,
+            padding:'6px 14px', fontWeight:700, fontSize:12, cursor:'pointer', whiteSpace:'nowrap',
+          }}>
+            Switch to {specialist.label} →
+          </button>
+        </div>
+      )}
       <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
         <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
         <FL label="Work type">
           <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
-            {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
+            <optgroup label="General operations">
+              {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
+            </optgroup>
+            <optgroup label="⚠️ Use dedicated tab instead">
+              {Object.entries(SPECIALIST_TYPES).map(([tp,s])=><option key={tp} value={tp}>{s.label}</option>)}
+            </optgroup>
           </select>
         </FL>
         <FL label="Status">
@@ -212,7 +249,16 @@ const GenericForm = ({ userId, fields, onCreated }) => {
         <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
-        <button onClick={submit} disabled={busy} style={btnPrimary}>{busy ? 'Saving…' : 'Save'}</button>
+        <button onClick={submit} disabled={busy||!!specialist}
+          title={specialist ? `Use the ${specialist.label} tab for this operation type` : undefined}
+          style={{...btnPrimary, opacity: specialist ? 0.4 : 1, cursor: specialist ? 'not-allowed' : 'pointer'}}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        {specialist && (
+          <span style={{ marginLeft:10, fontSize:11, color:'#aaa', fontStyle:'italic' }}>
+            Select a general operation type to enable Save
+          </span>
+        )}
       </div>
     </div>
   );
@@ -669,7 +715,7 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
       {open && (
         <div style={formBox}>
           <CreateTabs active={mode} setActive={setMode}/>
-          {mode === 'generic'       && <GenericForm       userId={userId} fields={fields} onCreated={handleCreated}/>}
+          {mode === 'generic'       && <GenericForm       userId={userId} fields={fields} onCreated={handleCreated} onSwitchTab={setMode}/>}
           {mode === 'sowing'        && <SowingForm        userId={userId} fields={fields} onCreated={handleCreated}/>}
           {mode === 'fertilization' && <FertilizationForm userId={userId} fields={fields} onCreated={handleCreated}/>}
           {mode === 'spraying'      && <SprayingForm      userId={userId} fields={fields} onCreated={handleCreated}/>}
