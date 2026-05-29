@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid,
@@ -8,13 +8,25 @@ import api from '../api/client';
 
 const BASE = '/api/v1/fieldwork';
 
+// WORK_TYPES used in the Generic form.
+// SOWING → use the 🌾 Sowing tab  (creates a SeasonRecord, eGN 3.3)
+// FERTILIZATION → use the 🧪 Fertilization tab  (captures NPK detail, eGN 3.4)
+// SPRAYING → use the 💧 Spraying tab  (captures pesticide/PPP detail, eGN 3.5)
+// PLANTING is kept here because it does NOT create a SeasonRecord.
 const WORK_TYPES = [
   'PLOWING','SUBSOILING','DISCING','HARROWING','CULTIVATION','ROLLING',
-  'SOWING','PLANTING','FERTILIZATION','SPRAYING','IRRIGATION','WEEDING',
+  'PLANTING','IRRIGATION','WEEDING',
   'PRUNING','GRAFTING','MULCHING','THINNING','TRELLIS_REPAIR',
   'MOWING','RAKING','BALING','GRAZING','HARVESTING','DESICCATION',
   'SOIL_SAMPLING','MAINTENANCE',
 ];
+
+// The three specialist types that must go through their own dedicated forms.
+const SPECIALIST_TYPES = {
+  SOWING:        { tab: 'sowing',        label: '🌾 Sowing',        reason: 'Creates a Season Record (eGN 3.3). Use the Sowing tab.' },
+  FERTILIZATION: { tab: 'fertilization', label: '🧪 Fertilization', reason: 'Requires NPK detail (eGN 3.4). Use the Fertilization tab.' },
+  SPRAYING:      { tab: 'spraying',      label: '💧 Spraying',      reason: 'Requires pesticide/PPP data (eGN 3.5). Use the Spraying tab.' },
+};
 
 const CROPS = [
   'WHEAT_WINTER','WHEAT_SPRING','BARLEY','CORN','OATS','RYE','RICE',
@@ -161,7 +173,7 @@ const CreateTabs = ({ active, setActive }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Generic ──────────────────────────────────────────────────────────────────────
-const GenericForm = ({ userId, fields, onCreated }) => {
+const GenericForm = ({ userId, fields, onCreated, onSwitchTab }) => {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     field_id:'', work_type:'PLOWING', work_status:'PLANNED',
@@ -171,8 +183,10 @@ const GenericForm = ({ userId, fields, onCreated }) => {
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
+  const specialist = SPECIALIST_TYPES[form.work_type];
+
   const submit = async () => {
-    if (!form.field_id) return;
+    if (!form.field_id || specialist) return;
     setBusy(true);
     try {
       await api.post(`${BASE}/create`, {
@@ -191,25 +205,61 @@ const GenericForm = ({ userId, fields, onCreated }) => {
   };
 
   return (
-    <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
-      <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-      <FL label="Work type">
-        <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
-          {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
-        </select>
-      </FL>
-      <FL label="Status">
-        <select value={form.work_status} onChange={e=>set('work_status',e.target.value)} style={inp}>
-          {Object.keys(STATUS_CFG).map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
-        </select>
-      </FL>
-      <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
-      <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
-      <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
-      <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
-      <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-      <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
-      <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4}}>{busy ? 'Saving…' : 'Save'}</button>
+    <div>
+      {specialist && (
+        <div style={{ marginBottom:12, background:'#fff8e1', border:'1px solid #ffe082',
+          borderLeft:'4px solid #f9a825', borderRadius:8, padding:'10px 14px',
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#333', marginBottom:2 }}>
+              {specialist.label} requires a dedicated form
+            </div>
+            <div style={{ fontSize:11, color:'#888' }}>{specialist.reason}</div>
+          </div>
+          <button onClick={()=>onSwitchTab(specialist.tab)} style={{
+            background:'#f9a825', color:'#fff', border:'none', borderRadius:6,
+            padding:'6px 14px', fontWeight:700, fontSize:12, cursor:'pointer', whiteSpace:'nowrap',
+          }}>
+            Switch to {specialist.label} →
+          </button>
+        </div>
+      )}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
+        <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
+        <FL label="Work type">
+          <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
+            <optgroup label="General operations">
+              {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
+            </optgroup>
+            <optgroup label="⚠️ Use dedicated tab instead">
+              {Object.entries(SPECIALIST_TYPES).map(([tp,s])=><option key={tp} value={tp}>{s.label}</option>)}
+            </optgroup>
+          </select>
+        </FL>
+        <FL label="Status">
+          <select value={form.work_status} onChange={e=>set('work_status',e.target.value)} style={inp}>
+            {Object.keys(STATUS_CFG).map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
+        <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
+        <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
+        <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy||!!specialist}
+          title={specialist ? `Use the ${specialist.label} tab for this operation type` : undefined}
+          style={{...btnPrimary, opacity: specialist ? 0.4 : 1, cursor: specialist ? 'not-allowed' : 'pointer'}}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        {specialist && (
+          <span style={{ marginLeft:10, fontSize:11, color:'#aaa', fontStyle:'italic' }}>
+            Select a general operation type to enable Save
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -283,7 +333,9 @@ const SowingForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#2e7d32'}}>{busy ? 'Saving…' : '🌾 Save Sowing'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#2e7d32'}}>{busy ? 'Saving…' : '🌾 Save Sowing'}</button>
       </div>
     </div>
   );
@@ -378,7 +430,9 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#e65100'}}>{busy ? 'Saving…' : '🧪 Save Fertilization'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#e65100'}}>{busy ? 'Saving…' : '🧪 Save Fertilization'}</button>
       </div>
     </div>
   );
@@ -485,24 +539,165 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#0d47a1'}}>{busy ? 'Saving…' : '💧 Save Spraying'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#0d47a1'}}>{busy ? 'Saving…' : '💧 Save Spraying'}</button>
       </div>
     </div>
   );
 };
 
 // ── Field selector helper ────────────────────────────────────────────────────
-const FieldSelector = ({ fields, value, onChange }) => (
-  fields.length > 0
-    ? <FL label="Field">
-        <select value={value} onChange={e=>onChange(e.target.value)} style={inp}>
-          {fields.map(f=><option key={f.id} value={f.id}>{f.label||`Field ${f.id}`}</option>)}
-        </select>
+const FIELD_TYPE_ICON = { cropland:'🌾', pasture:'🐄', orchard:'🍎', vineyard:'🍇', garden:'🥕', fallow:'🟫', other:'🗺️' };
+
+const FieldSelector = ({ fields, value, onChange }) => {
+  const [open,    setOpen]   = useState(false);
+  const [query,   setQuery]  = useState('');
+  const ref = React.useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = fields.find(f => String(f.id) === String(value));
+
+  const filtered = query.trim()
+    ? fields.filter(f => {
+        const q = query.toLowerCase();
+        return (f.label||'').toLowerCase().includes(q)
+            || (f.crop_type||'').toLowerCase().includes(q)
+            || (f.field_type||'').toLowerCase().includes(q)
+            || String(f.id).includes(q);
+      })
+    : fields;
+
+  const pick = f => { onChange(String(f.id)); setOpen(false); setQuery(''); };
+
+  // Fallback: no fields loaded yet — simple numeric input
+  if (fields.length === 0) {
+    return (
+      <FL label="Field ID">
+        <Inp type="number" value={value} onChange={e=>onChange(e.target.value)} style={{width:110}} placeholder="ID"/>
       </FL>
-    : <FL label="Field ID">
-        <Inp type="number" value={value} onChange={e=>onChange(e.target.value)} style={{width:110}}/>
-      </FL>
-);
+    );
+  }
+
+  return (
+    <div ref={ref} style={{ position:'relative', minWidth:220 }}>
+      <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+        letterSpacing:'0.04em', marginBottom:4 }}>Field</div>
+
+      {/* Trigger button */}
+      <button type="button" onClick={()=>setOpen(v=>!v)} style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:8,
+        width:'100%', padding:'6px 10px', borderRadius:6,
+        border: open ? '1px solid #6b4c2a' : '1px solid #ddd',
+        background:'#fff', cursor:'pointer', fontSize:13, fontFamily:'inherit',
+        boxShadow: open ? '0 0 0 2px rgba(107,76,42,0.15)' : 'none',
+        textAlign:'left',
+      }}>
+        {selected ? (
+          <span style={{ display:'flex', alignItems:'center', gap:7, overflow:'hidden' }}>
+            <span>{FIELD_TYPE_ICON[selected.field_type] || '🗺️'}</span>
+            <span style={{ fontWeight:700, color:'#333', whiteSpace:'nowrap',
+              overflow:'hidden', textOverflow:'ellipsis' }}>
+              {selected.label || `Field ${selected.id}`}
+            </span>
+            {selected.area_ha != null && (
+              <span style={{ fontSize:11, color:'#aaa', whiteSpace:'nowrap' }}>
+                {Number(selected.area_ha).toFixed(1)} ha
+              </span>
+            )}
+          </span>
+        ) : (
+          <span style={{ color:'#bbb' }}>Select field…</span>
+        )}
+        <span style={{ color:'#bbb', fontSize:11, flexShrink:0 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div style={{
+          position:'absolute', top:'100%', left:0, zIndex:999, marginTop:4,
+          background:'#fff', border:'1px solid #e0d8cf', borderRadius:8,
+          boxShadow:'0 6px 24px rgba(0,0,0,0.13)', width:'max-content', minWidth:'100%', maxWidth:340,
+        }}>
+          {/* Search */}
+          <div style={{ padding:'8px 8px 4px' }}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder="Search by name, crop, type…"
+              style={{ ...inp, width:'100%', fontSize:12, boxSizing:'border-box' }}
+            />
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight:240, overflowY:'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding:'10px 12px', color:'#bbb', fontSize:12 }}>No fields match</div>
+            )}
+            {filtered.map(f => {
+              const isActive = String(f.id) === String(value);
+              const icon = FIELD_TYPE_ICON[f.field_type] || '🗺️';
+              return (
+                <div key={f.id} onClick={()=>pick(f)} style={{
+                  display:'flex', alignItems:'center', gap:10,
+                  padding:'8px 12px', cursor:'pointer',
+                  background: isActive ? '#f5f0ea' : 'transparent',
+                  borderLeft: isActive ? '3px solid #6b4c2a' : '3px solid transparent',
+                  transition:'background 0.1s',
+                }}
+                  onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background='#faf7f4'; }}
+                  onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background='transparent'; }}
+                >
+                  <span style={{ fontSize:18, flexShrink:0 }}>{icon}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:'#333',
+                      whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {f.label || `Field ${f.id}`}
+                    </div>
+                    <div style={{ display:'flex', gap:6, marginTop:2, flexWrap:'wrap' }}>
+                      {f.area_ha != null && (
+                        <span style={{ fontSize:10, color:'#888', background:'#f5f0ea',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {Number(f.area_ha).toFixed(1)} ha
+                        </span>
+                      )}
+                      {f.field_type && (
+                        <span style={{ fontSize:10, color:'#888', background:'#f0f4f0',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {f.field_type}
+                        </span>
+                      )}
+                      {f.crop_type && (
+                        <span style={{ fontSize:10, color:'#388e3c', background:'#e8f5e9',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {f.crop_type.replace(/_/g,' ').toLowerCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isActive && <span style={{ color:'#6b4c2a', fontSize:14 }}>✓</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding:'6px 12px', borderTop:'1px solid #f0ebe3',
+            fontSize:10, color:'#bbb', fontStyle:'italic' }}>
+            {fields.length} field{fields.length!==1?'s':''} total
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ── Combined create panel ─────────────────────────────────────────────────────
 const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
@@ -520,7 +715,7 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
       {open && (
         <div style={formBox}>
           <CreateTabs active={mode} setActive={setMode}/>
-          {mode === 'generic'       && <GenericForm       userId={userId} fields={fields} onCreated={handleCreated}/>}
+          {mode === 'generic'       && <GenericForm       userId={userId} fields={fields} onCreated={handleCreated} onSwitchTab={setMode}/>}
           {mode === 'sowing'        && <SowingForm        userId={userId} fields={fields} onCreated={handleCreated}/>}
           {mode === 'fertilization' && <FertilizationForm userId={userId} fields={fields} onCreated={handleCreated}/>}
           {mode === 'spraying'      && <SprayingForm      userId={userId} fields={fields} onCreated={handleCreated}/>}
@@ -969,22 +1164,54 @@ const WorkTypeAnalytics = ({ userId }) => {
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
         <ChartBox>
-          <Sec>Operations count &amp; completion by type</Sec>
-          <ResponsiveContainer width="100%" height={Math.max(160,types.length*26)}>
-            <BarChart layout="vertical"
-              data={types.map(d=>({...d,label:(WORK_ICONS[d.work_type]||'')+' '+d.work_type.replace(/_/g,' ').toLowerCase()}))}
-              margin={{top:0,right:16,left:4,bottom:0}}
-              onClick={e=>e?.activePayload&&setSelected(e.activePayload[0]?.payload?.work_type)}>
-              <XAxis type="number" tick={{fontSize:10}} allowDecimals={false}/>
-              <YAxis type="category" dataKey="label" tick={{fontSize:10}} width={120}/>
-              <Tooltip contentStyle={{fontSize:11}} formatter={(v,n)=>[v,n==='count'?'Total':n==='completed'?'Completed':'Failed']}/>
-              <Legend iconSize={10} wrapperStyle={{fontSize:11}}/>
-              <Bar dataKey="count"     fill="#8d6e63" radius={[0,3,3,0]} name="count"/>
-              <Bar dataKey="completed" fill="#2e7d32" radius={[0,3,3,0]} name="completed"/>
-              <Bar dataKey="failed"    fill="#c62828" radius={[0,3,3,0]} name="failed"/>
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ fontSize:10, color:'#bbb', marginTop:4 }}>Click a bar to drill down</div>
+          <Sec>Completion rate &amp; total cost by operation type</Sec>
+          {/* Custom SVG chart: completion-rate bar (colour-coded) + cost label.
+              More meaningful than the old count/completed/failed triple-bar which
+              plotted three subsets of the same metric on one axis. */}
+          <div style={{ overflowY:'auto', maxHeight: Math.max(200, types.length*34) }}>
+            {[...types].sort((a,b)=>b.completion_rate-a.completion_rate).map(t=>{
+              const pct   = Math.round(t.completion_rate * 100);
+              const color = pct >= 80 ? '#2e7d32' : pct >= 50 ? '#f57f17' : '#c62828';
+              const bg    = pct >= 80 ? '#e8f5e9' : pct >= 50 ? '#fff8e1' : '#fce4ec';
+              const label = (WORK_ICONS[t.work_type]||'') + ' ' + t.work_type.replace(/_/g,' ').toLowerCase();
+              return (
+                <div key={t.work_type}
+                  onClick={()=>setSelected(t.work_type===selected?null:t.work_type)}
+                  title={`${t.completed} of ${t.count} completed${t.total_cost ? ` · ${fmtEur(t.total_cost)} total` : ''}`}
+                  style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 0',
+                    cursor:'pointer', borderRadius:4,
+                    background: t.work_type===selected ? '#fdf6ef' : 'transparent' }}>
+                  {/* Label */}
+                  <div style={{ width:130, fontSize:10, color:'#666', fontWeight:600,
+                    whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flexShrink:0 }}>
+                    {label}
+                  </div>
+                  {/* Bar track */}
+                  <div style={{ flex:1, height:14, background:'#f0ebe3', borderRadius:3, position:'relative', minWidth:60 }}>
+                    <div style={{ width:`${pct}%`, height:'100%', background:color,
+                      borderRadius:3, transition:'width 0.3s' }}/>
+                  </div>
+                  {/* Pct label */}
+                  <div style={{ width:36, fontSize:10, fontWeight:800, color:color,
+                    textAlign:'right', flexShrink:0 }}>
+                    {pct}%
+                  </div>
+                  {/* Cost badge */}
+                  <div style={{ width:68, fontSize:10, color:'#888',
+                    background: t.total_cost ? bg : 'transparent',
+                    borderRadius:4, padding:'1px 5px', textAlign:'right', flexShrink:0 }}>
+                    {t.total_cost ? fmtEur(t.total_cost) : '—'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display:'flex', gap:16, marginTop:8, fontSize:10, color:'#aaa' }}>
+            <span>■ <span style={{color:'#2e7d32'}}>≥80%</span> good</span>
+            <span>■ <span style={{color:'#f57f17'}}>50–79%</span> watch</span>
+            <span>■ <span style={{color:'#c62828'}}>&lt;50%</span> attention</span>
+            <span style={{marginLeft:'auto'}}>Click row to drill down</span>
+          </div>
         </ChartBox>
         <ChartBox>
           <Sec>Average cost per operation type (€)</Sec>
@@ -1283,7 +1510,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
 
   const loadFields = useCallback(()=>{
     if(!userId) return;
-    api.get('/api/v1/fields/user_fields',{params:{user_id:userId,...(locationId?{location_id:locationId}:{})}})
+    api.get('/api/v1/user_fields',{params:{user_id:userId,...(locationId?{location_id:locationId}:{})}})
       .then(r=>{ const d=r.data; setFields(Array.isArray(d)?d:(d?.fields??d?.items??[])); })
       .catch(()=>setFields([]));
   },[userId,locationId]);
