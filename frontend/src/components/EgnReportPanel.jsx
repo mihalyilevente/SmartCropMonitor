@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/client';
 
-const BASE = '/api/v1/egn';
+const BASE      = '/api/v1/egn';
+const BASE_PERS = '/api/v1/personnel';
+const BASE_EQ   = '/api/v1/equipment';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtHa   = v => v != null ? `${Number(v).toFixed(1)} ha` : '—';
@@ -76,6 +78,84 @@ const IssueList = ({ issues, warnings }) => {
     </div>
   );
 };
+
+// ── Shared form helpers ─────────────────────────────────────────────────────
+const inp  = { border:'1px solid #ddd', borderRadius:6, padding:'5px 8px',
+  fontSize:12, fontFamily:'inherit', outline:'none', background:'#fff' };
+const btnP = { background:'var(--color-accent-soil,#6b4c2a)', color:'#fff',
+  border:'none', borderRadius:6, padding:'6px 14px', fontWeight:700,
+  fontSize:12, cursor:'pointer', fontFamily:'inherit' };
+const btnSm = { background:'none', border:'1px solid #ddd', borderRadius:6,
+  padding:'4px 10px', fontSize:11, cursor:'pointer', fontFamily:'inherit', color:'#555' };
+
+const FL = ({ label, title, style, children }) => (
+  <div style={{ display:'flex', flexDirection:'column', gap:3, ...style }}>
+    <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+      letterSpacing:'0.04em' }} title={title}>{label}</div>
+    {children}
+  </div>
+);
+const Inp = ({ style, ...p }) => <input style={{...inp,...style}} {...p}/>;
+
+const Modal = ({ title, onClose, children, width=480 }) => (
+  <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)',
+    zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ background:'#fff', borderRadius:14, padding:24,
+      width, maxWidth:'95vw', boxShadow:'0 8px 40px rgba(0,0,0,0.18)',
+      maxHeight:'90vh', overflowY:'auto' }}>
+      <div style={{ display:'flex', justifyContent:'space-between',
+        alignItems:'center', marginBottom:16 }}>
+        <div style={{ fontWeight:800, fontSize:15 }}>{title}</div>
+        <button onClick={onClose} style={{...btnSm, fontSize:15, padding:'2px 10px'}}>✕</button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const EmptyMsg = ({ text }) => (
+  <div style={{ textAlign:'center', padding:'28px 0', color:'#bbb', fontSize:13 }}>{text}</div>
+);
+
+const StatusDot = ({ status }) => {
+  const map = {
+    ACTIVE:'#2e7d32', OPERATIONAL:'#2e7d32', ON_LEAVE:'#f57f17',
+    IN_USE:'#0d47a1', INACTIVE:'#9e9e9e', TERMINATED:'#9e9e9e',
+    MAINTENANCE:'#f57f17', REPAIR:'#c62828', IDLE:'#9e9e9e', RETIRED:'#9e9e9e',
+  };
+  return <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%',
+    background: map[status]||'#ccc', marginRight:5, flexShrink:0 }}/>;
+};
+
+// ── Payload sanitiser ────────────────────────────────────────────────────────
+// Converts empty-string form values to null so Pydantic Optional[date/int/float]
+// fields don't receive '' and return 422.
+const INT_FIELDS   = new Set(['year_of_manufacture','season_year','pre_harvest_interval_days',
+  'sequence','bbch_stage']);
+const FLOAT_FIELDS = new Set(['power_kw','working_width_m','tank_capacity_l','weight_kg',
+  'hours_initial','hours_current','hours_service_interval','hours_start','hours_end',
+  'hours_worked','hours_at_service','next_service_hours',
+  'area_ha','distance_km','fuel_consumed_l','fuel_cost','purchase_price',
+  'pay_rate','labour_cost','n_kg_ha','p2o5_kg_ha','k2o_kg_ha','s_kg_ha','mg_kg_ha',
+  'dose_kg_ha','dose_l_ha','water_volume_l_ha','total_product_used','total_dose_kg',
+  'sowing_rate_kg_ha','work_cost','harvest_ton']);
+function sanitise(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === '' || v === undefined) {
+      // Coerce empty string to null for typed fields; omit internal flags
+      if (k.startsWith('_')) continue;
+      out[k] = null;
+    } else if (INT_FIELDS.has(k)) {
+      out[k] = Number.isFinite(Number(v)) ? Number(v) : null;
+    } else if (FLOAT_FIELDS.has(k)) {
+      out[k] = Number.isFinite(Number(v)) ? Number(v) : null;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
 
 // ── eGN documentation guide ───────────────────────────────────────────────────
 const EGN_SECTIONS = [
@@ -185,6 +265,997 @@ const GuideSection = ({ sec, open, toggle }) => (
   </div>
 );
 
+// =============================================================================
+// PERSONNEL TAB
+// =============================================================================
+
+const ROLE_ICONS = {
+  FARM_MANAGER:'🏡', AGRONOMIST:'🌿', FIELD_OPERATOR:'🚜',
+  SPRAYER_OPERATOR:'💧', HARVESTER_OPERATOR:'🌾', IRRIGATOR:'💦',
+  LIVESTOCK_WORKER:'🐄', SEASONAL_WORKER:'👤', CONTRACTOR:'🤝',
+  DRIVER:'🚗', TECHNICIAN:'🔧', ADMIN:'📋', OTHER:'👤',
+};
+
+const CERT_COLORS = { expired:'#c62828', expiring:'#f57f17', ok:'#2e7d32' };
+
+const CertBadge = ({ cert }) => {
+  const days = cert.days_until_expiry;
+  const color = days == null ? '#9e9e9e' : days < 0 ? CERT_COLORS.expired
+    : days <= 60 ? CERT_COLORS.expiring : CERT_COLORS.ok;
+  const bg = days == null ? '#f5f5f5' : days < 0 ? '#fce4ec'
+    : days <= 60 ? '#fff8e1' : '#e8f5e9';
+  return (
+    <span title={cert.cert_number||''} style={{ fontSize:10, fontWeight:700,
+      borderRadius:4, padding:'2px 6px', background:bg, color, border:`1px solid ${color}33`,
+      whiteSpace:'nowrap' }}>
+      {cert.cert_type.replace(/_/g,' ')}
+      {cert.expiry_date && ` · ${days < 0 ? 'EXP' : days+'d'}`}
+    </span>
+  );
+};
+
+const PersonForm = ({ initial, onSave, onClose, busy }) => {
+  const [f, setF] = useState(initial || {
+    first_name:'', last_name:'', role:'FIELD_OPERATOR',
+    employment_type:'FULL_TIME', status:'ACTIVE',
+    phone:'', email:'', hire_date:'', pay_rate:'', pay_rate_unit:'PER_HOUR', notes:'',
+  });
+  const set = (k,v) => setF(p=>({...p,[k]:v}));
+  const ROLES = ['FARM_MANAGER','AGRONOMIST','FIELD_OPERATOR','SPRAYER_OPERATOR',
+    'HARVESTER_OPERATOR','IRRIGATOR','LIVESTOCK_WORKER','SEASONAL_WORKER',
+    'CONTRACTOR','DRIVER','TECHNICIAN','ADMIN','OTHER'];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="First name" style={{flex:1,minWidth:130}}>
+          <Inp value={f.first_name} onChange={e=>set('first_name',e.target.value)}/>
+        </FL>
+        <FL label="Last name" style={{flex:1,minWidth:130}}>
+          <Inp value={f.last_name} onChange={e=>set('last_name',e.target.value)}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Role" style={{flex:1,minWidth:160}}>
+          <select value={f.role} onChange={e=>set('role',e.target.value)} style={inp}>
+            {ROLES.map(r=><option key={r} value={r}>{ROLE_ICONS[r]||'👤'} {r.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Employment">
+          <select value={f.employment_type} onChange={e=>set('employment_type',e.target.value)} style={inp}>
+            {['FULL_TIME','PART_TIME','SEASONAL','CONTRACTOR','VOLUNTEER'].map(t=>(
+              <option key={t} value={t}>{t.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+        </FL>
+        <FL label="Status">
+          <select value={f.status} onChange={e=>set('status',e.target.value)} style={inp}>
+            {['ACTIVE','ON_LEAVE','INACTIVE','TERMINATED'].map(s=>(
+              <option key={s} value={s}>{s.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Phone" style={{flex:1,minWidth:130}}>
+          <Inp value={f.phone||''} onChange={e=>set('phone',e.target.value)} placeholder="+380…"/>
+        </FL>
+        <FL label="Email" style={{flex:1,minWidth:160}}>
+          <Inp type="email" value={f.email||''} onChange={e=>set('email',e.target.value)}/>
+        </FL>
+        <FL label="Hire date">
+          <Inp type="date" value={f.hire_date||''} onChange={e=>set('hire_date',e.target.value)}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Pay rate (€)" style={{flex:1,minWidth:100}}>
+          <Inp type="number" value={f.pay_rate||''} onChange={e=>set('pay_rate',e.target.value)} style={{width:100}}/>
+        </FL>
+        <FL label="Rate unit">
+          <select value={f.pay_rate_unit||'PER_HOUR'} onChange={e=>set('pay_rate_unit',e.target.value)} style={inp}>
+            {['PER_HOUR','PER_DAY','PER_MONTH','PER_SEASON','FIXED'].map(u=>(
+              <option key={u} value={u}>{u.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+        </FL>
+      </div>
+      <FL label="Notes">
+        <textarea value={f.notes||''} onChange={e=>set('notes',e.target.value)}
+          style={{...inp, width:'100%', minHeight:56, resize:'vertical', boxSizing:'border-box'}}/>
+      </FL>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
+        <button onClick={onClose} style={btnSm}>Cancel</button>
+        <button onClick={()=>onSave(f)} disabled={busy||!f.first_name||!f.last_name} style={btnP}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const CertForm = ({ onSave, onClose, busy }) => {
+  const [f, setF] = useState({ cert_type:'PESTICIDE_APPLICATOR', cert_number:'',
+    issued_by:'', issue_date:'', expiry_date:'', notes:'' });
+  const set = (k,v) => setF(p=>({...p,[k]:v}));
+  const CERTS = ['PESTICIDE_APPLICATOR','PESTICIDE_ADVISOR','TRACTOR_LICENCE',
+    'FORKLIFT_LICENCE','CHAINSAW_LICENCE','DRONE_OPERATOR','FIRST_AID',
+    'FIRE_SAFETY','HAZMAT','AGRONOMIST_LICENCE','IRRIGATION_TECHNICIAN',
+    'ORGANIC_FARMING_CERT','OTHER'];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Certificate type" style={{flex:1,minWidth:180}}>
+          <select value={f.cert_type} onChange={e=>set('cert_type',e.target.value)} style={inp}>
+            {CERTS.map(c=><option key={c} value={c}>{c.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Certificate number" style={{flex:1,minWidth:130}}>
+          <Inp value={f.cert_number} onChange={e=>set('cert_number',e.target.value)}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Issued by" style={{flex:1,minWidth:160}}>
+          <Inp value={f.issued_by} onChange={e=>set('issued_by',e.target.value)}/>
+        </FL>
+        <FL label="Issue date">
+          <Inp type="date" value={f.issue_date} onChange={e=>set('issue_date',e.target.value)}/>
+        </FL>
+        <FL label="Expiry date" title="Leave blank if no expiry">
+          <Inp type="date" value={f.expiry_date} onChange={e=>set('expiry_date',e.target.value)}/>
+        </FL>
+      </div>
+      <FL label="Notes">
+        <Inp value={f.notes} onChange={e=>set('notes',e.target.value)}/>
+      </FL>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
+        <button onClick={onClose} style={btnSm}>Cancel</button>
+        <button onClick={()=>onSave(f)} disabled={busy} style={btnP}>
+          {busy ? 'Saving…' : 'Add Certificate'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const WorkLogForm = ({ onSave, onClose, busy }) => {
+  const [f, setF] = useState({ work_date:'', hours_worked:'',
+    start_time:'', end_time:'', labour_cost:'', task_description:'', notes:'' });
+  const set = (k,v) => setF(p=>({...p,[k]:v}));
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Date"><Inp type="date" value={f.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
+        <FL label="Start" title="Optional – auto-computes hours">
+          <Inp value={f.start_time} onChange={e=>set('start_time',e.target.value)} placeholder="08:00" style={{width:72}}/>
+        </FL>
+        <FL label="End">
+          <Inp value={f.end_time} onChange={e=>set('end_time',e.target.value)} placeholder="17:00" style={{width:72}}/>
+        </FL>
+        <FL label="Hours worked" title="Override auto-calc">
+          <Inp type="number" value={f.hours_worked} onChange={e=>set('hours_worked',e.target.value)} style={{width:80}}/>
+        </FL>
+        <FL label="Labour cost (€)">
+          <Inp type="number" value={f.labour_cost} onChange={e=>set('labour_cost',e.target.value)} style={{width:100}}/>
+        </FL>
+      </div>
+      <FL label="Task description">
+        <Inp value={f.task_description} onChange={e=>set('task_description',e.target.value)} style={{width:'100%'}}/>
+      </FL>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+        <button onClick={onClose} style={btnSm}>Cancel</button>
+        <button onClick={()=>onSave(f)} disabled={busy||!f.work_date} style={btnP}>
+          {busy ? 'Saving…' : 'Log Work'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const PersonCard = ({ person, onEdit, onDelete, onRefresh }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [showCertForm, setShowCertForm] = useState(false);
+  const [showLogForm,  setShowLogForm]  = useState(false);
+  const [busy, setBusy] = useState(false);
+  const hasIssues = person.expired_certs_count > 0 || person.expiring_certs_count > 0;
+
+  const saveCert = async (data) => {
+    setBusy(true);
+    try {
+      await api.post(`${BASE_PERS}/${person.id}/certifications?user_id=${person.user_id}`, sanitise(data));
+      setShowCertForm(false); onRefresh();
+    } catch { alert('Failed to save certificate'); }
+    finally { setBusy(false); }
+  };
+
+  const saveLog = async (data) => {
+    setBusy(true);
+    try {
+      await api.post(`${BASE_PERS}/${person.id}/work-log?user_id=${person.user_id}`, sanitise(data));
+      setShowLogForm(false); onRefresh();
+    } catch { alert('Failed to log work'); }
+    finally { setBusy(false); }
+  };
+
+  const deleteCert = async (certId) => {
+    if (!window.confirm('Delete this certificate?')) return;
+    await api.delete(`${BASE_PERS}/${person.id}/certifications/${certId}?user_id=${person.user_id}`);
+    onRefresh();
+  };
+
+  return (
+    <div style={{ background:'#fff', border:'1px solid #e0d8cf', borderRadius:10,
+      overflow:'hidden', borderLeft: hasIssues ? '4px solid #f57f17' : '4px solid #e0d8cf' }}>
+      {/* Row */}
+      <div onClick={()=>setExpanded(v=>!v)} style={{ display:'flex', alignItems:'center',
+        gap:10, padding:'10px 14px', cursor:'pointer', userSelect:'none' }}>
+        <span style={{ fontSize:20, flexShrink:0 }}>{ROLE_ICONS[person.role]||'👤'}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            <span style={{ fontWeight:700, fontSize:13, color:'#333' }}>{person.full_name}</span>
+            <StatusDot status={person.status}/>
+            <span style={{ fontSize:11, color:'#888' }}>{person.role.replace(/_/g,' ')}</span>
+            <span style={{ fontSize:10, color:'#aaa', background:'#f5f0ea',
+              borderRadius:4, padding:'1px 6px' }}>{person.employment_type.replace(/_/g,' ')}</span>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:4, flexWrap:'wrap' }}>
+            {person.certifications.slice(0,4).map(c=><CertBadge key={c.id} cert={c}/>)}
+            {person.certifications.length > 4 &&
+              <span style={{ fontSize:10, color:'#aaa' }}>+{person.certifications.length-4} more</span>}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:16, alignItems:'center', flexShrink:0 }}>
+          {person.total_hours_this_year != null && (
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#333' }}>
+                {Number(person.total_hours_this_year).toFixed(0)}h
+              </div>
+              <div style={{ fontSize:10, color:'#aaa' }}>this year</div>
+            </div>
+          )}
+          {hasIssues && (
+            <span style={{ fontSize:10, background:'#fff8e1', color:'#e65100',
+              border:'1px solid #ffe082', borderRadius:10, padding:'2px 8px', fontWeight:700 }}>
+              {person.expired_certs_count > 0
+                ? `${person.expired_certs_count} cert${person.expired_certs_count>1?'s':''} expired`
+                : `${person.expiring_certs_count} expiring`}
+            </span>
+          )}
+          <span style={{ color:'#ccc', fontSize:11 }}>{expanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div style={{ borderTop:'1px solid #ede7df', padding:'12px 14px',
+          background:'#fafaf8' }}>
+          {/* Action buttons */}
+          <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+            <button onClick={()=>onEdit(person)} style={btnSm}>✏️ Edit</button>
+            <button onClick={()=>setShowCertForm(true)} style={btnSm}>🏅 Add certificate</button>
+            <button onClick={()=>setShowLogForm(true)} style={btnSm}>⏱ Log work</button>
+            <button onClick={()=>onDelete(person.id)} style={{...btnSm, color:'#c62828', borderColor:'#ef9a9a'}}>
+              🗑 Delete
+            </button>
+          </div>
+
+          {/* Cert form */}
+          {showCertForm && (
+            <div style={{ marginBottom:12, background:'#fff', borderRadius:8,
+              border:'1px solid #e0d8cf', padding:'12px 14px' }}>
+              <div style={{ fontWeight:700, fontSize:12, marginBottom:10 }}>🏅 Add Certificate</div>
+              <CertForm onSave={saveCert} onClose={()=>setShowCertForm(false)} busy={busy}/>
+            </div>
+          )}
+
+          {/* Work log form */}
+          {showLogForm && (
+            <div style={{ marginBottom:12, background:'#fff', borderRadius:8,
+              border:'1px solid #e0d8cf', padding:'12px 14px' }}>
+              <div style={{ fontWeight:700, fontSize:12, marginBottom:10 }}>⏱ Log Work Session</div>
+              <WorkLogForm onSave={saveLog} onClose={()=>setShowLogForm(false)} busy={busy}/>
+            </div>
+          )}
+
+          {/* Certificates table */}
+          {person.certifications.length > 0 && (
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+                marginBottom:6 }}>Certifications</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {person.certifications.map(c => {
+                  const days = c.days_until_expiry;
+                  const color = days == null ? '#555' : days < 0 ? '#c62828'
+                    : days <= 60 ? '#e65100' : '#2e7d32';
+                  return (
+                    <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10,
+                      background:'#fff', borderRadius:6, padding:'6px 10px',
+                      border:'1px solid #ede7df', fontSize:11 }}>
+                      <span style={{ flex:1, fontWeight:600, color:'#444' }}>
+                        {c.cert_type.replace(/_/g,' ')}
+                      </span>
+                      {c.cert_number && <span style={{ color:'#888' }}>#{c.cert_number}</span>}
+                      {c.issued_by   && <span style={{ color:'#aaa' }}>{c.issued_by}</span>}
+                      {c.expiry_date && (
+                        <span style={{ fontWeight:700, color }}>
+                          {days < 0 ? `⚠ Expired ${c.expiry_date}` : `Valid until ${c.expiry_date} (${days}d)`}
+                        </span>
+                      )}
+                      <button onClick={()=>deleteCert(c.id)}
+                        style={{...btnSm, color:'#c62828', borderColor:'#ef9a9a', padding:'2px 8px'}}>
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Contact info */}
+          <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:11, color:'#888', marginTop:4 }}>
+            {person.phone && <span>📞 {person.phone}</span>}
+            {person.email && <span>📧 {person.email}</span>}
+            {person.hire_date && <span>📅 Hired {person.hire_date}</span>}
+            {person.pay_rate && (
+              <span>💶 {Number(person.pay_rate).toFixed(2)} €/{(person.pay_rate_unit||'hr').replace('PER_','').toLowerCase()}</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PersonnelTab = ({ userId }) => {
+  const [staff, setStaff]       = useState([]);
+  const [summary, setSummary]   = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing]   = useState(null);
+  const [busy, setBusy]         = useState(false);
+  const [expiring, setExpiring] = useState([]);
+
+  const load = useCallback(() => {
+    if (!userId) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`${BASE_PERS}/user/${userId}`),
+      api.get(`${BASE_PERS}/summary/user/${userId}`),
+      api.get(`${BASE_PERS}/expiring-certs/user/${userId}`, { params:{ days:60 } }),
+    ])
+      .then(([s, su, ex]) => {
+        setStaff(Array.isArray(s.data) ? s.data : []);
+        setSummary(su.data);
+        setExpiring(Array.isArray(ex.data) ? ex.data : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveNew = async (data) => {
+    setBusy(true);
+    try {
+      await api.post(`${BASE_PERS}/create?user_id=${userId}`, sanitise(data));
+      setShowForm(false); load();
+    } catch { alert('Failed to save'); }
+    finally { setBusy(false); }
+  };
+
+  const saveEdit = async (data) => {
+    setBusy(true);
+    try {
+      await api.patch(`${BASE_PERS}/${editing.id}?user_id=${userId}`, sanitise(data));
+      setEditing(null); load();
+    } catch { alert('Failed to update'); }
+    finally { setBusy(false); }
+  };
+
+  const deletePerson = async (id) => {
+    if (!window.confirm('Delete this staff member?')) return;
+    await api.delete(`${BASE_PERS}/${id}?user_id=${userId}`);
+    load();
+  };
+
+  return (
+    <div>
+      {/* New / Edit modal */}
+      {(showForm || editing) && (
+        <Modal title={editing ? '✏️ Edit Staff Member' : '👤 Add Staff Member'}
+          onClose={() => { setShowForm(false); setEditing(null); }} width={520}>
+          <PersonForm
+            initial={editing}
+            onSave={editing ? saveEdit : saveNew}
+            onClose={() => { setShowForm(false); setEditing(null); }}
+            busy={busy}
+          />
+        </Modal>
+      )}
+
+      {/* Summary cards */}
+      {summary && (
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+          <Card icon="👥" label="Total staff"    value={summary.total_staff}           color="#6b4c2a"/>
+          <Card icon="✅" label="Active"          value={summary.by_status?.ACTIVE||0}  color="#2e7d32"/>
+          <Card icon="⏱"  label="Hours (YTD)"
+            value={summary.year_hours_total ? `${Number(summary.year_hours_total).toFixed(0)}h` : '—'}
+            color="#0d47a1"/>
+          <Card icon="💶" label="Labour cost (YTD)"
+            value={summary.year_labour_cost_total
+              ? `${Number(summary.year_labour_cost_total).toFixed(0)} €` : '—'}
+            color="#5d4037"/>
+          {summary.expired_certs > 0 && (
+            <Card icon="⚠️" label="Expired certs" value={summary.expired_certs}         color="#c62828"/>
+          )}
+          {summary.expiring_certs_60d > 0 && (
+            <Card icon="🔔" label="Expiring soon" value={summary.expiring_certs_60d}   color="#f57f17"/>
+          )}
+        </div>
+      )}
+
+      {/* Expiring cert alert */}
+      {expiring.filter(c=>c.expired).length > 0 && (
+        <div style={{ background:'#fce4ec', border:'1px solid #ef9a9a', borderRadius:8,
+          padding:'10px 14px', marginBottom:12, fontSize:12, color:'#c62828' }}>
+          <strong>⚠️ Expired certifications:</strong>{' '}
+          {expiring.filter(c=>c.expired).map(c=>(
+            <span key={c.cert_id} style={{ marginRight:8 }}>
+              {c.full_name} — {c.cert_type.replace(/_/g,' ')}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Add button */}
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button onClick={()=>setShowForm(true)} style={{...btnP, display:'flex', gap:6, alignItems:'center'}}>
+          + Add Staff Member
+        </button>
+      </div>
+
+      {loading
+        ? <EmptyMsg text="Loading staff…"/>
+        : staff.length === 0
+          ? <EmptyMsg text="No staff added yet. Click + Add Staff Member to get started."/>
+          : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {staff.map(p => (
+                <PersonCard
+                  key={p.id}
+                  person={p}
+                  onEdit={setEditing}
+                  onDelete={deletePerson}
+                  onRefresh={load}
+                />
+              ))}
+            </div>
+          )
+      }
+    </div>
+  );
+};
+
+
+// =============================================================================
+// EQUIPMENT TAB
+// =============================================================================
+
+const EQ_ICONS = {
+  TRACTOR:'🚜', PLOW:'🔧', DISC_HARROW:'⚙️', CULTIVATOR:'⚙️', SUBSOILER:'🔩',
+  ROLLER:'🔄', SEEDER:'🌱', TRANSPLANTER:'🌿', POTATO_PLANTER:'🥔',
+  SPRAYER:'💧', FERTILIZER_SPREADER:'🧪', IRRIGATION_SYSTEM:'💦',
+  MOWER:'✂️', BALER:'📦', RAKE:'🌾', COMBINE_HARVESTER:'🌾',
+  FORAGE_HARVESTER:'🌿', GRAIN_CART:'🛒', TRAILER:'🚛',
+  LOADER:'🏗', TELEHANDLER:'🏗', ATV:'🏎', TRUCK:'🚛',
+  DRONE:'🛸', OTHER:'🔧',
+};
+
+
+const EquipmentForm = ({ initial, onSave, onClose, busy }) => {
+  const EQ_TYPES = ['TRACTOR','PLOW','DISC_HARROW','CULTIVATOR','SUBSOILER','ROLLER',
+    'SEEDER','TRANSPLANTER','SPRAYER','FERTILIZER_SPREADER','IRRIGATION_SYSTEM',
+    'MOWER','BALER','COMBINE_HARVESTER','FORAGE_HARVESTER','GRAIN_CART',
+    'TRAILER','LOADER','TELEHANDLER','TRUCK','DRONE','OTHER'];
+  const [f, setF] = useState(initial || {
+    name:'', equipment_type:'TRACTOR', manufacturer:'', model:'',
+    year_of_manufacture:'', serial_number:'', registration_plate:'',
+    power_kw:'', working_width_m:'', fuel_type:'DIESEL',
+    hours_initial:'', hours_service_interval:'',
+    status:'OPERATIONAL', is_owned: true,
+    purchase_date:'', purchase_price:'', insurance_expiry:'',
+    next_service_date:'', notes:'',
+  });
+  const set = (k,v) => setF(p=>({...p,[k]:v}));
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Name / identifier" style={{flex:2,minWidth:160}}>
+          <Inp value={f.name} onChange={e=>set('name',e.target.value)} placeholder="e.g. John Deere 8R"/>
+        </FL>
+        <FL label="Type" style={{flex:1,minWidth:140}}>
+          <select value={f.equipment_type} onChange={e=>set('equipment_type',e.target.value)} style={inp}>
+            {EQ_TYPES.map(t=><option key={t} value={t}>{EQ_ICONS[t]||'🔧'} {t.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Manufacturer" style={{flex:1,minWidth:120}}>
+          <Inp value={f.manufacturer||''} onChange={e=>set('manufacturer',e.target.value)}/>
+        </FL>
+        <FL label="Model" style={{flex:1,minWidth:120}}>
+          <Inp value={f.model||''} onChange={e=>set('model',e.target.value)}/>
+        </FL>
+        <FL label="Year">
+          <Inp type="number" value={f.year_of_manufacture||''} onChange={e=>set('year_of_manufacture',e.target.value)} style={{width:76}}/>
+        </FL>
+        <FL label="Serial No.">
+          <Inp value={f.serial_number||''} onChange={e=>set('serial_number',e.target.value)} style={{width:130}}/>
+        </FL>
+        <FL label="Reg. plate">
+          <Inp value={f.registration_plate||''} onChange={e=>set('registration_plate',e.target.value)} style={{width:110}}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Power (kW)">
+          <Inp type="number" value={f.power_kw||''} onChange={e=>set('power_kw',e.target.value)} style={{width:80}}/>
+        </FL>
+        <FL label="Working width (m)">
+          <Inp type="number" value={f.working_width_m||''} onChange={e=>set('working_width_m',e.target.value)} style={{width:100}}/>
+        </FL>
+        <FL label="Fuel">
+          <select value={f.fuel_type||'DIESEL'} onChange={e=>set('fuel_type',e.target.value)} style={inp}>
+            {['DIESEL','PETROL','ELECTRIC','LPG','NONE'].map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </FL>
+        <FL label="Hours at reg.">
+          <Inp type="number" value={f.hours_initial||''} onChange={e=>set('hours_initial',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Service interval (h)">
+          <Inp type="number" value={f.hours_service_interval||''} onChange={e=>set('hours_service_interval',e.target.value)} style={{width:100}}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+        <FL label="Status">
+          <select value={f.status} onChange={e=>set('status',e.target.value)} style={inp}>
+            {['OPERATIONAL','IN_USE','MAINTENANCE','REPAIR','IDLE','RETIRED'].map(s=>(
+              <option key={s} value={s}>{s.replace(/_/g,' ')}</option>
+            ))}
+          </select>
+        </FL>
+        <FL label="Ownership">
+          <select value={f.is_owned?'owned':'rented'} onChange={e=>set('is_owned',e.target.value==='owned')} style={inp}>
+            <option value="owned">Owned</option>
+            <option value="rented">Rented / Contracted</option>
+          </select>
+        </FL>
+        <FL label="Purchase date">
+          <Inp type="date" value={f.purchase_date||''} onChange={e=>set('purchase_date',e.target.value)}/>
+        </FL>
+        <FL label="Purchase price (€)">
+          <Inp type="number" value={f.purchase_price||''} onChange={e=>set('purchase_price',e.target.value)} style={{width:110}}/>
+        </FL>
+        <FL label="Insurance expiry">
+          <Inp type="date" value={f.insurance_expiry||''} onChange={e=>set('insurance_expiry',e.target.value)}/>
+        </FL>
+        <FL label="Next service">
+          <Inp type="date" value={f.next_service_date||''} onChange={e=>set('next_service_date',e.target.value)}/>
+        </FL>
+      </div>
+      <FL label="Notes">
+        <textarea value={f.notes||''} onChange={e=>set('notes',e.target.value)}
+          style={{...inp, width:'100%', minHeight:48, resize:'vertical', boxSizing:'border-box'}}/>
+      </FL>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+        <button onClick={onClose} style={btnSm}>Cancel</button>
+        <button onClick={()=>onSave(f)} disabled={busy||!f.name} style={btnP}>
+          {busy ? 'Saving…' : 'Save Equipment'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const MaintenanceForm = ({ onSave, onClose, busy }) => {
+  const [f, setF] = useState({ maintenance_date:'', maintenance_type:'OIL_CHANGE',
+    description:'', hours_at_service:'', cost:'', parts_cost:'', labour_cost:'',
+    performed_by:'', invoice_ref:'', next_service_date:'' });
+  const set = (k,v) => setF(p=>({...p,[k]:v}));
+  const TYPES = ['OIL_CHANGE','FILTER_CHANGE','TYRE_SERVICE','BRAKE_SERVICE',
+    'BELT_REPLACEMENT','BLADE_SHARPENING','HYDRAULIC_SERVICE','ELECTRICAL',
+    'ANNUAL_SERVICE','REPAIR','INSPECTION','OTHER'];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Date"><Inp type="date" value={f.maintenance_date} onChange={e=>set('maintenance_date',e.target.value)}/></FL>
+        <FL label="Type" style={{flex:1,minWidth:160}}>
+          <select value={f.maintenance_type} onChange={e=>set('maintenance_type',e.target.value)} style={inp}>
+            {TYPES.map(t=><option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Hours at service">
+          <Inp type="number" value={f.hours_at_service} onChange={e=>set('hours_at_service',e.target.value)} style={{width:100}}/>
+        </FL>
+      </div>
+      <FL label="Description">
+        <Inp value={f.description} onChange={e=>set('description',e.target.value)} style={{width:'100%'}}/>
+      </FL>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Total cost (€)">
+          <Inp type="number" value={f.cost} onChange={e=>set('cost',e.target.value)} style={{width:100}}/>
+        </FL>
+        <FL label="Parts (€)">
+          <Inp type="number" value={f.parts_cost} onChange={e=>set('parts_cost',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Labour (€)">
+          <Inp type="number" value={f.labour_cost} onChange={e=>set('labour_cost',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Performed by" style={{flex:1,minWidth:130}}>
+          <Inp value={f.performed_by} onChange={e=>set('performed_by',e.target.value)}/>
+        </FL>
+        <FL label="Invoice ref.">
+          <Inp value={f.invoice_ref} onChange={e=>set('invoice_ref',e.target.value)} style={{width:110}}/>
+        </FL>
+        <FL label="Next service date">
+          <Inp type="date" value={f.next_service_date} onChange={e=>set('next_service_date',e.target.value)}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+        <button onClick={onClose} style={btnSm}>Cancel</button>
+        <button onClick={()=>onSave(f)} disabled={busy||!f.maintenance_date} style={btnP}>
+          {busy ? 'Saving…' : 'Log Service'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const UsageForm = ({ onSave, onClose, busy }) => {
+  const [f, setF] = useState({ used_date:'', hours_start:'', hours_end:'',
+    hours_worked:'', area_ha:'', fuel_consumed_l:'', fuel_cost:'', operator_name:'', notes:'' });
+  const set = (k,v) => setF(p=>({...p,[k]:v}));
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+        <FL label="Date"><Inp type="date" value={f.used_date} onChange={e=>set('used_date',e.target.value)}/></FL>
+        <FL label="Hours start">
+          <Inp type="number" value={f.hours_start} onChange={e=>set('hours_start',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Hours end">
+          <Inp type="number" value={f.hours_end} onChange={e=>set('hours_end',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Hours worked" title="Override auto-calc from start/end">
+          <Inp type="number" value={f.hours_worked} onChange={e=>set('hours_worked',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Area (ha)">
+          <Inp type="number" value={f.area_ha} onChange={e=>set('area_ha',e.target.value)} style={{width:80}}/>
+        </FL>
+        <FL label="Fuel (L)">
+          <Inp type="number" value={f.fuel_consumed_l} onChange={e=>set('fuel_consumed_l',e.target.value)} style={{width:80}}/>
+        </FL>
+        <FL label="Fuel cost (€)">
+          <Inp type="number" value={f.fuel_cost} onChange={e=>set('fuel_cost',e.target.value)} style={{width:90}}/>
+        </FL>
+        <FL label="Operator" style={{flex:1,minWidth:130}}>
+          <Inp value={f.operator_name} onChange={e=>set('operator_name',e.target.value)}/>
+        </FL>
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+        <button onClick={onClose} style={btnSm}>Cancel</button>
+        <button onClick={()=>onSave(f)} disabled={busy||!f.used_date} style={btnP}>
+          {busy ? 'Saving…' : 'Log Usage'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const EquipmentCard = ({ eq, onEdit, onDelete, onRefresh, userId }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [showMaint, setShowMaint] = useState(false);
+  const [showUsage, setShowUsage] = useState(false);
+  const [maintenance, setMaintenance] = useState([]);
+  const [usage, setUsage]             = useState([]);
+  const [loadedSub, setLoadedSub]     = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const loadSub = async () => {
+    if (loadedSub) return;
+    const [m, u] = await Promise.all([
+      api.get(`${BASE_EQ}/${eq.id}/maintenance?user_id=${userId}`),
+      api.get(`${BASE_EQ}/${eq.id}/usage?user_id=${userId}`),
+    ]);
+    setMaintenance(Array.isArray(m.data) ? m.data : []);
+    setUsage(Array.isArray(u.data) ? u.data : []);
+    setLoadedSub(true);
+  };
+
+  const toggle = () => {
+    if (!expanded) loadSub();
+    setExpanded(v => !v);
+  };
+
+  const saveMaint = async (data) => {
+    setBusy(true);
+    try {
+      await api.post(`${BASE_EQ}/${eq.id}/maintenance?user_id=${userId}`, sanitise(data));
+      setShowMaint(false); setLoadedSub(false); loadSub(); onRefresh();
+    } catch { alert('Failed to save maintenance'); }
+    finally { setBusy(false); }
+  };
+
+  const saveUsage = async (data) => {
+    setBusy(true);
+    try {
+      await api.post(`${BASE_EQ}/${eq.id}/usage?user_id=${userId}`, sanitise(data));
+      setShowUsage(false); setLoadedSub(false); loadSub(); onRefresh();
+    } catch { alert('Failed to save usage'); }
+    finally { setBusy(false); }
+  };
+
+  const deleteMaint = async (id) => {
+    if (!window.confirm('Delete this service record?')) return;
+    await api.delete(`${BASE_EQ}/${eq.id}/maintenance/${id}?user_id=${userId}`);
+    setLoadedSub(false); loadSub();
+  };
+
+  const serviceOverdue = eq.next_service_date && new Date(eq.next_service_date) < new Date();
+
+  return (
+    <div style={{ background:'#fff', border:'1px solid #e0d8cf', borderRadius:10,
+      overflow:'hidden', borderLeft: serviceOverdue ? '4px solid #f57f17' : '4px solid #e0d8cf' }}>
+      {/* Row */}
+      <div onClick={toggle} style={{ display:'flex', alignItems:'center',
+        gap:10, padding:'10px 14px', cursor:'pointer', userSelect:'none' }}>
+        <span style={{ fontSize:22, flexShrink:0 }}>{EQ_ICONS[eq.equipment_type]||'🔧'}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            <span style={{ fontWeight:700, fontSize:13, color:'#333' }}>{eq.name}</span>
+            <StatusDot status={eq.status}/>
+            <span style={{ fontSize:11, color:'#888' }}>{eq.equipment_type.replace(/_/g,' ')}</span>
+            {eq.manufacturer && <span style={{ fontSize:11, color:'#aaa' }}>{eq.manufacturer} {eq.model}</span>}
+          </div>
+          <div style={{ display:'flex', gap:12, marginTop:3, flexWrap:'wrap', fontSize:11, color:'#aaa' }}>
+            {eq.year_of_manufacture && <span>{eq.year_of_manufacture}</span>}
+            {eq.power_kw            && <span>{eq.power_kw} kW</span>}
+            {eq.hours_current != null && <span>⏱ {Number(eq.hours_current).toFixed(0)} h current</span>}
+            {eq.registration_plate  && <span>🔖 {eq.registration_plate}</span>}
+            {serviceOverdue && (
+              <span style={{ color:'#f57f17', fontWeight:700 }}>⚠ Service overdue</span>
+            )}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:12, alignItems:'center', flexShrink:0 }}>
+          {eq.total_hours_logged != null && (
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#333' }}>
+                {Number(eq.total_hours_logged).toFixed(0)}h
+              </div>
+              <div style={{ fontSize:10, color:'#aaa' }}>logged</div>
+            </div>
+          )}
+          <span style={{ color:'#ccc', fontSize:11 }}>{expanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+
+      {/* Expanded */}
+      {expanded && (
+        <div style={{ borderTop:'1px solid #ede7df', padding:'12px 14px', background:'#fafaf8' }}>
+          <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+            <button onClick={()=>onEdit(eq)} style={btnSm}>✏️ Edit</button>
+            <button onClick={()=>setShowMaint(v=>!v)} style={btnSm}>🔧 Log service</button>
+            <button onClick={()=>setShowUsage(v=>!v)} style={btnSm}>⏱ Log usage</button>
+            <button onClick={()=>onDelete(eq.id)}
+              style={{...btnSm, color:'#c62828', borderColor:'#ef9a9a'}}>🗑 Delete</button>
+          </div>
+
+          {showMaint && (
+            <div style={{ marginBottom:12, background:'#fff', borderRadius:8,
+              border:'1px solid #e0d8cf', padding:'12px 14px' }}>
+              <div style={{ fontWeight:700, fontSize:12, marginBottom:10 }}>🔧 Log Service / Maintenance</div>
+              <MaintenanceForm onSave={saveMaint} onClose={()=>setShowMaint(false)} busy={busy}/>
+            </div>
+          )}
+
+          {showUsage && (
+            <div style={{ marginBottom:12, background:'#fff', borderRadius:8,
+              border:'1px solid #e0d8cf', padding:'12px 14px' }}>
+              <div style={{ fontWeight:700, fontSize:12, marginBottom:10 }}>⏱ Log Usage Session</div>
+              <UsageForm onSave={saveUsage} onClose={()=>setShowUsage(false)} busy={busy}/>
+            </div>
+          )}
+
+          {/* Maintenance history */}
+          {maintenance.length > 0 && (
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'#aaa',
+                textTransform:'uppercase', marginBottom:6 }}>Service history</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {maintenance.map(m => (
+                  <div key={m.id} style={{ display:'flex', alignItems:'center', gap:10,
+                    background:'#fff', borderRadius:6, padding:'6px 10px',
+                    border:'1px solid #ede7df', fontSize:11 }}>
+                    <span style={{ color:'#6b4c2a', fontWeight:700, flexShrink:0 }}>{m.maintenance_date}</span>
+                    <span style={{ flex:1, fontWeight:600 }}>{m.maintenance_type.replace(/_/g,' ')}</span>
+                    {m.description && <span style={{ color:'#888' }}>{m.description}</span>}
+                    {m.cost && <span style={{ color:'#555' }}>€{Number(m.cost).toFixed(0)}</span>}
+                    {m.hours_at_service && <span style={{ color:'#aaa' }}>{m.hours_at_service}h</span>}
+                    <button onClick={()=>deleteMaint(m.id)}
+                      style={{...btnSm, color:'#c62828', borderColor:'#ef9a9a', padding:'2px 8px'}}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Usage history */}
+          {usage.length > 0 && (
+            <div>
+              <div style={{ fontSize:10, fontWeight:700, color:'#aaa',
+                textTransform:'uppercase', marginBottom:6 }}>Usage log</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {usage.slice(0, 8).map(u => (
+                  <div key={u.id} style={{ display:'flex', alignItems:'center', gap:10,
+                    background:'#fff', borderRadius:6, padding:'6px 10px',
+                    border:'1px solid #ede7df', fontSize:11 }}>
+                    <span style={{ color:'#6b4c2a', fontWeight:700, flexShrink:0 }}>{u.used_date}</span>
+                    {u.hours_worked && <span style={{ fontWeight:600 }}>{u.hours_worked}h</span>}
+                    {u.area_ha      && <span style={{ color:'#388e3c' }}>{u.area_ha} ha</span>}
+                    {u.fuel_consumed_l && <span style={{ color:'#0d47a1' }}>{u.fuel_consumed_l}L</span>}
+                    {u.operator_name   && <span style={{ color:'#888' }}>{u.operator_name}</span>}
+                    {u.field_label     && <span style={{ color:'#aaa' }}>📍 {u.field_label}</span>}
+                  </div>
+                ))}
+                {usage.length > 8 && (
+                  <div style={{ fontSize:11, color:'#aaa', padding:'4px 0' }}>
+                    + {usage.length - 8} more entries
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Quick specs */}
+          <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:11,
+            color:'#888', marginTop:8, borderTop:'1px solid #f0ebe3', paddingTop:8 }}>
+            {eq.serial_number  && <span>S/N: {eq.serial_number}</span>}
+            {eq.fuel_type      && <span>⛽ {eq.fuel_type}</span>}
+            {eq.working_width_m && <span>↔ {eq.working_width_m}m</span>}
+            {eq.next_service_date && (
+              <span style={{ color: serviceOverdue ? '#c62828' : '#555', fontWeight: serviceOverdue ? 700 : 400 }}>
+                🔧 Next service: {eq.next_service_date}
+              </span>
+            )}
+            {eq.insurance_expiry && <span>📋 Insurance: {eq.insurance_expiry}</span>}
+            {eq.purchase_price  && <span>💶 {Number(eq.purchase_price).toFixed(0)} €</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const EquipmentTab = ({ userId }) => {
+  const [fleet, setFleet]       = useState([]);
+  const [summary, setSummary]   = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing]   = useState(null);
+  const [busy, setBusy]         = useState(false);
+  const [filterStatus, setFilterStatus] = useState('ALL');
+
+  const load = useCallback(() => {
+    if (!userId) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`${BASE_EQ}/user/${userId}`),
+      api.get(`${BASE_EQ}/summary/user/${userId}`),
+    ])
+      .then(([f, s]) => {
+        setFleet(Array.isArray(f.data) ? f.data : []);
+        setSummary(s.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const saveNew = async (data) => {
+    setBusy(true);
+    try {
+      await api.post(`${BASE_EQ}/create?user_id=${userId}`, sanitise(data));
+      setShowForm(false); load();
+    } catch { alert('Failed to save'); }
+    finally { setBusy(false); }
+  };
+
+  const saveEdit = async (data) => {
+    setBusy(true);
+    try {
+      await api.patch(`${BASE_EQ}/${editing.id}?user_id=${userId}`, sanitise(data));
+      setEditing(null); load();
+    } catch { alert('Failed to update'); }
+    finally { setBusy(false); }
+  };
+
+  const deleteEq = async (id) => {
+    if (!window.confirm('Delete this equipment record?')) return;
+    await api.delete(`${BASE_EQ}/${id}?user_id=${userId}`);
+    load();
+  };
+
+  const statuses = ['ALL', 'OPERATIONAL', 'IN_USE', 'MAINTENANCE', 'REPAIR', 'IDLE', 'RETIRED'];
+  const visible  = filterStatus === 'ALL' ? fleet
+    : fleet.filter(e => e.status === filterStatus);
+
+  return (
+    <div>
+      {(showForm || editing) && (
+        <Modal title={editing ? '✏️ Edit Equipment' : '🚜 Add Equipment'}
+          onClose={()=>{ setShowForm(false); setEditing(null); }} width={620}>
+          <EquipmentForm
+            initial={editing}
+            onSave={editing ? saveEdit : saveNew}
+            onClose={()=>{ setShowForm(false); setEditing(null); }}
+            busy={busy}
+          />
+        </Modal>
+      )}
+
+      {/* Summary cards */}
+      {summary && (
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+          <Card icon="🚜" label="Fleet total"     value={summary.total}                   color="#6b4c2a"/>
+          <Card icon="✅" label="Operational"
+            value={(summary.by_status?.OPERATIONAL||0)+(summary.by_status?.IN_USE||0)}    color="#2e7d32"/>
+          <Card icon="⏱"  label="Hours (YTD)"
+            value={summary.year_hours_logged ? `${Number(summary.year_hours_logged).toFixed(0)}h` : '—'}
+            color="#0d47a1"/>
+          {summary.overdue_service > 0 && (
+            <Card icon="⚠️" label="Service overdue" value={summary.overdue_service}       color="#c62828"/>
+          )}
+        </div>
+      )}
+
+      {/* Status filter */}
+      <div style={{ display:'flex', gap:0, border:'1px solid #e0d8cf', borderRadius:8,
+        overflow:'hidden', width:'fit-content', marginBottom:12 }}>
+        {statuses.map(s => (
+          <button key={s} onClick={()=>setFilterStatus(s)} style={{
+            padding:'5px 10px', fontSize:10, fontWeight:700, border:'none', cursor:'pointer',
+            background: filterStatus===s ? 'var(--color-accent-soil,#6b4c2a)' : '#f5f0ea',
+            color: filterStatus===s ? '#fff' : '#888', textTransform:'uppercase', letterSpacing:'0.03em' }}>
+            {s === 'ALL' ? 'All' : s.replace(/_/g,' ')}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+        <button onClick={()=>setShowForm(true)} style={{...btnP, display:'flex', gap:6, alignItems:'center'}}>
+          + Add Equipment
+        </button>
+      </div>
+
+      {loading
+        ? <EmptyMsg text="Loading fleet…"/>
+        : visible.length === 0
+          ? <EmptyMsg text={fleet.length === 0
+              ? 'No equipment added yet. Click + Add Equipment.'
+              : 'No equipment matches this filter.'}/>
+          : (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {visible.map(eq => (
+                <EquipmentCard key={eq.id} eq={eq} userId={userId}
+                  onEdit={setEditing} onDelete={deleteEq} onRefresh={load}/>
+              ))}
+            </div>
+          )
+      }
+    </div>
+  );
+};
+
+
 // ── Main panel ────────────────────────────────────────────────────────────────
 const EgnReportPanel = ({ userId }) => {
   const [open, setOpen]           = useState(true);
@@ -239,8 +1310,10 @@ const EgnReportPanel = ({ userId }) => {
   );
 
   const TABS = [
-    ['status',  '📋 Status'],
-    ['guide',   '📖 What to submit'],
+    ['status',     '📋 Status'],
+    ['personnel',  '👥 Personnel'],
+    ['equipment',  '🚜 Equipment'],
+    ['guide',      '📖 Guide'],
   ];
 
   return (
@@ -363,6 +1436,16 @@ const EgnReportPanel = ({ userId }) => {
                 </>
               )}
             </div>
+          )}
+
+          {/* ── PERSONNEL TAB ── */}
+          {tab === 'personnel' && (
+            <PersonnelTab userId={userId}/>
+          )}
+
+          {/* ── EQUIPMENT TAB ── */}
+          {tab === 'equipment' && (
+            <EquipmentTab userId={userId}/>
           )}
 
           {/* ── GUIDE TAB ── */}

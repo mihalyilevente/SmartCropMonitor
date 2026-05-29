@@ -563,8 +563,12 @@ def record_harvest(
         if field_name not in ("work_cost", "operator_name", "equipment"):
             setattr(season, field_name, value)
 
+    # Auto-compute yield if the user did not explicitly provide one.
+    # Use the season's current values (which include anything just set above).
     if season.harvest_total_t and season.harvest_area_ha and not data.yield_t_ha:
-        season.yield_t_ha = round(float(season.harvest_total_t) / float(season.harvest_area_ha), 3)
+        season.yield_t_ha = round(
+            float(season.harvest_total_t) / float(season.harvest_area_ha), 3
+        )
 
     existing_hw = (
         db.query(FieldWork)
@@ -626,8 +630,21 @@ def delete_fieldwork(work_id: int, user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Record not found")
     if record.user_id != user_id:
         raise HTTPException(status_code=403, detail="Not your record")
+
+    fert_log = db.query(FertilizationLog).filter_by(field_work_id=work_id).first()
+    if fert_log:
+        db.delete(fert_log)
+
+    pest_log = db.query(PesticideLog).filter_by(field_work_id=work_id).first()
+    if pest_log:
+        db.delete(pest_log)
+
     db.delete(record)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete record")
     return {"message": "Record deleted", "id": work_id}
 
 

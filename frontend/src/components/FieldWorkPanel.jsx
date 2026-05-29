@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid,
@@ -6,15 +6,28 @@ import {
 } from 'recharts';
 import api from '../api/client';
 
-const BASE = '/api/v1/fieldwork';
+const BASE      = '/api/v1/fieldwork';
+const BASE_EQ   = '/api/v1/equipment';
 
+// WORK_TYPES used in the Generic form.
+// SOWING → use the 🌾 Sowing tab  (creates a SeasonRecord, eGN 3.3)
+// FERTILIZATION → use the 🧪 Fertilization tab  (captures NPK detail, eGN 3.4)
+// SPRAYING → use the 💧 Spraying tab  (captures pesticide/PPP detail, eGN 3.5)
+// PLANTING is kept here because it does NOT create a SeasonRecord.
 const WORK_TYPES = [
   'PLOWING','SUBSOILING','DISCING','HARROWING','CULTIVATION','ROLLING',
-  'SOWING','PLANTING','FERTILIZATION','SPRAYING','IRRIGATION','WEEDING',
+  'PLANTING','IRRIGATION','WEEDING',
   'PRUNING','GRAFTING','MULCHING','THINNING','TRELLIS_REPAIR',
   'MOWING','RAKING','BALING','GRAZING','HARVESTING','DESICCATION',
   'SOIL_SAMPLING','MAINTENANCE',
 ];
+
+// The three specialist types that must go through their own dedicated forms.
+const SPECIALIST_TYPES = {
+  SOWING:        { tab: 'sowing',        label: '🌾 Sowing',        reason: 'Creates a Season Record (eGN 3.3). Use the Sowing tab.' },
+  FERTILIZATION: { tab: 'fertilization', label: '🧪 Fertilization', reason: 'Requires NPK detail (eGN 3.4). Use the Fertilization tab.' },
+  SPRAYING:      { tab: 'spraying',      label: '💧 Spraying',      reason: 'Requires pesticide/PPP data (eGN 3.5). Use the Spraying tab.' },
+};
 
 const CROPS = [
   'WHEAT_WINTER','WHEAT_SPRING','BARLEY','CORN','OATS','RYE','RICE',
@@ -161,7 +174,7 @@ const CreateTabs = ({ active, setActive }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Generic ──────────────────────────────────────────────────────────────────────
-const GenericForm = ({ userId, fields, onCreated }) => {
+const GenericForm = ({ userId, fields, onCreated, onSwitchTab }) => {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     field_id:'', work_type:'PLOWING', work_status:'PLANNED',
@@ -171,8 +184,10 @@ const GenericForm = ({ userId, fields, onCreated }) => {
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   useEffect(()=>{ if(fields.length && !form.field_id) set('field_id', fields[0].id); },[fields]); // eslint-disable-line
 
+  const specialist = SPECIALIST_TYPES[form.work_type];
+
   const submit = async () => {
-    if (!form.field_id) return;
+    if (!form.field_id || specialist) return;
     setBusy(true);
     try {
       await api.post(`${BASE}/create`, {
@@ -191,25 +206,61 @@ const GenericForm = ({ userId, fields, onCreated }) => {
   };
 
   return (
-    <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
-      <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-      <FL label="Work type">
-        <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
-          {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
-        </select>
-      </FL>
-      <FL label="Status">
-        <select value={form.work_status} onChange={e=>set('work_status',e.target.value)} style={inp}>
-          {Object.keys(STATUS_CFG).map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
-        </select>
-      </FL>
-      <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
-      <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
-      <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
-      <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
-      <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-      <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
-      <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4}}>{busy ? 'Saving…' : 'Save'}</button>
+    <div>
+      {specialist && (
+        <div style={{ marginBottom:12, background:'#fff8e1', border:'1px solid #ffe082',
+          borderLeft:'4px solid #f9a825', borderRadius:8, padding:'10px 14px',
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#333', marginBottom:2 }}>
+              {specialist.label} requires a dedicated form
+            </div>
+            <div style={{ fontSize:11, color:'#888' }}>{specialist.reason}</div>
+          </div>
+          <button onClick={()=>onSwitchTab(specialist.tab)} style={{
+            background:'#f9a825', color:'#fff', border:'none', borderRadius:6,
+            padding:'6px 14px', fontWeight:700, fontSize:12, cursor:'pointer', whiteSpace:'nowrap',
+          }}>
+            Switch to {specialist.label} →
+          </button>
+        </div>
+      )}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
+        <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
+        <FL label="Work type">
+          <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
+            <optgroup label="General operations">
+              {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
+            </optgroup>
+            <optgroup label="⚠️ Use dedicated tab instead">
+              {Object.entries(SPECIALIST_TYPES).map(([tp,s])=><option key={tp} value={tp}>{s.label}</option>)}
+            </optgroup>
+          </select>
+        </FL>
+        <FL label="Status">
+          <select value={form.work_status} onChange={e=>set('work_status',e.target.value)} style={inp}>
+            {Object.keys(STATUS_CFG).map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
+        <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
+        <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
+        <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy||!!specialist}
+          title={specialist ? `Use the ${specialist.label} tab for this operation type` : undefined}
+          style={{...btnPrimary, opacity: specialist ? 0.4 : 1, cursor: specialist ? 'not-allowed' : 'pointer'}}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        {specialist && (
+          <span style={{ marginLeft:10, fontSize:11, color:'#aaa', fontStyle:'italic' }}>
+            Select a general operation type to enable Save
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -283,7 +334,9 @@ const SowingForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#2e7d32'}}>{busy ? 'Saving…' : '🌾 Save Sowing'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#2e7d32'}}>{busy ? 'Saving…' : '🌾 Save Sowing'}</button>
       </div>
     </div>
   );
@@ -378,7 +431,9 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#e65100'}}>{busy ? 'Saving…' : '🧪 Save Fertilization'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#e65100'}}>{busy ? 'Saving…' : '🧪 Save Fertilization'}</button>
       </div>
     </div>
   );
@@ -485,24 +540,165 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#0d47a1'}}>{busy ? 'Saving…' : '💧 Save Spraying'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#0d47a1'}}>{busy ? 'Saving…' : '💧 Save Spraying'}</button>
       </div>
     </div>
   );
 };
 
 // ── Field selector helper ────────────────────────────────────────────────────
-const FieldSelector = ({ fields, value, onChange }) => (
-  fields.length > 0
-    ? <FL label="Field">
-        <select value={value} onChange={e=>onChange(e.target.value)} style={inp}>
-          {fields.map(f=><option key={f.id} value={f.id}>{f.label||`Field ${f.id}`}</option>)}
-        </select>
+const FIELD_TYPE_ICON = { cropland:'🌾', pasture:'🐄', orchard:'🍎', vineyard:'🍇', garden:'🥕', fallow:'🟫', other:'🗺️' };
+
+const FieldSelector = ({ fields, value, onChange }) => {
+  const [open,    setOpen]   = useState(false);
+  const [query,   setQuery]  = useState('');
+  const ref = React.useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = fields.find(f => String(f.id) === String(value));
+
+  const filtered = query.trim()
+    ? fields.filter(f => {
+        const q = query.toLowerCase();
+        return (f.label||'').toLowerCase().includes(q)
+            || (f.crop_type||'').toLowerCase().includes(q)
+            || (f.field_type||'').toLowerCase().includes(q)
+            || String(f.id).includes(q);
+      })
+    : fields;
+
+  const pick = f => { onChange(String(f.id)); setOpen(false); setQuery(''); };
+
+  // Fallback: no fields loaded yet — simple numeric input
+  if (fields.length === 0) {
+    return (
+      <FL label="Field ID">
+        <Inp type="number" value={value} onChange={e=>onChange(e.target.value)} style={{width:110}} placeholder="ID"/>
       </FL>
-    : <FL label="Field ID">
-        <Inp type="number" value={value} onChange={e=>onChange(e.target.value)} style={{width:110}}/>
-      </FL>
-);
+    );
+  }
+
+  return (
+    <div ref={ref} style={{ position:'relative', minWidth:220 }}>
+      <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+        letterSpacing:'0.04em', marginBottom:4 }}>Field</div>
+
+      {/* Trigger button */}
+      <button type="button" onClick={()=>setOpen(v=>!v)} style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:8,
+        width:'100%', padding:'6px 10px', borderRadius:6,
+        border: open ? '1px solid #6b4c2a' : '1px solid #ddd',
+        background:'#fff', cursor:'pointer', fontSize:13, fontFamily:'inherit',
+        boxShadow: open ? '0 0 0 2px rgba(107,76,42,0.15)' : 'none',
+        textAlign:'left',
+      }}>
+        {selected ? (
+          <span style={{ display:'flex', alignItems:'center', gap:7, overflow:'hidden' }}>
+            <span>{FIELD_TYPE_ICON[selected.field_type] || '🗺️'}</span>
+            <span style={{ fontWeight:700, color:'#333', whiteSpace:'nowrap',
+              overflow:'hidden', textOverflow:'ellipsis' }}>
+              {selected.label || `Field ${selected.id}`}
+            </span>
+            {selected.area_ha != null && (
+              <span style={{ fontSize:11, color:'#aaa', whiteSpace:'nowrap' }}>
+                {Number(selected.area_ha).toFixed(1)} ha
+              </span>
+            )}
+          </span>
+        ) : (
+          <span style={{ color:'#bbb' }}>Select field…</span>
+        )}
+        <span style={{ color:'#bbb', fontSize:11, flexShrink:0 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div style={{
+          position:'absolute', top:'100%', left:0, zIndex:999, marginTop:4,
+          background:'#fff', border:'1px solid #e0d8cf', borderRadius:8,
+          boxShadow:'0 6px 24px rgba(0,0,0,0.13)', width:'max-content', minWidth:'100%', maxWidth:340,
+        }}>
+          {/* Search */}
+          <div style={{ padding:'8px 8px 4px' }}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder="Search by name, crop, type…"
+              style={{ ...inp, width:'100%', fontSize:12, boxSizing:'border-box' }}
+            />
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight:240, overflowY:'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding:'10px 12px', color:'#bbb', fontSize:12 }}>No fields match</div>
+            )}
+            {filtered.map(f => {
+              const isActive = String(f.id) === String(value);
+              const icon = FIELD_TYPE_ICON[f.field_type] || '🗺️';
+              return (
+                <div key={f.id} onClick={()=>pick(f)} style={{
+                  display:'flex', alignItems:'center', gap:10,
+                  padding:'8px 12px', cursor:'pointer',
+                  background: isActive ? '#f5f0ea' : 'transparent',
+                  borderLeft: isActive ? '3px solid #6b4c2a' : '3px solid transparent',
+                  transition:'background 0.1s',
+                }}
+                  onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background='#faf7f4'; }}
+                  onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background='transparent'; }}
+                >
+                  <span style={{ fontSize:18, flexShrink:0 }}>{icon}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:'#333',
+                      whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {f.label || `Field ${f.id}`}
+                    </div>
+                    <div style={{ display:'flex', gap:6, marginTop:2, flexWrap:'wrap' }}>
+                      {f.area_ha != null && (
+                        <span style={{ fontSize:10, color:'#888', background:'#f5f0ea',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {Number(f.area_ha).toFixed(1)} ha
+                        </span>
+                      )}
+                      {f.field_type && (
+                        <span style={{ fontSize:10, color:'#888', background:'#f0f4f0',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {f.field_type}
+                        </span>
+                      )}
+                      {f.crop_type && (
+                        <span style={{ fontSize:10, color:'#388e3c', background:'#e8f5e9',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {f.crop_type.replace(/_/g,' ').toLowerCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isActive && <span style={{ color:'#6b4c2a', fontSize:14 }}>✓</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding:'6px 12px', borderTop:'1px solid #f0ebe3',
+            fontSize:10, color:'#bbb', fontStyle:'italic' }}>
+            {fields.length} field{fields.length!==1?'s':''} total
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ── Combined create panel ─────────────────────────────────────────────────────
 const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
@@ -520,7 +716,7 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
       {open && (
         <div style={formBox}>
           <CreateTabs active={mode} setActive={setMode}/>
-          {mode === 'generic'       && <GenericForm       userId={userId} fields={fields} onCreated={handleCreated}/>}
+          {mode === 'generic'       && <GenericForm       userId={userId} fields={fields} onCreated={handleCreated} onSwitchTab={setMode}/>}
           {mode === 'sowing'        && <SowingForm        userId={userId} fields={fields} onCreated={handleCreated}/>}
           {mode === 'fertilization' && <FertilizationForm userId={userId} fields={fields} onCreated={handleCreated}/>}
           {mode === 'spraying'      && <SprayingForm      userId={userId} fields={fields} onCreated={handleCreated}/>}
@@ -939,15 +1135,32 @@ const WorkTypeAnalytics = ({ userId }) => {
   if(!data||!data.types.length) return <EmptyState text="No data for this period."/>;
   const { types, summary } = data;
   const sel = selected ? types.find(t=>t.work_type===selected) : null;
-  const top8 = types.slice(0,8);
-  const maxCount = Math.max(...top8.map(t=>t.count),1);
-  const maxCost  = Math.max(...top8.map(t=>t.avg_cost),1);
-  const radarData = top8.map(t=>({
-    type: (WORK_ICONS[t.work_type]||'')+' '+t.work_type.replace(/_/g,' ').toLowerCase(),
-    Frequency:      Math.round(t.count/maxCount*100),
-    Completion:     Math.round(t.completion_rate*100),
-    CostEfficiency: Math.round((1-t.avg_cost/maxCost)*100),
-  }));
+  // Top-3 comparison radar: one polygon per operation type across 5 real dimensions.
+  // Each axis is normalised 0–100 relative to the max in that dimension.
+  const top3 = types.slice(0,3);
+  const maxCount   = Math.max(...types.map(t=>t.count),1);
+  const maxCost    = Math.max(...types.map(t=>t.avg_cost||0),1);
+  const maxHarvest = Math.max(...types.map(t=>t.total_harvest_ton||0),1);
+  const maxFields  = Math.max(...types.map(t=>t.fields_involved||0),1);
+  // Radar format: rows are axes, each series key is a type name
+  const RADAR_AXES = ['Frequency','Completion %','Cost efficiency','Fields covered','Harvest vol.'];
+  const radarData = RADAR_AXES.map(axis => {
+    const row = { axis };
+    top3.forEach(t => {
+      const name = (WORK_ICONS[t.work_type]||'') + ' ' + t.work_type.replace(/_/g,' ').toLowerCase();
+      row[name] = axis === 'Frequency'
+        ? Math.round(t.count / maxCount * 100)
+        : axis === 'Completion %'
+        ? Math.round((t.completion_rate||0) * 100)
+        : axis === 'Cost efficiency'
+        ? Math.round((1 - (t.avg_cost||0) / maxCost) * 100)
+        : axis === 'Fields covered'
+        ? Math.round((t.fields_involved||0) / maxFields * 100)
+        : Math.round((t.total_harvest_ton||0) / maxHarvest * 100);
+    });
+    return row;
+  });
+  const RADAR_COLORS = ['#6b4c2a','#054e05','#0d47a1'];
 
   return (
     <div>
@@ -969,22 +1182,54 @@ const WorkTypeAnalytics = ({ userId }) => {
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
         <ChartBox>
-          <Sec>Operations count &amp; completion by type</Sec>
-          <ResponsiveContainer width="100%" height={Math.max(160,types.length*26)}>
-            <BarChart layout="vertical"
-              data={types.map(d=>({...d,label:(WORK_ICONS[d.work_type]||'')+' '+d.work_type.replace(/_/g,' ').toLowerCase()}))}
-              margin={{top:0,right:16,left:4,bottom:0}}
-              onClick={e=>e?.activePayload&&setSelected(e.activePayload[0]?.payload?.work_type)}>
-              <XAxis type="number" tick={{fontSize:10}} allowDecimals={false}/>
-              <YAxis type="category" dataKey="label" tick={{fontSize:10}} width={120}/>
-              <Tooltip contentStyle={{fontSize:11}} formatter={(v,n)=>[v,n==='count'?'Total':n==='completed'?'Completed':'Failed']}/>
-              <Legend iconSize={10} wrapperStyle={{fontSize:11}}/>
-              <Bar dataKey="count"     fill="#8d6e63" radius={[0,3,3,0]} name="count"/>
-              <Bar dataKey="completed" fill="#2e7d32" radius={[0,3,3,0]} name="completed"/>
-              <Bar dataKey="failed"    fill="#c62828" radius={[0,3,3,0]} name="failed"/>
-            </BarChart>
-          </ResponsiveContainer>
-          <div style={{ fontSize:10, color:'#bbb', marginTop:4 }}>Click a bar to drill down</div>
+          <Sec>Completion rate &amp; total cost by operation type</Sec>
+          {/* Custom SVG chart: completion-rate bar (colour-coded) + cost label.
+              More meaningful than the old count/completed/failed triple-bar which
+              plotted three subsets of the same metric on one axis. */}
+          <div style={{ overflowY:'auto', maxHeight: Math.max(200, types.length*34) }}>
+            {[...types].sort((a,b)=>b.completion_rate-a.completion_rate).map(t=>{
+              const pct   = Math.round(t.completion_rate * 100);
+              const color = pct >= 80 ? '#2e7d32' : pct >= 50 ? '#f57f17' : '#c62828';
+              const bg    = pct >= 80 ? '#e8f5e9' : pct >= 50 ? '#fff8e1' : '#fce4ec';
+              const label = (WORK_ICONS[t.work_type]||'') + ' ' + t.work_type.replace(/_/g,' ').toLowerCase();
+              return (
+                <div key={t.work_type}
+                  onClick={()=>setSelected(t.work_type===selected?null:t.work_type)}
+                  title={`${t.completed} of ${t.count} completed${t.total_cost ? ` · ${fmtEur(t.total_cost)} total` : ''}`}
+                  style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 0',
+                    cursor:'pointer', borderRadius:4,
+                    background: t.work_type===selected ? '#fdf6ef' : 'transparent' }}>
+                  {/* Label */}
+                  <div style={{ width:130, fontSize:10, color:'#666', fontWeight:600,
+                    whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flexShrink:0 }}>
+                    {label}
+                  </div>
+                  {/* Bar track */}
+                  <div style={{ flex:1, height:14, background:'#f0ebe3', borderRadius:3, position:'relative', minWidth:60 }}>
+                    <div style={{ width:`${pct}%`, height:'100%', background:color,
+                      borderRadius:3, transition:'width 0.3s' }}/>
+                  </div>
+                  {/* Pct label */}
+                  <div style={{ width:36, fontSize:10, fontWeight:800, color:color,
+                    textAlign:'right', flexShrink:0 }}>
+                    {pct}%
+                  </div>
+                  {/* Cost badge */}
+                  <div style={{ width:68, fontSize:10, color:'#888',
+                    background: t.total_cost ? bg : 'transparent',
+                    borderRadius:4, padding:'1px 5px', textAlign:'right', flexShrink:0 }}>
+                    {t.total_cost ? fmtEur(t.total_cost) : '—'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display:'flex', gap:16, marginTop:8, fontSize:10, color:'#aaa' }}>
+            <span>■ <span style={{color:'#2e7d32'}}>≥80%</span> good</span>
+            <span>■ <span style={{color:'#f57f17'}}>50–79%</span> watch</span>
+            <span>■ <span style={{color:'#c62828'}}>&lt;50%</span> attention</span>
+            <span style={{marginLeft:'auto'}}>Click row to drill down</span>
+          </div>
         </ChartBox>
         <ChartBox>
           <Sec>Average cost per operation type (€)</Sec>
@@ -1004,21 +1249,69 @@ const WorkTypeAnalytics = ({ userId }) => {
           </ResponsiveContainer>
         </ChartBox>
       </div>
-      {radarData.length >= 3 && (
+      {top3.length >= 2 && (
         <ChartBox style={{ marginBottom:14 }}>
-          <Sec>Multi-metric radar — top {top8.length} operation types</Sec>
-          <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={radarData} margin={{top:8,right:30,bottom:8,left:30}}>
-              <PolarGrid stroke="#e0d8cf"/>
-              <PolarAngleAxis dataKey="type" tick={{fontSize:10}}/>
-              <PolarRadiusAxis angle={30} domain={[0,100]} tick={{fontSize:9}} tickCount={3}/>
-              <Radar name="Frequency"       dataKey="Frequency"       stroke="#6b4c2a" fill="#6b4c2a" fillOpacity={0.18}/>
-              <Radar name="Completion"      dataKey="Completion"      stroke="#054e05" fill="#054e05" fillOpacity={0.18}/>
-              <Radar name="Cost Efficiency" dataKey="CostEfficiency"  stroke="#e65100" fill="#e65100" fillOpacity={0.12}/>
-              <Legend iconSize={10} wrapperStyle={{fontSize:11}}/>
-              <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v}`,'']}/>
-            </RadarChart>
-          </ResponsiveContainer>
+          <Sec>Top-3 operation types — 5-axis comparison radar</Sec>
+          <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+            {top3.map((t,i) => (
+              <div key={t.work_type} style={{ display:'flex', alignItems:'center', gap:6,
+                background:'#fafaf8', borderRadius:6, padding:'5px 10px',
+                border:`2px solid ${RADAR_COLORS[i]}22` }}>
+                <span style={{ width:10, height:10, borderRadius:'50%',
+                  background:RADAR_COLORS[i], display:'inline-block', flexShrink:0 }}/>
+                <span style={{ fontSize:12, fontWeight:700, color:'#444' }}>
+                  {WORK_ICONS[t.work_type]||''} {t.work_type.replace(/_/g,' ')}
+                </span>
+                <span style={{ fontSize:10, color:'#aaa' }}>
+                  {t.count} ops · {Math.round(t.completion_rate*100)}% done
+                  {t.avg_cost ? ` · ${fmtEur(t.avg_cost)} avg` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, alignItems:'start' }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <RadarChart data={radarData} margin={{top:10,right:30,bottom:10,left:30}}>
+                <PolarGrid stroke="#e0d8cf"/>
+                <PolarAngleAxis dataKey="axis" tick={{fontSize:10}}/>
+                <PolarRadiusAxis angle={72} domain={[0,100]} tick={{fontSize:8}} tickCount={4}/>
+                {top3.map((t,i) => {
+                  const name = (WORK_ICONS[t.work_type]||'') + ' ' + t.work_type.replace(/_/g,' ').toLowerCase();
+                  return (
+                    <Radar key={t.work_type} name={name} dataKey={name}
+                      stroke={RADAR_COLORS[i]} fill={RADAR_COLORS[i]} fillOpacity={0.15}/>
+                  );
+                })}
+                <Legend iconSize={9} wrapperStyle={{fontSize:10}}/>
+                <Tooltip contentStyle={{fontSize:11}} formatter={(v,n)=>[`${v} / 100`,n]}/>
+              </RadarChart>
+            </ResponsiveContainer>
+            {/* Axis explanation */}
+            <div style={{ display:'flex', flexDirection:'column', gap:8, paddingTop:8 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+                letterSpacing:'0.06em', marginBottom:4 }}>How to read this chart</div>
+              {[
+                ['Frequency',       '#6b4c2a', 'How often this operation is performed relative to the most frequent type.'],
+                ['Completion %',    '#054e05', 'Share of operations reaching COMPLETED or VERIFIED status.'],
+                ['Cost efficiency', '#e65100', 'Inverse of average cost — higher means cheaper per operation.'],
+                ['Fields covered',  '#0d47a1', 'Number of distinct fields this operation type has been applied to.'],
+                ['Harvest vol.',    '#388e3c', 'Total harvest tonnage associated with this operation type.'],
+              ].map(([axis,color,desc]) => (
+                <div key={axis} style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                  <span style={{ width:8, height:8, borderRadius:2, background:color,
+                    flexShrink:0, marginTop:3 }}/>
+                  <div>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#444' }}>{axis}</div>
+                    <div style={{ fontSize:10, color:'#888' }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop:4, fontSize:10, color:'#bbb', fontStyle:'italic' }}>
+                All axes normalised 0–100 relative to your data.
+                A larger polygon means stronger performance across dimensions.
+              </div>
+            </div>
+          </div>
         </ChartBox>
       )}
       {sel && (
@@ -1270,6 +1563,460 @@ const LocationAnalytics = ({ userId }) => {
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ANALYTICS TAB 3 – Equipment usage
+// ══════════════════════════════════════════════════════════════════════════════
+const EQ_ICONS_FW = {
+  TRACTOR:'🚜', PLOW:'🔧', DISC_HARROW:'⚙️', CULTIVATOR:'⚙️', SUBSOILER:'🔩',
+  ROLLER:'🔄', SEEDER:'🌱', TRANSPLANTER:'🌿', POTATO_PLANTER:'🥔',
+  SPRAYER:'💧', FERTILIZER_SPREADER:'🧪', IRRIGATION_SYSTEM:'💦',
+  MOWER:'✂️', BALER:'📦', RAKE:'🌾', COMBINE_HARVESTER:'🌾',
+  FORAGE_HARVESTER:'🌿', GRAIN_CART:'🛒', TRAILER:'🚛',
+  LOADER:'🏗', TELEHANDLER:'🏗', ATV:'🏎', TRUCK:'🚛',
+  DRONE:'🛸', OTHER:'🔧',
+};
+
+const EQ_STATUS_COLORS_FW = {
+  OPERATIONAL:'#2e7d32', IN_USE:'#0d47a1', MAINTENANCE:'#f57f17',
+  REPAIR:'#c62828', IDLE:'#9e9e9e', RETIRED:'#bdbdbd',
+};
+
+const EquipmentAnalytics = ({ userId }) => {
+  const [fleet,   setFleet]   = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selEq,   setSelEq]   = useState(null);
+  const [usage,   setUsage]   = useState([]);
+  const [loadingUsage, setLoadingUsage] = useState(false);
+
+  const load = useCallback(() => {
+    if (!userId) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`${BASE_EQ}/user/${userId}`),
+      api.get(`${BASE_EQ}/summary/user/${userId}`),
+    ])
+      .then(([f, s]) => {
+        setFleet(Array.isArray(f.data) ? f.data : []);
+        setSummary(s.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const selectEq = (eq) => {
+    if (selEq?.id === eq.id) { setSelEq(null); setUsage([]); return; }
+    setSelEq(eq);
+    setLoadingUsage(true);
+    api.get(`${BASE_EQ}/${eq.id}/usage?user_id=${userId}`)
+      .then(r => setUsage(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setUsage([]))
+      .finally(() => setLoadingUsage(false));
+  };
+
+  if (loading) return <EmptyState text="Loading fleet data…"/>;
+  if (!fleet.length) return (
+    <div style={{ textAlign:'center', padding:'32px 0', color:'#bbb' }}>
+      <div style={{ fontSize:32, marginBottom:8 }}>🚜</div>
+      <div style={{ fontSize:13, marginBottom:6 }}>No equipment registered yet.</div>
+      <div style={{ fontSize:11 }}>Add machines in the Farm Management → Equipment tab.</div>
+    </div>
+  );
+
+  // ── derived data for charts ──────────────────────────────────────────────
+  const byStatus = Object.entries(
+    fleet.reduce((acc, e) => { acc[e.status] = (acc[e.status]||0)+1; return acc; }, {})
+  ).map(([status, count]) => ({ status, count }));
+
+  const hoursData = fleet
+    .filter(e => (e.total_hours_logged||0) > 0)
+    .sort((a, b) => (b.total_hours_logged||0) - (a.total_hours_logged||0))
+    .map(e => ({
+      name: e.name,
+      hours: Number(e.total_hours_logged||0),
+      type:  e.equipment_type,
+    }));
+
+  const fuelData = fleet
+    .filter(e => (e.total_fuel_logged_l||0) > 0)
+    .sort((a, b) => (b.total_fuel_logged_l||0) - (a.total_fuel_logged_l||0))
+    .map(e => ({
+      name: e.name,
+      fuel: Number(e.total_fuel_logged_l||0).toFixed(0),
+    }));
+
+  const areaData = fleet
+    .filter(e => (e.total_area_logged_ha||0) > 0)
+    .sort((a, b) => (b.total_area_logged_ha||0) - (a.total_area_logged_ha||0))
+    .map(e => ({
+      name: e.name,
+      area_ha: Number(e.total_area_logged_ha||0).toFixed(1),
+    }));
+
+  const serviceData = fleet
+    .filter(e => e.next_service_date)
+    .sort((a, b) => new Date(a.next_service_date) - new Date(b.next_service_date))
+    .slice(0, 8);
+
+  const today = new Date();
+
+  // Usage aggregation for selected machine
+  const usageByMonth = usage.reduce((acc, u) => {
+    const m = String(u.used_date).slice(0, 7);
+    if (!acc[m]) acc[m] = { month: m, hours: 0, fuel: 0, area: 0 };
+    acc[m].hours += Number(u.hours_worked||0);
+    acc[m].fuel  += Number(u.fuel_consumed_l||0);
+    acc[m].area  += Number(u.area_ha||0);
+    return acc;
+  }, {});
+  const usageMonthly = Object.values(usageByMonth).sort((a,b)=>a.month.localeCompare(b.month));
+
+  return (
+    <div>
+      {/* Summary KPI cards */}
+      {summary && (
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+          <Card icon="🚜" label="Fleet total"      value={summary.total}                color="#6b4c2a"/>
+          <Card icon="✅" label="Operational"
+            value={(summary.by_status?.OPERATIONAL||0)+(summary.by_status?.IN_USE||0)}  color="#2e7d32"/>
+          <Card icon="⏱"  label="Hours logged (YTD)"
+            value={summary.year_hours_logged ? `${Number(summary.year_hours_logged).toFixed(0)} h` : '—'}
+            color="#0d47a1"/>
+          {summary.overdue_service > 0 && (
+            <Card icon="⚠️" label="Service overdue"  value={summary.overdue_service}    color="#c62828"/>
+          )}
+        </div>
+      )}
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+        {/* Fleet status distribution */}
+        <ChartBox>
+          <Sec>Fleet status distribution</Sec>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <ResponsiveContainer width={140} height={140}>
+              <PieChart>
+                <Pie data={byStatus} dataKey="count" nameKey="status"
+                  cx="50%" cy="50%" outerRadius={60} innerRadius={28}
+                  label={({percent})=>percent>0.08?`${(percent*100).toFixed(0)}%`:''} labelLine={false}>
+                  {byStatus.map(d=>(
+                    <Cell key={d.status} fill={EQ_STATUS_COLORS_FW[d.status]||'#9e9e9e'}/>
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={{fontSize:11}} formatter={(v,n)=>[v,n]}/>
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {byStatus.map(d => (
+                <div key={d.status} style={{ display:'flex', alignItems:'center', gap:7 }}>
+                  <span style={{ width:10, height:10, borderRadius:3, flexShrink:0,
+                    background: EQ_STATUS_COLORS_FW[d.status]||'#9e9e9e' }}/>
+                  <span style={{ fontSize:11, color:'#555', fontWeight:600 }}>
+                    {d.status.replace(/_/g,' ')}
+                  </span>
+                  <span style={{ fontSize:11, color:'#aaa', marginLeft:4 }}>{d.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ChartBox>
+
+        {/* Next service schedule */}
+        <ChartBox>
+          <Sec>Service schedule (next 8 due)</Sec>
+          {serviceData.length === 0
+            ? <EmptyState text="No service dates set"/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                {serviceData.map(e => {
+                  const due   = new Date(e.next_service_date);
+                  const days  = Math.round((due - today) / 86400000);
+                  const color = days < 0 ? '#c62828' : days <= 14 ? '#f57f17' : '#2e7d32';
+                  const bg    = days < 0 ? '#fce4ec' : days <= 14 ? '#fff8e1' : '#e8f5e9';
+                  return (
+                    <div key={e.id} style={{ display:'flex', alignItems:'center', gap:10,
+                      padding:'5px 8px', borderRadius:6, background:bg }}>
+                      <span style={{ fontSize:16 }}>{EQ_ICONS_FW[e.equipment_type]||'🔧'}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:'#333',
+                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                          {e.name}
+                        </div>
+                        <div style={{ fontSize:10, color:'#aaa' }}>
+                          {e.equipment_type.replace(/_/g,' ')}
+                          {e.hours_current != null ? ` · ${Number(e.hours_current).toFixed(0)} h` : ''}
+                        </div>
+                      </div>
+                      <div style={{ textAlign:'right', flexShrink:0 }}>
+                        <div style={{ fontSize:11, fontWeight:800, color }}>
+                          {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d`}
+                        </div>
+                        <div style={{ fontSize:10, color:'#aaa' }}>{e.next_service_date}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          }
+        </ChartBox>
+      </div>
+
+      {/* Hours logged per machine */}
+      {hoursData.length > 0 && (
+        <ChartBox style={{ marginBottom:14 }}>
+          <Sec>Hours logged per machine (click to drill down)</Sec>
+          <ResponsiveContainer width="100%" height={Math.max(140, hoursData.length*28)}>
+            <BarChart layout="vertical" data={hoursData}
+              margin={{top:0,right:60,left:4,bottom:0}}
+              onClick={e => {
+                if (!e?.activePayload) return;
+                const name = e.activePayload[0]?.payload?.name;
+                const eq = fleet.find(x => x.name === name);
+                if (eq) selectEq(eq);
+              }}>
+              <XAxis type="number" tick={{fontSize:10}} unit=" h"/>
+              <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={130}/>
+              <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v} h`,'Hours logged']}/>
+              <Bar dataKey="hours" radius={[0,4,4,0]} cursor="pointer">
+                {hoursData.map((d, i) => (
+                  <Cell key={i}
+                    fill={selEq?.name === d.name ? '#6b4c2a' : PALETTE[i % PALETTE.length]}
+                    opacity={selEq && selEq.name !== d.name ? 0.4 : 1}/>
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartBox>
+      )}
+
+      {/* Fuel and area side by side */}
+      {(fuelData.length > 0 || areaData.length > 0) && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+          {fuelData.length > 0 && (
+            <ChartBox>
+              <Sec>Fuel consumed per machine (L)</Sec>
+              <ResponsiveContainer width="100%" height={Math.max(120, fuelData.length*26)}>
+                <BarChart layout="vertical" data={fuelData} margin={{top:0,right:50,left:4,bottom:0}}>
+                  <XAxis type="number" tick={{fontSize:10}} unit=" L"/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={120}/>
+                  <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v} L`,'Fuel']}/>
+                  <Bar dataKey="fuel" radius={[0,4,4,0]}>
+                    {fuelData.map((_, i) => <Cell key={i} fill={PALETTE[(i+4)%PALETTE.length]}/>)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartBox>
+          )}
+          {areaData.length > 0 && (
+            <ChartBox>
+              <Sec>Area covered per machine (ha)</Sec>
+              <ResponsiveContainer width="100%" height={Math.max(120, areaData.length*26)}>
+                <BarChart layout="vertical" data={areaData} margin={{top:0,right:50,left:4,bottom:0}}>
+                  <XAxis type="number" tick={{fontSize:10}} unit=" ha"/>
+                  <YAxis type="category" dataKey="name" tick={{fontSize:10}} width={120}/>
+                  <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${v} ha`,'Area']}/>
+                  <Bar dataKey="area_ha" radius={[0,4,4,0]}>
+                    {areaData.map((_,i) => <Cell key={i} fill={PALETTE[(i+7)%PALETTE.length]}/>)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartBox>
+          )}
+        </div>
+      )}
+
+      {/* Drill-down: selected machine monthly usage */}
+      {selEq && (
+        <ChartBox style={{ border:'2px solid #6b4c2a', marginBottom:14 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:22 }}>{EQ_ICONS_FW[selEq.equipment_type]||'🔧'}</span>
+              <div>
+                <Sec style={{ margin:0 }}>{selEq.name} — usage detail</Sec>
+                <div style={{ fontSize:11, color:'#aaa' }}>
+                  {selEq.equipment_type.replace(/_/g,' ')}
+                  {selEq.manufacturer ? ` · ${selEq.manufacturer} ${selEq.model||''}` : ''}
+                  {selEq.hours_current != null ? ` · ${Number(selEq.hours_current).toFixed(0)} h current` : ''}
+                </div>
+              </div>
+            </div>
+            <button onClick={()=>{setSelEq(null);setUsage([]);}}
+              style={{ background:'none', border:'1px solid #e0d8cf', borderRadius:6,
+                padding:'3px 10px', fontSize:11, cursor:'pointer', color:'#888' }}>✕ Close</button>
+          </div>
+
+          {/* KPI row */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+            <Card icon="⏱"  label="Total hours logged"
+              value={`${Number(selEq.total_hours_logged||0).toFixed(0)} h`}   color="#0d47a1"/>
+            <Card icon="⛽"  label="Total fuel logged"
+              value={selEq.total_fuel_logged_l ? `${Number(selEq.total_fuel_logged_l).toFixed(0)} L` : '—'}
+              color="#e65100"/>
+            <Card icon="🗺️"  label="Total area covered"
+              value={selEq.total_area_logged_ha ? `${Number(selEq.total_area_logged_ha).toFixed(1)} ha` : '—'}
+              color="#054e05"/>
+            {selEq.last_maintenance_date && (
+              <Card icon="🔧" label="Last service"
+                value={selEq.last_maintenance_date}                            color="#5d4037"/>
+            )}
+          </div>
+
+          {loadingUsage
+            ? <EmptyState text="Loading usage log…"/>
+            : usageMonthly.length === 0
+              ? <EmptyState text="No usage sessions logged yet for this machine."/>
+              : (
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                  <div>
+                    <Sec>Hours per month</Sec>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={usageMonthly} margin={{top:2,right:8,left:-18,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe3"/>
+                        <XAxis dataKey="month" tick={{fontSize:9}} tickFormatter={v=>v.slice(5)}/>
+                        <YAxis tick={{fontSize:9}}/>
+                        <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${Number(v).toFixed(1)} h`,'Hours']}/>
+                        <Bar dataKey="hours" fill="#0d47a1" radius={[2,2,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div>
+                    <Sec>Fuel per month (L)</Sec>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={usageMonthly} margin={{top:2,right:8,left:-18,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe3"/>
+                        <XAxis dataKey="month" tick={{fontSize:9}} tickFormatter={v=>v.slice(5)}/>
+                        <YAxis tick={{fontSize:9}}/>
+                        <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${Number(v).toFixed(0)} L`,'Fuel']}/>
+                        <Bar dataKey="fuel" fill="#e65100" radius={[2,2,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div>
+                    <Sec>Area per month (ha)</Sec>
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={usageMonthly} margin={{top:2,right:8,left:-18,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ebe3"/>
+                        <XAxis dataKey="month" tick={{fontSize:9}} tickFormatter={v=>v.slice(5)}/>
+                        <YAxis tick={{fontSize:9}}/>
+                        <Tooltip contentStyle={{fontSize:11}} formatter={v=>[`${Number(v).toFixed(1)} ha`,'Area']}/>
+                        <Bar dataKey="area" fill="#054e05" radius={[2,2,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )
+          }
+
+          {/* Raw sessions table */}
+          {usage.length > 0 && (
+            <div style={{ marginTop:14 }}>
+              <Sec>Usage sessions ({usage.length} total)</Sec>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                  <thead>
+                    <tr style={{ background:'#f5f0ea', textAlign:'left' }}>
+                      {['Date','Hours','Area (ha)','Fuel (L)','Fuel cost','Operator','Field','Work type'].map(h=>(
+                        <th key={h} style={{ padding:'5px 8px', fontWeight:700, color:'#888',
+                          borderBottom:'1px solid #e0d8cf', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usage.map((u,i)=>(
+                      <tr key={u.id}
+                        style={{ background:i%2===0?'#fff':'#fafaf8' }}>
+                        <td style={{ padding:'5px 8px', fontWeight:600 }}>{u.used_date}</td>
+                        <td style={{ padding:'5px 8px', textAlign:'right' }}>
+                          {u.hours_worked ? `${Number(u.hours_worked).toFixed(1)} h` : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', textAlign:'right', color:'#388e3c' }}>
+                          {u.area_ha ? `${Number(u.area_ha).toFixed(1)}` : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', textAlign:'right', color:'#e65100' }}>
+                          {u.fuel_consumed_l ? `${Number(u.fuel_consumed_l).toFixed(0)}` : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', textAlign:'right' }}>
+                          {u.fuel_cost ? fmtEur(u.fuel_cost) : '—'}
+                        </td>
+                        <td style={{ padding:'5px 8px', color:'#888' }}>{u.operator_name||'—'}</td>
+                        <td style={{ padding:'5px 8px', color:'#888' }}>{u.field_label||'—'}</td>
+                        <td style={{ padding:'5px 8px', color:'#888' }}>
+                          {u.work_type ? u.work_type.replace(/_/g,' ') : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </ChartBox>
+      )}
+
+      {/* Fleet table */}
+      <ChartBox>
+        <Sec>Full fleet register</Sec>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+            <thead>
+              <tr style={{ background:'#f5f0ea', textAlign:'left' }}>
+                {['Machine','Type','Status','Year','Power','Hours (cur)','Hours logged','Fuel logged','Area logged','Next service'].map(h=>(
+                  <th key={h} style={{ padding:'6px 8px', fontWeight:700, color:'#888',
+                    borderBottom:'1px solid #e0d8cf', whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {fleet.map((e,i)=>{
+                const due   = e.next_service_date ? new Date(e.next_service_date) : null;
+                const days  = due ? Math.round((due-today)/86400000) : null;
+                const dcol  = days==null?'#aaa':days<0?'#c62828':days<=14?'#f57f17':'#2e7d32';
+                return (
+                  <tr key={e.id} onClick={()=>selectEq(e)}
+                    style={{ background:selEq?.id===e.id?'#fdf6ef':i%2===0?'#fff':'#fafaf8',
+                      cursor:'pointer', transition:'background 0.1s' }}>
+                    <td style={{ padding:'6px 8px', fontWeight:700 }}>
+                      {EQ_ICONS_FW[e.equipment_type]||'🔧'} {e.name}
+                    </td>
+                    <td style={{ padding:'6px 8px', color:'#888' }}>{e.equipment_type.replace(/_/g,' ')}</td>
+                    <td style={{ padding:'6px 8px' }}>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:10,
+                        background:(EQ_STATUS_COLORS_FW[e.status]||'#9e9e9e')+'22',
+                        color: EQ_STATUS_COLORS_FW[e.status]||'#9e9e9e', border:'1px solid currentColor' }}>
+                        {e.status.replace(/_/g,' ')}
+                      </span>
+                    </td>
+                    <td style={{ padding:'6px 8px', color:'#aaa' }}>{e.year_of_manufacture||'—'}</td>
+                    <td style={{ padding:'6px 8px', color:'#aaa' }}>{e.power_kw ? `${e.power_kw} kW` : '—'}</td>
+                    <td style={{ padding:'6px 8px', textAlign:'right' }}>
+                      {e.hours_current != null ? `${Number(e.hours_current).toFixed(0)} h` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', textAlign:'right', fontWeight:600, color:'#0d47a1' }}>
+                      {e.total_hours_logged ? `${Number(e.total_hours_logged).toFixed(0)} h` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', textAlign:'right', color:'#e65100' }}>
+                      {e.total_fuel_logged_l ? `${Number(e.total_fuel_logged_l).toFixed(0)} L` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', textAlign:'right', color:'#388e3c' }}>
+                      {e.total_area_logged_ha ? `${Number(e.total_area_logged_ha).toFixed(1)} ha` : '—'}
+                    </td>
+                    <td style={{ padding:'6px 8px', fontWeight:700, color:dcol }}>
+                      {days==null ? '—' : days<0 ? `${Math.abs(days)}d overdue` : days===0 ? 'Today' : `${days}d`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </ChartBox>
+    </div>
+  );
+};
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN EXPORT
 // ══════════════════════════════════════════════════════════════════════════════
 const FieldWorkPanel = ({ userId, locationId }) => {
@@ -1283,7 +2030,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
 
   const loadFields = useCallback(()=>{
     if(!userId) return;
-    api.get('/api/v1/fields/user_fields',{params:{user_id:userId,...(locationId?{location_id:locationId}:{})}})
+    api.get('/api/v1/user_fields',{params:{user_id:userId,...(locationId?{location_id:locationId}:{})}})
       .then(r=>{ const d=r.data; setFields(Array.isArray(d)?d:(d?.fields??d?.items??[])); })
       .catch(()=>setFields([]));
   },[userId,locationId]);
@@ -1306,6 +2053,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
     ['seasons',    '🌱 Seasons'],
     ['by_type',    '📊 By Operation'],
     ['by_location','📍 By Location'],
+    ['by_equipment','🚜 Equipment'],
   ];
 
   return (
@@ -1346,7 +2094,8 @@ const FieldWorkPanel = ({ userId, locationId }) => {
           )}
           {tab === 'seasons' && <SeasonsTab fields={fields}/>}
           {tab === 'by_type'     && <WorkTypeAnalytics userId={userId}/>}
-          {tab === 'by_location' && <LocationAnalytics userId={userId}/>}
+          {tab === 'by_location'  && <LocationAnalytics  userId={userId}/>}
+          {tab === 'by_equipment' && <EquipmentAnalytics userId={userId}/>}
         </div>
       )}
     </div>

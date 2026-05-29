@@ -616,14 +616,6 @@ def get_pasture_field_history(
     }
 
 
-class FieldUpdate(BaseModel):
-    label: Optional[str] = None
-    field_type: Optional[FieldType] = None
-    crop_type: Optional[str] = None
-    season_year: Optional[int] = None
-    status: Optional[str] = None
-
-
 @router.get("/user_fields", tags=["Fields"])
 def get_user_fields_list(
     user_id: int,
@@ -659,6 +651,14 @@ def get_user_fields_list(
         }
         for f in fields
     ]
+
+
+class FieldUpdate(BaseModel):
+    label: Optional[str] = None
+    field_type: Optional[FieldType] = None
+    crop_type: Optional[str] = None
+    season_year: Optional[int] = None
+    status: Optional[str] = None
 
 
 @router.patch("/{field_id}", tags=["Fields"])
