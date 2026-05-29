@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid,
@@ -502,17 +502,156 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
 };
 
 // ── Field selector helper ────────────────────────────────────────────────────
-const FieldSelector = ({ fields, value, onChange }) => (
-  fields.length > 0
-    ? <FL label="Field">
-        <select value={value} onChange={e=>onChange(e.target.value)} style={inp}>
-          {fields.map(f=><option key={f.id} value={f.id}>{f.label||`Field ${f.id}`}</option>)}
-        </select>
+const FIELD_TYPE_ICON = { cropland:'🌾', pasture:'🐄', orchard:'🍎', vineyard:'🍇', garden:'🥕', fallow:'🟫', other:'🗺️' };
+
+const FieldSelector = ({ fields, value, onChange }) => {
+  const [open,    setOpen]   = useState(false);
+  const [query,   setQuery]  = useState('');
+  const ref = React.useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = fields.find(f => String(f.id) === String(value));
+
+  const filtered = query.trim()
+    ? fields.filter(f => {
+        const q = query.toLowerCase();
+        return (f.label||'').toLowerCase().includes(q)
+            || (f.crop_type||'').toLowerCase().includes(q)
+            || (f.field_type||'').toLowerCase().includes(q)
+            || String(f.id).includes(q);
+      })
+    : fields;
+
+  const pick = f => { onChange(String(f.id)); setOpen(false); setQuery(''); };
+
+  // Fallback: no fields loaded yet — simple numeric input
+  if (fields.length === 0) {
+    return (
+      <FL label="Field ID">
+        <Inp type="number" value={value} onChange={e=>onChange(e.target.value)} style={{width:110}} placeholder="ID"/>
       </FL>
-    : <FL label="Field ID">
-        <Inp type="number" value={value} onChange={e=>onChange(e.target.value)} style={{width:110}}/>
-      </FL>
-);
+    );
+  }
+
+  return (
+    <div ref={ref} style={{ position:'relative', minWidth:220 }}>
+      <div style={{ fontSize:10, fontWeight:700, color:'#aaa', textTransform:'uppercase',
+        letterSpacing:'0.04em', marginBottom:4 }}>Field</div>
+
+      {/* Trigger button */}
+      <button type="button" onClick={()=>setOpen(v=>!v)} style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:8,
+        width:'100%', padding:'6px 10px', borderRadius:6,
+        border: open ? '1px solid #6b4c2a' : '1px solid #ddd',
+        background:'#fff', cursor:'pointer', fontSize:13, fontFamily:'inherit',
+        boxShadow: open ? '0 0 0 2px rgba(107,76,42,0.15)' : 'none',
+        textAlign:'left',
+      }}>
+        {selected ? (
+          <span style={{ display:'flex', alignItems:'center', gap:7, overflow:'hidden' }}>
+            <span>{FIELD_TYPE_ICON[selected.field_type] || '🗺️'}</span>
+            <span style={{ fontWeight:700, color:'#333', whiteSpace:'nowrap',
+              overflow:'hidden', textOverflow:'ellipsis' }}>
+              {selected.label || `Field ${selected.id}`}
+            </span>
+            {selected.area_ha != null && (
+              <span style={{ fontSize:11, color:'#aaa', whiteSpace:'nowrap' }}>
+                {Number(selected.area_ha).toFixed(1)} ha
+              </span>
+            )}
+          </span>
+        ) : (
+          <span style={{ color:'#bbb' }}>Select field…</span>
+        )}
+        <span style={{ color:'#bbb', fontSize:11, flexShrink:0 }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div style={{
+          position:'absolute', top:'100%', left:0, zIndex:999, marginTop:4,
+          background:'#fff', border:'1px solid #e0d8cf', borderRadius:8,
+          boxShadow:'0 6px 24px rgba(0,0,0,0.13)', width:'max-content', minWidth:'100%', maxWidth:340,
+        }}>
+          {/* Search */}
+          <div style={{ padding:'8px 8px 4px' }}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder="Search by name, crop, type…"
+              style={{ ...inp, width:'100%', fontSize:12, boxSizing:'border-box' }}
+            />
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight:240, overflowY:'auto' }}>
+            {filtered.length === 0 && (
+              <div style={{ padding:'10px 12px', color:'#bbb', fontSize:12 }}>No fields match</div>
+            )}
+            {filtered.map(f => {
+              const isActive = String(f.id) === String(value);
+              const icon = FIELD_TYPE_ICON[f.field_type] || '🗺️';
+              return (
+                <div key={f.id} onClick={()=>pick(f)} style={{
+                  display:'flex', alignItems:'center', gap:10,
+                  padding:'8px 12px', cursor:'pointer',
+                  background: isActive ? '#f5f0ea' : 'transparent',
+                  borderLeft: isActive ? '3px solid #6b4c2a' : '3px solid transparent',
+                  transition:'background 0.1s',
+                }}
+                  onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background='#faf7f4'; }}
+                  onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background='transparent'; }}
+                >
+                  <span style={{ fontSize:18, flexShrink:0 }}>{icon}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:13, color:'#333',
+                      whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      {f.label || `Field ${f.id}`}
+                    </div>
+                    <div style={{ display:'flex', gap:6, marginTop:2, flexWrap:'wrap' }}>
+                      {f.area_ha != null && (
+                        <span style={{ fontSize:10, color:'#888', background:'#f5f0ea',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {Number(f.area_ha).toFixed(1)} ha
+                        </span>
+                      )}
+                      {f.field_type && (
+                        <span style={{ fontSize:10, color:'#888', background:'#f0f4f0',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {f.field_type}
+                        </span>
+                      )}
+                      {f.crop_type && (
+                        <span style={{ fontSize:10, color:'#388e3c', background:'#e8f5e9',
+                          borderRadius:4, padding:'1px 5px' }}>
+                          {f.crop_type.replace(/_/g,' ').toLowerCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isActive && <span style={{ color:'#6b4c2a', fontSize:14 }}>✓</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding:'6px 12px', borderTop:'1px solid #f0ebe3',
+            fontSize:10, color:'#bbb', fontStyle:'italic' }}>
+            {fields.length} field{fields.length!==1?'s':''} total
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ── Combined create panel ─────────────────────────────────────────────────────
 const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
@@ -1293,7 +1432,7 @@ const FieldWorkPanel = ({ userId, locationId }) => {
 
   const loadFields = useCallback(()=>{
     if(!userId) return;
-    api.get('/api/v1/fields/user_fields',{params:{user_id:userId,...(locationId?{location_id:locationId}:{})}})
+    api.get('/api/v1/user_fields',{params:{user_id:userId,...(locationId?{location_id:locationId}:{})}})
       .then(r=>{ const d=r.data; setFields(Array.isArray(d)?d:(d?.fields??d?.items??[])); })
       .catch(()=>setFields([]));
   },[userId,locationId]);

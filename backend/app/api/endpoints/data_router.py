@@ -290,6 +290,44 @@ class _FieldUpdate(_BaseModel):
     season_year: int = None
     status: str = None
 
+
+@router.get("/fields/user_fields")
+def get_fields_user_fields(
+    user_id: int,
+    location_id: int = None,
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(FieldUnit)
+        .join(UserLocation, FieldUnit.location_id == UserLocation.id)
+        .filter(UserLocation.user_id == user_id)
+    )
+    if location_id:
+        query = query.filter(FieldUnit.location_id == location_id)
+    try:
+        query = query.filter(FieldUnit.deleted_at.is_(None))
+    except Exception:
+        pass
+    fields = query.order_by(FieldUnit.created_at.desc()).all()
+    return [
+        {
+            "id":           f.id,
+            "location_id":  f.location_id,
+            "label":        f.label,
+            "field_type":   f.field_type.value if hasattr(f.field_type, "value") else f.field_type,
+            "crop_type":    f.crop_type,
+            "season_year":  f.season_year,
+            "area_ha":      float(f.area_ha) if f.area_ha is not None else None,
+            "status":       f.status,
+            "source":       f.source,
+            "manual_added": f.manual_added,
+            "created_at":   f.created_at.isoformat() if f.created_at else None,
+            "updated_at":   f.updated_at.isoformat() if f.updated_at else None,
+        }
+        for f in fields
+    ]
+
+
 @router.patch("/fields/{field_id}")
 def patch_field(
     field_id: int,
