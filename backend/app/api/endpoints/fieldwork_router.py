@@ -563,8 +563,12 @@ def record_harvest(
         if field_name not in ("work_cost", "operator_name", "equipment"):
             setattr(season, field_name, value)
 
+    # Auto-compute yield if the user did not explicitly provide one.
+    # Use the season's current values (which include anything just set above).
     if season.harvest_total_t and season.harvest_area_ha and not data.yield_t_ha:
-        season.yield_t_ha = round(float(season.harvest_total_t) / float(season.harvest_area_ha), 3)
+        season.yield_t_ha = round(
+            float(season.harvest_total_t) / float(season.harvest_area_ha), 3
+        )
 
     existing_hw = (
         db.query(FieldWork)

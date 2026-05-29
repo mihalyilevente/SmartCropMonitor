@@ -75,7 +75,7 @@ const PALETTE = [
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const fmtEur = v => `${Number(v || 0).toFixed(0)} € total`;
+const fmtEur = v => `${Number(v || 0).toFixed(0)} €`;
 const fmtTon = v => `${Number(v || 0).toFixed(2)} t`;
 const fmtPct = v => `${Math.round((v || 0) * 100)}%`;
 const fmtHa  = v => v != null ? `${Number(v).toFixed(1)} ha` : '—';
@@ -242,7 +242,7 @@ const GenericForm = ({ userId, fields, onCreated, onSwitchTab }) => {
           </select>
         </FL>
         <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
-        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 250"/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
@@ -331,7 +331,7 @@ const SowingForm = ({ userId, fields, onCreated }) => {
         </FL>
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 180"/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
@@ -428,7 +428,7 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
 
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 420"/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
@@ -537,7 +537,7 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
         <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cert. number"><Inp value={form.operator_cert} onChange={e=>set('operator_cert',e.target.value)} style={{width:140}}/></FL>
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-        <FL label="Total cost (€)" title="Total operation cost in euros (not per-hectare or hourly)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}} placeholder="e.g. 95"/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
       </div>
       <div style={{ marginTop:12 }}>
@@ -728,37 +728,75 @@ const CreateWorkForm = ({ userId, fields: fieldsProp, onCreated }) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // HARVEST MODAL (on season)
 // ══════════════════════════════════════════════════════════════════════════════
-const HarvestModal = ({ season, onClose, onSaved }) => {
+const HarvestModal = ({ season, fieldAreaHa, onClose, onSaved }) => {
   const [busy, setBusy] = useState(false);
+
+  // Pre-populate area from the season record first, then fall back to the
+  // field's own area_ha so the user never has to look it up manually.
+  const defaultArea = season.harvest_area_ha != null
+    ? String(season.harvest_area_ha)
+    : fieldAreaHa != null ? String(fieldAreaHa) : '';
+
   const [form, setForm] = useState({
-    harvest_date: todayDate(), harvest_area_ha: season.harvest_area_ha || '',
-    harvest_total_t:'', yield_t_ha:'', moisture_pct:'', protein_pct:'',
-    operator_name:'', notes:'',
+    harvest_date: todayDate(),
+    harvest_area_ha: defaultArea,
+    harvest_total_t: '', yield_t_ha: '', moisture_pct: '', protein_pct: '',
+    work_cost: '', operator_name: '', notes: '',
   });
-  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // ── Live yield auto-calculation ──────────────────────────────────────────────
+  // Recomputes yield whenever total or area changes, unless the user has
+  // manually entered their own yield value (yieldLocked = true).
+  const [yieldLocked, setYieldLocked] = useState(false);
+
+  const computeYield = (total, area) => {
+    const t = parseFloat(total);
+    const a = parseFloat(area);
+    return (t > 0 && a > 0) ? (t / a).toFixed(3) : '';
+  };
+
+  const setTotalT = v => setForm(f => ({
+    ...f,
+    harvest_total_t: v,
+    yield_t_ha: (!yieldLocked) ? computeYield(v, f.harvest_area_ha) : f.yield_t_ha,
+  }));
+
+  const setAreaHa = v => setForm(f => ({
+    ...f,
+    harvest_area_ha: v,
+    yield_t_ha: (!yieldLocked) ? computeYield(f.harvest_total_t, v) : f.yield_t_ha,
+  }));
+
+  const setYield = v => { setYieldLocked(!!v); set('yield_t_ha', v); };
 
   const submit = async () => {
     setBusy(true);
     try {
       await api.post(`${BASE}/harvest/${season.id}`, {
-        harvest_date: form.harvest_date || null,
+        harvest_date:    form.harvest_date    || null,
         harvest_area_ha: form.harvest_area_ha ? Number(form.harvest_area_ha) : null,
         harvest_total_t: form.harvest_total_t ? Number(form.harvest_total_t) : null,
         yield_t_ha:      form.yield_t_ha      ? Number(form.yield_t_ha)      : null,
         moisture_pct:    form.moisture_pct    ? Number(form.moisture_pct)    : null,
         protein_pct:     form.protein_pct     ? Number(form.protein_pct)     : null,
-        operator_name: form.operator_name || null, notes: form.notes || null,
-        work_cost: form.work_cost ? Number(form.work_cost) : null,
+        work_cost:       form.work_cost       ? Number(form.work_cost)       : null,
+        operator_name:   form.operator_name   || null,
+        notes:           form.notes           || null,
       });
       onSaved();
     } catch { alert('Failed to save harvest'); }
     finally { setBusy(false); }
   };
 
+  const autoYield = !yieldLocked
+    && parseFloat(form.harvest_total_t) > 0
+    && parseFloat(form.harvest_area_ha) > 0;
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', zIndex:1000,
       display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:'#fff', borderRadius:14, padding:24, width:460, maxWidth:'95vw',
+      <div style={{ background:'#fff', borderRadius:14, padding:24, width:500, maxWidth:'95vw',
         boxShadow:'0 8px 40px rgba(0,0,0,0.18)' }}>
         <div style={{ fontWeight:800, fontSize:15, marginBottom:4 }}>🌾 Record Harvest</div>
         <div style={{ fontSize:11, color:'#888', marginBottom:16 }}>
@@ -766,19 +804,47 @@ const HarvestModal = ({ season, onClose, onSaved }) => {
           {season.variety ? ` (${season.variety})` : ''}
         </div>
         <div style={{ display:'flex', flexWrap:'wrap', gap:12 }}>
-          <FL label="Harvest date"><Inp type="date" value={form.harvest_date} onChange={e=>set('harvest_date',e.target.value)}/></FL>
-          <FL label="Area (ha)"><Inp type="number" value={form.harvest_area_ha} onChange={e=>set('harvest_area_ha',e.target.value)} style={{width:100}}/></FL>
-          <FL label="Total yield (t)"><Inp type="number" value={form.harvest_total_t} onChange={e=>set('harvest_total_t',e.target.value)} style={{width:110}}/></FL>
-          <FL label="Yield t/ha"><Inp type="number" value={form.yield_t_ha} onChange={e=>set('yield_t_ha',e.target.value)} style={{width:100}} placeholder="auto"/></FL>
-          <FL label="Moisture %"><Inp type="number" value={form.moisture_pct} onChange={e=>set('moisture_pct',e.target.value)} style={{width:100}}/></FL>
-          <FL label="Protein %"><Inp type="number" value={form.protein_pct} onChange={e=>set('protein_pct',e.target.value)} style={{width:100}}/></FL>
-          <FL label="Harvesting cost (€ total)" title="Total harvesting operation cost in euros — not per-tonne or per-hectare"><Inp type="number" value={form.work_cost||''} onChange={e=>set('work_cost',e.target.value)} style={{width:110}} placeholder="e.g. 1200"/></FL>
-          <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:160}}/></FL>
-          <FL label="Notes" style={{flex:1,minWidth:200}}><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:'100%'}}/></FL>
+          <FL label="Harvest date">
+            <Inp type="date" value={form.harvest_date} onChange={e=>set('harvest_date',e.target.value)}/>
+          </FL>
+          <FL label="Area (ha)" title="Harvested area — pre-filled from field size, adjust if needed">
+            <Inp type="number" value={form.harvest_area_ha} onChange={e=>setAreaHa(e.target.value)}
+              style={{width:100}}/>
+          </FL>
+          <FL label="Total yield (t)">
+            <Inp type="number" value={form.harvest_total_t} onChange={e=>setTotalT(e.target.value)}
+              style={{width:110}}/>
+          </FL>
+          <FL label={autoYield ? 'Yield t/ha (auto)' : 'Yield t/ha'}
+            title={autoYield ? 'Calculated automatically from total ÷ area. Type to override.' : 'Enter manually or fill Total and Area to auto-calculate'}>
+            <Inp type="number" value={form.yield_t_ha} onChange={e=>setYield(e.target.value)}
+              style={{width:100, background: autoYield ? '#f0f7f0' : '#fff'}}
+              placeholder="auto"/>
+          </FL>
+          <FL label="Moisture %">
+            <Inp type="number" value={form.moisture_pct} onChange={e=>set('moisture_pct',e.target.value)}
+              style={{width:90}} placeholder="e.g. 14"/>
+          </FL>
+          <FL label="Protein %">
+            <Inp type="number" value={form.protein_pct} onChange={e=>set('protein_pct',e.target.value)}
+              style={{width:90}} placeholder="e.g. 12"/>
+          </FL>
+          <FL label="Harvesting cost (€ total)" title="Total harvesting cost in euros">
+            <Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)}
+              style={{width:110}} placeholder="e.g. 1200"/>
+          </FL>
+          <FL label="Operator">
+            <Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)}
+              style={{width:160}}/>
+          </FL>
+          <FL label="Notes" style={{flex:1, minWidth:200}}>
+            <Inp value={form.notes} onChange={e=>set('notes',e.target.value)}
+              style={{width:'100%'}}/>
+          </FL>
         </div>
         <div style={{ display:'flex', gap:10, marginTop:16, justifyContent:'flex-end' }}>
-          <button onClick={onClose} style={{ background:'none', border:'1px solid #ddd', borderRadius:6,
-            padding:'7px 16px', cursor:'pointer', fontSize:13 }}>Cancel</button>
+          <button onClick={onClose} style={{ background:'none', border:'1px solid #ddd',
+            borderRadius:6, padding:'7px 16px', cursor:'pointer', fontSize:13 }}>Cancel</button>
           <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#2e7d32'}}>
             {busy ? 'Saving…' : '🌾 Save Harvest'}
           </button>
@@ -786,7 +852,7 @@ const HarvestModal = ({ season, onClose, onSaved }) => {
       </div>
     </div>
   );
-};
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SEASONS TAB
@@ -815,7 +881,12 @@ const SeasonsTab = ({ fields }) => {
   return (
     <div>
       {harvestSeason && (
-        <HarvestModal season={harvestSeason} onClose={()=>setHarvestSeason(null)} onSaved={()=>{ setHarvestSeason(null); load(); }}/>
+        <HarvestModal
+          season={harvestSeason}
+          fieldAreaHa={fields.find(f=>f.id===selectedField)?.area_ha ?? null}
+          onClose={()=>setHarvestSeason(null)}
+          onSaved={()=>{ setHarvestSeason(null); load(); }}
+        />
       )}
 
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
@@ -972,7 +1043,7 @@ const WorkRow = ({ record, onUpdate }) => {
           <div style={{ fontSize:11, color:'#aaa', marginTop:2, display:'flex', gap:12, flexWrap:'wrap' }}>
             <span>📅 {ts}</span>
             {record.operator_name && <span>👤 {record.operator_name}</span>}
-            {record.work_cost != null && <span title="Total operation cost">💶 {Number(record.work_cost).toFixed(2)} € total</span>}
+            {record.work_cost != null && <span>💶 {Number(record.work_cost).toFixed(2)} €</span>}
             {record.harvest_ton != null && <span>🌾 {Number(record.harvest_ton).toFixed(3)} t</span>}
             {fert && fert.n_kg_ha != null && (
               <span>N {fert.n_kg_ha} · P {fert.p2o5_kg_ha||'—'} · K {fert.k2o_kg_ha||'—'} kg/ha</span>
