@@ -191,25 +191,29 @@ const GenericForm = ({ userId, fields, onCreated }) => {
   };
 
   return (
-    <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
-      <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
-      <FL label="Work type">
-        <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
-          {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
-        </select>
-      </FL>
-      <FL label="Status">
-        <select value={form.work_status} onChange={e=>set('work_status',e.target.value)} style={inp}>
-          {Object.keys(STATUS_CFG).map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
-        </select>
-      </FL>
-      <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
-      <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
-      <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
-      <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
-      <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
-      <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
-      <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4}}>{busy ? 'Saving…' : 'Save'}</button>
+    <div>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:12, alignItems:'flex-end' }}>
+        <FieldSelector fields={fields} value={form.field_id} onChange={v=>set('field_id',v)}/>
+        <FL label="Work type">
+          <select value={form.work_type} onChange={e=>set('work_type',e.target.value)} style={inp}>
+            {WORK_TYPES.map(tp=><option key={tp} value={tp}>{WORK_ICONS[tp]||'🌾'} {tp.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Status">
+          <select value={form.work_status} onChange={e=>set('work_status',e.target.value)} style={inp}>
+            {Object.keys(STATUS_CFG).map(s=><option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
+          </select>
+        </FL>
+        <FL label="Date"><Inp type="datetime-local" value={form.work_date} onChange={e=>set('work_date',e.target.value)}/></FL>
+        <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
+        <FL label="Harvest (t)"><Inp type="number" value={form.harvest_ton} onChange={e=>set('harvest_ton',e.target.value)} style={{width:110}}/></FL>
+        <FL label="Operator"><Inp value={form.operator_name} onChange={e=>set('operator_name',e.target.value)} style={{width:140}}/></FL>
+        <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
+        <FL label="Note" style={{flex:1,minWidth:200}}><Inp value={form.note} onChange={e=>set('note',e.target.value)} style={{width:'100%'}}/></FL>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={btnPrimary}>{busy ? 'Saving…' : 'Save'}</button>
+      </div>
     </div>
   );
 };
@@ -283,7 +287,9 @@ const SowingForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#2e7d32'}}>{busy ? 'Saving…' : '🌾 Save Sowing'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#2e7d32'}}>{busy ? 'Saving…' : '🌾 Save Sowing'}</button>
       </div>
     </div>
   );
@@ -378,7 +384,9 @@ const FertilizationForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#e65100'}}>{busy ? 'Saving…' : '🧪 Save Fertilization'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#e65100'}}>{busy ? 'Saving…' : '🧪 Save Fertilization'}</button>
       </div>
     </div>
   );
@@ -485,7 +493,9 @@ const SprayingForm = ({ userId, fields, onCreated }) => {
         <FL label="Equipment"><Inp value={form.equipment} onChange={e=>set('equipment',e.target.value)} style={{width:140}}/></FL>
         <FL label="Cost (€)"><Inp type="number" value={form.work_cost} onChange={e=>set('work_cost',e.target.value)} style={{width:100}}/></FL>
         <FL label="Notes"><Inp value={form.notes} onChange={e=>set('notes',e.target.value)} style={{width:220}}/></FL>
-        <button onClick={submit} disabled={busy} style={{...btnPrimary, marginBottom:4, background:'#0d47a1'}}>{busy ? 'Saving…' : '💧 Save Spraying'}</button>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <button onClick={submit} disabled={busy} style={{...btnPrimary, background:'#0d47a1'}}>{busy ? 'Saving…' : '💧 Save Spraying'}</button>
       </div>
     </div>
   );
