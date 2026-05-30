@@ -10,6 +10,7 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState(null);
   const [gpsLoading,  setGpsLoading]  = useState(false);
+  const [savedData,   setSavedData]   = useState(null); // triggers success screen
 
   const validate = () => {
     if (!label.trim())          return t('err_name_required');
@@ -31,7 +32,7 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
         { label: label.trim(), lat: parseFloat(lat), lon: parseFloat(lon) },
         { params: { user_id: userId } }
       );
-      onSaved(res.data);
+      setSavedData(res.data); // show success screen first
     } catch (e) {
       setError(e?.response?.data?.detail || t('err_save_failed'));
       setSaving(false);
@@ -62,6 +63,45 @@ const AddLocationModal = ({ userId, onClose, onSaved }) => {
     if (e.key === 'Enter')  handleSave();
     if (e.key === 'Escape') onClose();
   };
+
+  // ── Success screen ──────────────────────────────────────────────────────────
+  if (savedData) {
+    return (
+      <div style={s.backdrop}>
+        <div style={s.modal}>
+          <div style={s.header}>
+            <span style={s.title}>✅ {savedData.label || label}</span>
+            <button style={s.closeBtn} onClick={() => onSaved(savedData)}>×</button>
+          </div>
+          <div style={s.body}>
+            <div style={s.successBox}>
+              <div style={s.successIcon}>🌱</div>
+              <div style={s.successTitle}>{t('loc_added_title')}</div>
+              <div style={s.successText}>{t('loc_added_desc')}</div>
+              <div style={s.syncTimeline}>
+                {['00:15','04:15','08:15','12:15','16:15','20:15'].map(time => (
+                  <div key={time} style={s.syncChip}>{time} UTC</div>
+                ))}
+              </div>
+              <div style={s.syncNote}>
+                <span style={{ fontSize: 16 }}>⏱</span>
+                <span>{t('loc_added_wait')}</span>
+              </div>
+              <div style={s.syncNote}>
+                <span style={{ fontSize: 16 }}>🛰</span>
+                <span>{t('loc_added_satellite')}</span>
+              </div>
+            </div>
+          </div>
+          <div style={s.footer}>
+            <button style={s.saveBtn} onClick={() => onSaved(savedData)}>
+              {t('loc_added_go')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={s.backdrop} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -152,6 +192,15 @@ const s = {
   footer:     { display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px 18px' },
   cancelBtn:  { padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-accent-soil, #c8a96e)', background: 'transparent', cursor: 'pointer', fontSize: 13 },
   saveBtn:    { padding: '8px 20px', borderRadius: 8, border: 'none', background: 'var(--color-accent-soil, #7a5c2e)', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, transition: 'opacity 0.15s' },
+
+  // success screen
+  successBox:   { background: 'var(--color-bg-champagne, #f5f0e8)', borderRadius: 12, padding: '20px 16px', marginBottom: 8 },
+  successIcon:  { fontSize: 36, textAlign: 'center', marginBottom: 8 },
+  successTitle: { fontWeight: 800, fontSize: 17, textAlign: 'center', marginBottom: 6, color: 'var(--color-green-primary, #1a4d1a)' },
+  successText:  { fontSize: 13, color: '#555', textAlign: 'center', marginBottom: 14, lineHeight: 1.5 },
+  syncTimeline: { display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 16 },
+  syncChip:     { background: '#fff', border: '1px solid var(--color-accent-soil, #c8a96e)', borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: 'var(--color-accent-chernozem, #3d2b1f)' },
+  syncNote:     { display: 'flex', alignItems: 'flex-start', gap: 8, background: '#fff', borderRadius: 8, padding: '10px 12px', marginBottom: 8, fontSize: 12, color: '#444', lineHeight: 1.5, border: '1px solid #e8e0d5' },
 };
 
 export default AddLocationModal;

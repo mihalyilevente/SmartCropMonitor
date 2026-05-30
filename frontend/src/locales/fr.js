@@ -1348,6 +1348,16 @@ const fr = {
   fw_eq_empty_fleet:            'Aucun équipement enregistré.',
   fw_eq_empty_hint:             'Ajouter des machines dans Gestion de l\'exploitation → Équipements.',
 
+  // ── AddLocationModal — sync info ─────────────────────────────────────────
+  loc_added_title:  'Lieu ajouté !',
+  loc_added_desc:  'Les données apparaîtront après la première synchronisation. Les syncs s\'exécutent toutes les 4 heures :',
+  loc_added_wait:  'Attente maximale — ~4 heures. Après le sync, la météo, les alertes et la carte des parcelles se mettent à jour automatiquement.',
+  loc_added_satellite:  'Les images satellites (NDVI, segmentation) peuvent prendre un peu plus longtemps — jusqu\'au prochain sync nocturne à 23:45 UTC.',
+  loc_added_go:  'Aller au lieu →',
+  loc_syncing_title:  'Données pour « {label} » en chargement',
+  loc_syncing_text:  'La météo, les alertes et la carte apparaîtront au prochain sync (toutes les 4 h : 00:15, 04:15, 08:15, 12:15, 16:15, 20:15 UTC). Images satellites après le sync nocturne à 23:45 UTC.',
+
+
 };
 
 export default fr;
