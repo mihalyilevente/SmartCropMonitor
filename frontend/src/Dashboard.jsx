@@ -1,4 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+// ── Mobile detection hook ─────────────────────────────────────────────────────
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+};
 import api from './api/client';
 import { getCurrentWeather, getWeatherHistory, getWeatherMetrics } from './api/weather';
 import { useFontSize } from './context/useFontSize';
@@ -38,12 +49,22 @@ const TABS = [
 ];
 
 // ── Compact weather badge ────────────────────────────────────────────────────
-const WeatherBadge = ({ currentWeather, t }) => {
+const WeatherBadge = ({ currentWeather, t, compact }) => {
   if (!currentWeather) return (
     <div style={styles.weatherBadge}>
       <span style={{ color: '#aaa', fontSize: 13 }}>{t('no_weather')}</span>
     </div>
   );
+  if (compact) {
+    return (
+      <div style={{ ...styles.weatherBadge, padding: '4px 10px', flexShrink: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>{currentWeather.temp}°C</span>
+        <span style={{ fontSize: 11, opacity: 0.6, marginLeft: 6 }}>
+          💧{currentWeather.humidity}%
+        </span>
+      </div>
+    );
+  }
   return (
     <div style={styles.weatherBadge}>
       <span style={{ fontSize: 22, fontWeight: 700 }}>{currentWeather.temp}°C</span>
@@ -56,23 +77,26 @@ const WeatherBadge = ({ currentWeather, t }) => {
 };
 
 // ── Two-column layout: panels left, map right ────────────────────────────────
-const TwoColumnLayout = ({ left, mapProps }) => (
-  <div style={styles.twoCol}>
-    <div style={styles.leftCol}>{left}</div>
-    <div style={styles.rightCol}>
-      <FieldMapPanel
-        ref={mapProps.ref}
-        userId={mapProps.userId}
-        locationId={mapProps.locationId}
-        locationCenter={mapProps.locationCenter}
-        onAddLocation={mapProps.onAddLocation}
-        onDrawField={mapProps.onDrawField}
-        onSegment={mapProps.onSegment}
-        segmentationStatus={mapProps.segmentationStatus}
-      />
+const TwoColumnLayout = ({ left, mapProps }) => {
+  const isMobile = useIsMobile();
+  return (
+    <div style={isMobile ? styles.twoColMobile : styles.twoCol}>
+      <div style={styles.leftCol}>{left}</div>
+      <div style={isMobile ? styles.rightColMobile : styles.rightCol}>
+        <FieldMapPanel
+          ref={mapProps.ref}
+          userId={mapProps.userId}
+          locationId={mapProps.locationId}
+          locationCenter={mapProps.locationCenter}
+          onAddLocation={mapProps.onAddLocation}
+          onDrawField={mapProps.onDrawField}
+          onSegment={mapProps.onSegment}
+          segmentationStatus={mapProps.segmentationStatus}
+        />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ── Full-width layout (no map) ───────────────────────────────────────────────
 const FullLayout = ({ children }) => (
@@ -338,6 +362,7 @@ const EmptyState = ({ text }) => (
 const Dashboard = ({ userId, onLogout }) => {
   const { largeFonts, toggleFonts } = useFontSize();
   const { t } = useLang();
+  const isMobile = useIsMobile();
 
   const [activeTab, setActiveTab]           = useState('overview');
   const [locations, setLocations]           = useState([]);
@@ -519,118 +544,129 @@ const Dashboard = ({ userId, onLogout }) => {
     <div style={styles.container}>
 
       {/* ── Header ── */}
-      <header style={styles.header}>
+      <header style={isMobile ? styles.headerMobile : styles.header}>
 
-        <div style={styles.branding}>
-          <img src={logo} style={{ width: 36 }} alt="logo"/>
-          <h1 style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: 18, whiteSpace: 'nowrap' }}>
-            SmartCrop Monitor
-          </h1>
-        </div>
+        {/* Top row: branding + AA + burger */}
+        <div style={isMobile ? styles.headerTopRow : { display: 'contents' }}>
+          <div style={styles.branding}>
+            <img src={logo} style={{ width: isMobile ? 28 : 36 }} alt="logo"/>
+            <h1 style={{ fontFamily: 'var(--font-heading)', margin: 0, fontSize: isMobile ? 15 : 18, whiteSpace: 'nowrap', flex: isMobile ? 1 : 'unset' }}>
+              SmartCrop Monitor
+            </h1>
+          </div>
 
-        <div style={styles.locationRow}>
-          {locations.length > 0 ? (
-            <div style={styles.locationSelector}>
-              <label style={styles.label}>{t('location_label')}</label>
-              <select
-                value={locationId || ''}
-                onChange={e => setLocationId(Number(e.target.value))}
-                style={styles.select}
-              >
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.label || t('location_fallback', loc.id)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div style={{ color: 'red', fontSize: 13 }}>{t('no_locations')}</div>
-          )}
-        </div>
-
-        <WeatherBadge currentWeather={currentWeather} t={t}/>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <button
-            onClick={toggleFonts}
-            title={largeFonts ? t('font_switch_to_normal') : t('font_switch_to_large')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: largeFonts ? 'var(--color-accent-chernozem)' : '#f0ebe3',
-              color: largeFonts ? '#fff' : 'var(--color-accent-chernozem)',
-              border: `1px solid ${largeFonts ? 'var(--color-accent-chernozem)' : 'var(--color-accent-soil)'}`,
-              borderRadius: 8, padding: '6px 10px',
-              cursor: 'pointer', fontWeight: 700, fontSize: 12,
-              fontFamily: 'inherit', transition: 'all 0.2s',
-            }}>
-            <span style={{ fontSize: largeFonts ? 16 : 13 }}>A</span>
-            <span style={{ fontSize: 10 }}>A</span>
-          </button>
-
-          <div style={styles.userMenuWrap}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: isMobile ? 'auto' : 0 }}>
             <button
-              onClick={() => setMenuOpen(v => !v)}
-              style={styles.menuBtn}
-              title="Menu"
-              aria-label="Menu"
-              aria-expanded={menuOpen}
-            >
-              <span style={styles.menuBars}>☰</span>
+              onClick={toggleFonts}
+              title={largeFonts ? t('font_switch_to_normal') : t('font_switch_to_large')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                background: largeFonts ? 'var(--color-accent-chernozem)' : '#f0ebe3',
+                color: largeFonts ? '#fff' : 'var(--color-accent-chernozem)',
+                border: `1px solid ${largeFonts ? 'var(--color-accent-chernozem)' : 'var(--color-accent-soil)'}`,
+                borderRadius: 8, padding: '6px 10px',
+                cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                fontFamily: 'inherit', transition: 'all 0.2s',
+              }}>
+              <span style={{ fontSize: largeFonts ? 16 : 13 }}>A</span>
+              <span style={{ fontSize: 10 }}>A</span>
             </button>
 
-            {menuOpen && (
-              <div style={styles.userMenu}>
-                <button
-                  onClick={() => {
-                    setActiveTab('settings');
-                    setMenuOpen(false);
-                    // prefetch fields for the suppression panel
-                    if (locationId && locationFields.length === 0) {
-                      api.get('/api/v1/fields', { params: { location_id: locationId, user_id: userId } })
-                        .then(r => setLocationFields(r.data || []))
-                        .catch(() => {});
-                    }
-                  }}
-                  style={styles.menuItem}
-                >
-                  <span style={styles.menuIcon}>*</span>
-                  <span>{t('tab_settings')}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onLogout();
-                  }}
-                  style={{ ...styles.menuItem, ...styles.menuItemDanger }}
-                >
-                  <span style={styles.menuIcon}>→</span>
-                  <span>{t('logout')}</span>
-                </button>
-              </div>
-            )}
+            <div style={styles.userMenuWrap}>
+              <button
+                onClick={() => setMenuOpen(v => !v)}
+                style={styles.menuBtn}
+                title="Menu"
+                aria-label="Menu"
+                aria-expanded={menuOpen}
+              >
+                <span style={styles.menuBars}>☰</span>
+              </button>
+
+              {menuOpen && (
+                <div style={styles.userMenu}>
+                  <button
+                    onClick={() => {
+                      setActiveTab('settings');
+                      setMenuOpen(false);
+                      if (locationId && locationFields.length === 0) {
+                        api.get('/api/v1/fields', { params: { location_id: locationId, user_id: userId } })
+                          .then(r => setLocationFields(r.data || []))
+                          .catch(() => {});
+                      }
+                    }}
+                    style={styles.menuItem}
+                  >
+                    <span style={styles.menuIcon}>*</span>
+                    <span>{t('tab_settings')}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onLogout();
+                    }}
+                    style={{ ...styles.menuItem, ...styles.menuItemDanger }}
+                  >
+                    <span style={styles.menuIcon}>→</span>
+                    <span>{t('logout')}</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Second row on mobile: location + compact weather */}
+        <div style={isMobile ? styles.headerBottomRow : { display: 'contents' }}>
+          <div style={isMobile ? { flex: 1, minWidth: 0 } : styles.locationRow}>
+            {locations.length > 0 ? (
+              <div style={{ ...styles.locationSelector, ...(isMobile ? { width: '100%', boxSizing: 'border-box' } : {}) }}>
+                <label style={styles.label}>{t('location_label')}</label>
+                <select
+                  value={locationId || ''}
+                  onChange={e => setLocationId(Number(e.target.value))}
+                  style={{ ...styles.select, ...(isMobile ? { flex: 1, minWidth: 0 } : {}) }}
+                >
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.label || t('location_fallback', loc.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div style={{ color: 'red', fontSize: 13 }}>{t('no_locations')}</div>
+            )}
+          </div>
+
+          <WeatherBadge currentWeather={currentWeather} t={t} compact={isMobile}/>
+        </div>
+
       </header>
 
       {/* ── Tab navigation ── */}
-      <nav style={{ ...styles.tabNav, display: activeTab === 'settings' ? 'none' : 'flex' }}>
+      <nav style={{
+        ...styles.tabNav,
+        display: activeTab === 'settings' ? 'none' : 'flex',
+        ...(isMobile ? styles.tabNavMobile : {}),
+      }}>
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
               ...styles.tabBtn,
+              ...(isMobile ? styles.tabBtnMobile : {}),
               ...(activeTab === tab.id ? styles.tabBtnActive : {}),
             }}>
-            <span style={{ fontSize: 16 }}>{tab.icon}</span>
-            <span>{t(tab.labelKey) || tab.labelKey}</span>
+            <span style={{ fontSize: isMobile ? 20 : 16 }}>{tab.icon}</span>
+            {!isMobile && <span>{t(tab.labelKey) || tab.labelKey}</span>}
           </button>
         ))}
       </nav>
 
       {/* ── Tab content ── */}
-      <div style={styles.content}>
+      <div style={{ ...styles.content, padding: isMobile ? '12px' : '16px 20px' }}>
         {renderTabContent()}
       </div>
 
@@ -740,8 +776,50 @@ const styles = {
     display: 'grid', gridTemplateColumns: '1fr 1fr',
     gap: 16, alignItems: 'start',
   },
+  twoColMobile: {
+    display: 'flex', flexDirection: 'column', gap: 12,
+  },
   leftCol:  { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },
   rightCol: { position: 'sticky', top: 8, minWidth: 0 },
+  rightColMobile: { minWidth: 0 },
+
+  headerMobile: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    padding: '8px 12px',
+    borderBottom: '1px solid var(--color-accent-soil)',
+    backgroundColor: 'var(--color-bg-magnolia)',
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
+  },
+  headerTopRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  headerBottomRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  tabNavMobile: {
+    padding: '4px 8px 0',
+    gap: 2,
+    overflowX: 'auto',
+    flexWrap: 'nowrap',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+  },
+  tabBtnMobile: {
+    padding: '8px 10px 10px',
+    flexShrink: 0,
+    gap: 0,
+  },
 
   logoutBtn: {
     background: 'var(--color-accent-mulberry)',
