@@ -1401,6 +1401,16 @@ const en = {
   fw_eq_empty_fleet:            'No equipment registered yet.',
   fw_eq_empty_hint:             'Add machines in the Farm Management → Equipment tab.',
 
+  // ── AddLocationModal — sync info ─────────────────────────────────────────
+  loc_added_title:  'Location added!',
+  loc_added_desc:  'Data will appear after the first sync. Syncs run every 4 hours:',
+  loc_added_wait:  'Maximum wait — ~4 hours. After the sync, weather, alerts and the field map update automatically.',
+  loc_added_satellite:  'Satellite imagery (NDVI, segmentation) may take a bit longer — until the next nightly sync at 23:45 UTC.',
+  loc_added_go:  'Go to location →',
+  loc_syncing_title:  'Data for «{label}» is loading',
+  loc_syncing_text:  'Weather, alerts and the map will appear at the next sync (every 4 h: 00:15, 04:15, 08:15, 12:15, 16:15, 20:15 UTC). Satellite imagery after the 23:45 UTC nightly sync.',
+
+
 };
 
 export default en;

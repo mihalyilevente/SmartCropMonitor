@@ -377,6 +377,7 @@ const Dashboard = ({ userId, onLogout }) => {
   const [showManualField, setShowManualField]       = useState(false);
   const [segmentationStatus, setSegmentationStatus] = useState(null);
   const [menuOpen, setMenuOpen]                     = useState(false);
+  const [newLocBanner, setNewLocBanner]             = useState(null);
   const [locationFields, setLocationFields]         = useState([]);
   const fieldMapRef = useRef(null);
 
@@ -421,6 +422,7 @@ const Dashboard = ({ userId, onLogout }) => {
   const handleLocationAdded = (newLocation) => {
     setShowAddLocation(false);
     fetchLocations().then(() => { if (newLocation?.id) setLocationId(newLocation.id); });
+    setNewLocBanner({ label: newLocation?.label || '', addedAt: Date.now() });
   };
 
   const handleSegmentationConfirmed = () => {
@@ -665,6 +667,22 @@ const Dashboard = ({ userId, onLogout }) => {
         ))}
       </nav>
 
+      {/* ── New location sync banner ── */}
+      {newLocBanner && (
+        <div style={styles.syncBanner}>
+          <div style={styles.syncBannerLeft}>
+            <span style={{ fontSize: 20 }}>⏳</span>
+            <div>
+              <div style={styles.syncBannerTitle}>
+                {t('loc_syncing_title').replace('{label}', newLocBanner.label)}
+              </div>
+              <div style={styles.syncBannerText}>{t('loc_syncing_text')}</div>
+            </div>
+          </div>
+          <button style={styles.syncBannerClose} onClick={() => setNewLocBanner(null)}>×</button>
+        </div>
+      )}
+
       {/* ── Tab content ── */}
       <div style={{ ...styles.content, padding: isMobile ? '12px' : '16px 20px' }}>
         {renderTabContent()}
@@ -820,6 +838,18 @@ const styles = {
     flexShrink: 0,
     gap: 0,
   },
+
+  syncBanner: {
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+    gap: 12, padding: '10px 20px',
+    background: 'linear-gradient(90deg, #fffbea 0%, #fff8e1 100%)',
+    borderBottom: '1px solid #f0c040', borderLeft: '4px solid #f0a500',
+  },
+  syncBannerLeft:  { display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 },
+  syncBannerTitle: { fontWeight: 700, fontSize: 13, color: '#7a4f00', marginBottom: 2 },
+  syncBannerText:  { fontSize: 12, color: '#8a6500', lineHeight: 1.5, opacity: 0.9 },
+  syncBannerClose: { background: 'none', border: 'none', fontSize: 20, lineHeight: 1,
+    cursor: 'pointer', opacity: 0.45, padding: '0 2px', flexShrink: 0, color: '#7a4f00' },
 
   logoutBtn: {
     background: 'var(--color-accent-mulberry)',
