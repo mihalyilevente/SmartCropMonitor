@@ -1374,6 +1374,16 @@ const hu = {
   fw_eq_empty_fleet:            'Nincs nyilvántartott gép.',
   fw_eq_empty_hint:             'Adjon hozzá gépeket a Gazdaságkezelés → Gépark fülön.',
 
+  // ── AddLocationModal — sync info ─────────────────────────────────────────
+  loc_added_title:  'Helyszín hozzáadva!',
+  loc_added_desc:  'Az adatok az első szinkronizálás után jelennek meg. Szinkronok 4 óránként futnak:',
+  loc_added_wait:  'Maximális várakozás — ~4 óra. A szinkron után az időjárás, riasztások és táblatérkép automatikusan frissülnek.',
+  loc_added_satellite:  'A műholdas felvételek (NDVI, szegmentálás) kicsit tovább tarthatnak — az éjszakai 23:45 UTC szinkronig.',
+  loc_added_go:  'Ugrás a helyszínre →',
+  loc_syncing_title:  '„{label}" adatai betöltés alatt',
+  loc_syncing_text:  'Az időjárás, riasztások és a térkép a következő szinkronnál jelenik meg (4 óránként: 00:15, 04:15, 08:15, 12:15, 16:15, 20:15 UTC). Műholdas felvételek a 23:45 UTC éjszakai szinkron után.',
+
+
 };
 
 export default hu;
