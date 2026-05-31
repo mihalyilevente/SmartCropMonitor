@@ -292,6 +292,9 @@ const de = {
   wc_stat_max:           'Max',
   wc_stat_avg:           'Ø',
   wc_stat_latest:        'Aktuell',
+  wc_compare:            'Vergleichen mit',
+  wc_sma_trend:          'SMA-Trend',
+  wc_sma_window:         'Fenster:',
 
   // ── WeatherMetricsPanel ────────────────────────────────────────────────────
   wm_title:              'Bedingungen & Kennzahlen',

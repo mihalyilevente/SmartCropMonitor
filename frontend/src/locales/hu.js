@@ -332,6 +332,9 @@ const hu = {
   wc_stat_max:           'Max',
   wc_stat_avg:           'Átl',
   wc_stat_latest:        'Utolsó',
+  wc_compare:            'Összehasonlítás',
+  wc_sma_trend:          'SMA trend',
+  wc_sma_window:         'Ablak:',
 
   // ── WeatherMetricsPanel ────────────────────────────────────────────────────
   wm_title:              'Feltételek és mutatók',

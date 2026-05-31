@@ -353,7 +353,7 @@ const WeatherCharts = ({ data = [] }) => {
 
           {/* Secondary variable selector */}
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e8e0d4' }}>
-            <span style={groupLabel}>Compare with</span>
+            <span style={groupLabel}>{t('wc_compare')}</span>
             <div style={tabRow}>
               {ALL_TABS.filter(tb => tb.key !== active).map(tb => (
                 <button
@@ -377,11 +377,11 @@ const WeatherCharts = ({ data = [] }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#888', cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={smaEnabled} onChange={e => setSmaEnabled(e.target.checked)} />
-              SMA trend
+              {t('wc_sma_trend')}
             </label>
             {smaEnabled && (
               <>
-                <span style={{ fontSize: 11, color: '#bbb' }}>Window:</span>
+                <span style={{ fontSize: 11, color: '#bbb' }}>{t('wc_sma_window')}</span>
                 <input type="range" min={3} max={30} value={smaWindow} onChange={e => setSmaWindow(Number(e.target.value))}
                   style={{ width: 90, cursor: 'pointer' }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#666', minWidth: 26 }}>{smaWindow}d</span>

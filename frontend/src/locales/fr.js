@@ -383,6 +383,9 @@ const fr = {
   wc_stat_max:           'Max',
   wc_stat_avg:           'Moy',
   wc_stat_latest:        'Dernier',
+  wc_compare:            'Comparer avec',
+  wc_sma_trend:          'Tendance SMA',
+  wc_sma_window:         'Fenêtre :',
 
   // ── WeatherMetricsPanel ────────────────────────────────────────────────────
   wm_title:              'Conditions et indicateurs',

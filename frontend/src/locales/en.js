@@ -332,6 +332,9 @@ const en = {
   wc_stat_max:           'Max',
   wc_stat_avg:           'Avg',
   wc_stat_latest:        'Latest',
+  wc_compare:            'Compare with',
+  wc_sma_trend:          'SMA trend',
+  wc_sma_window:         'Window:',
 
   // ── WeatherMetricsPanel ────────────────────────────────────────────────────
   wm_title:              'Conditions & Metrics',
