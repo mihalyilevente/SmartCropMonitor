@@ -22,90 +22,187 @@ const normalizeTimeSeries = (points = []) => {
   return Array.from(byTime.values()).sort((a, b) => a.t - b.t);
 };
 
-const LineChart = ({ points = [], color = C.green, label = '', unit = '', cursorIdx, onCursorChange, noDataLabel }) => {
-  const valid = normalizeTimeSeries(points);
-  if (!valid.length) return (
-    <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 12 }}>
+const computeSMA = (points, window) => {
+  if (!window || window < 2 || points.length < 2) return [];
+  return points.map((p, i) => {
+    const start = Math.max(0, i - window + 1);
+    const slice = points.slice(start, i + 1);
+    const avg = slice.reduce((s, pt) => s + pt.y, 0) / slice.length;
+    return { ...p, y: avg };
+  });
+};
+
+// ── MultiLineChart ────────────────────────────────────────────────────────────
+// primary:   { points:[{x,y}], color, label, unit }
+// secondary: { points:[{x,y}], color, label, unit } | null
+// smaWindow: 0 = off, >=2 = rolling window size
+const MultiLineChart = ({ primary, secondary = null, smaWindow = 0, cursorIdx, onCursorChange, noDataLabel }) => {
+  const validPrimary   = useMemo(() => normalizeTimeSeries(primary?.points   || []), [primary?.points]);   // eslint-disable-line
+  const validSecondary = useMemo(() => normalizeTimeSeries(secondary?.points || []), [secondary?.points]); // eslint-disable-line
+  const smaPrimary     = useMemo(() => computeSMA(validPrimary,   smaWindow), [validPrimary,   smaWindow]);
+  const smaSecondary   = useMemo(() => computeSMA(validSecondary, smaWindow), [validSecondary, smaWindow]);
+
+  if (!validPrimary.length) return (
+    <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 12 }}>
       {noDataLabel}
     </div>
   );
 
-  const W = 600, H = 150, padX = 44, padY = 14;
-  const innerW = W - padX * 2, innerH = H - padY * 2 - 18;
-  const ys = valid.map(p => p.y);
-  const minY = Math.min(...ys), maxY = Math.max(...ys), rangeY = maxY - minY || 1;
+  const hasSecondary = secondary != null && validSecondary.length > 0;
+  const W = 600, H = 160, padL = 44, padR = hasSecondary ? 48 : 14, padY = 14;
+  const innerW = W - padL - padR, innerH = H - padY * 2 - 18;
   const now = Date.now();
-  const minT = valid[0].t, maxT = valid[valid.length - 1].t, rangeT = maxT - minT || 1;
-  const sx = (p) => padX + ((p.t - minT) / rangeT) * innerW;
-  const sy = (v) => padY + (1 - (v - minY) / rangeY) * innerH;
-  const linePts = valid.map((p) => `${sx(p)},${sy(p.y)}`).join(' ');
-  const area    = `M${sx(valid[0])},${padY + innerH} ` + valid.map((p) => `L${sx(p)},${sy(p.y)}`).join(' ') + ` L${sx(valid[valid.length - 1])},${padY + innerH} Z`;
-  const step   = Math.max(1, Math.floor(valid.length / 6));
-  const xTicks = valid.map((p, i) => ({ i, p })).filter(({ i }) => i % step === 0 || i === valid.length - 1);
-  const yVals  = [minY, minY + rangeY * 0.5, maxY];
-  const gId    = `grad${label.replace(/\W/g, '')}`;
 
-  let nowIdx = 0, bestDiff = Infinity;
-  valid.forEach((p, i) => { const diff = Math.abs(p.t - now); if (diff < bestDiff) { bestDiff = diff; nowIdx = i; } });
-  const nowPoint = valid[nowIdx];
-  const nowX = sx(nowPoint);
-  const curIdx   = cursorIdx != null ? Math.min(Math.max(0, cursorIdx), valid.length - 1) : null;
-  const curX     = curIdx != null ? sx(valid[curIdx]) : null;
-  const curPoint = curIdx != null ? valid[curIdx] : null;
+  // Shared X range across both series
+  const allTs = [...validPrimary.map(p => p.t), ...validSecondary.map(p => p.t)];
+  const minT = Math.min(...allTs), maxT = Math.max(...allTs), rangeT = maxT - minT || 1;
+  const sx = (p) => padL + ((p.t - minT) / rangeT) * innerW;
+
+  // Primary Y scale — left axis
+  const ys1 = validPrimary.map(p => p.y);
+  const minY1 = Math.min(...ys1), maxY1 = Math.max(...ys1), rangeY1 = maxY1 - minY1 || 1;
+  const sy1 = (v) => padY + (1 - (v - minY1) / rangeY1) * innerH;
+  const yTicks1 = [minY1, minY1 + rangeY1 * 0.5, maxY1];
+
+  // Secondary Y scale — right axis
+  const ys2 = validSecondary.map(p => p.y);
+  const minY2 = ys2.length ? Math.min(...ys2) : 0;
+  const maxY2 = ys2.length ? Math.max(...ys2) : 1;
+  const rangeY2 = maxY2 - minY2 || 1;
+  const sy2 = (v) => padY + (1 - (v - minY2) / rangeY2) * innerH;
+  const yTicks2 = hasSecondary ? [minY2, minY2 + rangeY2 * 0.5, maxY2] : [];
+
+  // NOW marker
+  let nowIdx = 0, bestNowDiff = Infinity;
+  validPrimary.forEach((p, i) => { const d = Math.abs(p.t - now); if (d < bestNowDiff) { bestNowDiff = d; nowIdx = i; } });
+  const nowX = sx(validPrimary[nowIdx]);
+
+  // Cursor
+  const curIdx  = cursorIdx != null ? Math.min(Math.max(0, cursorIdx), validPrimary.length - 1) : null;
+  const curPt1  = curIdx != null ? validPrimary[curIdx] : null;
+  const curX    = curPt1 ? sx(curPt1) : null;
+  const curPt2  = (() => {
+    if (!curPt1 || !validSecondary.length) return null;
+    let best = validSecondary[0], bestD = Infinity;
+    validSecondary.forEach(p => { const d = Math.abs(p.t - curPt1.t); if (d < bestD) { bestD = d; best = p; } });
+    return best;
+  })();
+
+  // X tick marks
+  const step   = Math.max(1, Math.floor(validPrimary.length / 6));
+  const xTicks = validPrimary.map((p, i) => ({ i, p })).filter(({ i }) => i % step === 0 || i === validPrimary.length - 1);
+
+  // SVG path helpers
+  const toPoly = (pts, syFn) => pts.map(p => `${sx(p)},${syFn(p.y)}`).join(' ');
+  const toArea = (pts, syFn) => {
+    if (!pts.length) return '';
+    return `M${sx(pts[0])},${padY + innerH} ` + pts.map(p => `L${sx(p)},${syFn(p.y)}`).join(' ') + ` L${sx(pts[pts.length - 1])},${padY + innerH} Z`;
+  };
 
   const handleClick = (e) => {
     if (!onCursorChange) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const relX = (e.clientX - rect.left) / rect.width * W;
-    const frac = Math.max(0, Math.min(1, (relX - padX) / innerW));
+    const frac = Math.max(0, Math.min(1, (relX - padL) / innerW));
     const clickedT = minT + frac * rangeT;
     let nearest = 0, nearestDiff = Infinity;
-    valid.forEach((p, i) => {
-      const diff = Math.abs(p.t - clickedT);
-      if (diff < nearestDiff) {
-        nearest = i;
-        nearestDiff = diff;
-      }
-    });
+    validPrimary.forEach((p, i) => { const d = Math.abs(p.t - clickedT); if (d < nearestDiff) { nearest = i; nearestDiff = d; } });
     onCursorChange(nearest);
   };
+
+  const gId1 = `grad_${(primary?.label || 'p').replace(/\W/g, '')}`;
+  const gId2 = `grad2_${(secondary?.label || 's').replace(/\W/g, '')}`;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', cursor: 'crosshair' }} onClick={handleClick}>
       <defs>
-        <linearGradient id={gId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        <linearGradient id={gId1} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={primary?.color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={primary?.color} stopOpacity="0" />
         </linearGradient>
+        {hasSecondary && (
+          <linearGradient id={gId2} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={secondary.color} stopOpacity="0.09" />
+            <stop offset="100%" stopColor={secondary.color} stopOpacity="0" />
+          </linearGradient>
+        )}
       </defs>
-      {yVals.map((v, i) => (
+
+      {/* Grid lines + left Y labels */}
+      {yTicks1.map((v, i) => (
         <g key={i}>
-          <line x1={padX} y1={sy(v)} x2={W - padX} y2={sy(v)} stroke="#ece6dd" strokeWidth="1" strokeDasharray="4 3" />
-          <text x={padX - 5} y={sy(v) + 3.5} textAnchor="end" fontSize="9" fill="#bbb" fontFamily="inherit">{v.toFixed(1)}</text>
+          <line x1={padL} y1={sy1(v)} x2={W - padR} y2={sy1(v)} stroke="#ece6dd" strokeWidth="1" strokeDasharray="4 3" />
+          <text x={padL - 5} y={sy1(v) + 3.5} textAnchor="end" fontSize="9" fill={primary?.color || '#bbb'} fontFamily="inherit">{v.toFixed(1)}</text>
         </g>
       ))}
-      <rect x={padX} y={padY} width={Math.max(0, nowX - padX)} height={innerH} fill="rgba(0,0,0,0.03)" />
-      <path d={area} fill={`url(#${gId})`} />
-      <polyline points={linePts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* Right Y labels for secondary */}
+      {yTicks2.map((v, i) => (
+        <text key={i} x={W - padR + 5} y={sy2(v) + 3.5} textAnchor="start" fontSize="9" fill={secondary?.color || '#bbb'} fontFamily="inherit">{v.toFixed(1)}</text>
+      ))}
+
+      {/* Past region */}
+      <rect x={padL} y={padY} width={Math.max(0, nowX - padL)} height={innerH} fill="rgba(0,0,0,0.03)" />
+
+      {/* Secondary area + dashed line (drawn first so primary sits on top) */}
+      {hasSecondary && (
+        <>
+          <path d={toArea(validSecondary, sy2)} fill={`url(#${gId2})`} />
+          <polyline points={toPoly(validSecondary, sy2)} fill="none" stroke={secondary.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="6 3" opacity="0.9" />
+        </>
+      )}
+
+      {/* Primary area + solid line */}
+      <path d={toArea(validPrimary, sy1)} fill={`url(#${gId1})`} />
+      <polyline points={toPoly(validPrimary, sy1)} fill="none" stroke={primary?.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* SMA overlays */}
+      {smaPrimary.length > 0 && (
+        <polyline points={toPoly(smaPrimary, sy1)} fill="none" stroke={primary?.color} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
+      )}
+      {hasSecondary && smaSecondary.length > 0 && (
+        <polyline points={toPoly(smaSecondary, sy2)} fill="none" stroke={secondary.color} strokeWidth="2" strokeDasharray="4 3" opacity="0.5" />
+      )}
+
+      {/* NOW line */}
       <line x1={nowX} y1={padY} x2={nowX} y2={padY + innerH} stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="5 3" opacity="0.85" />
       <rect x={nowX - 15} y={padY - 1} width={30} height={13} rx={4} fill="#e74c3c" />
       <text x={nowX} y={padY + 9} textAnchor="middle" fontSize="8" fill="#fff" fontWeight="800" fontFamily="inherit">NOW</text>
-      {curX != null && curPoint && (() => {
-        const tipW = 82, tipH = 30;
-        const tipX = Math.min(curX + 8, W - padX - tipW);
-        const tipY = Math.max(sy(curPoint.y) - tipH - 6, padY + 2);
-        const dateStr = new Date(curPoint.x).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+      {/* Cursor */}
+      {curX != null && curPt1 && (() => {
+        const dateStr = new Date(curPt1.x).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const entries = [
+          { pt: curPt1, sy: sy1, color: primary?.color, unit: primary?.unit, label: primary?.label },
+          ...(curPt2 && hasSecondary ? [{ pt: curPt2, sy: sy2, color: secondary.color, unit: secondary.unit, label: secondary.label }] : []),
+        ];
+        const tipW = 124, lineH = 14, tipH = 16 + entries.length * lineH;
+        const tipX = Math.min(curX + 8, W - padR - tipW);
+        const tipY = Math.max(padY + 2, sy1(curPt1.y) - tipH - 6);
         return (
           <g>
-            <line x1={curX} y1={padY} x2={curX} y2={padY + innerH} stroke={color} strokeWidth="1.5" strokeDasharray="3 2" opacity="0.55" />
-            <circle cx={curX} cy={sy(curPoint.y)} r={5} fill={color} stroke="#fff" strokeWidth="2" />
-            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={6} fill={color} opacity="0.93" />
-            <text x={tipX + tipW / 2} y={tipY + 11} textAnchor="middle" fontSize="8.5" fill="rgba(255,255,255,0.85)" fontFamily="inherit">{dateStr}</text>
-            <text x={tipX + tipW / 2} y={tipY + 24} textAnchor="middle" fontSize="11" fill="#fff" fontWeight="800" fontFamily="inherit">{Number(curPoint.y).toFixed(2)} {unit}</text>
+            <line x1={curX} y1={padY} x2={curX} y2={padY + innerH} stroke="#555" strokeWidth="1" strokeDasharray="3 2" opacity="0.35" />
+            {entries.map(({ pt, sy, color }) => (
+              <circle key={color} cx={sx(pt)} cy={sy(pt.y)} r={4} fill={color} stroke="#fff" strokeWidth="2" />
+            ))}
+            <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={6} fill="rgba(22,22,22,0.88)" />
+            <text x={tipX + tipW / 2} y={tipY + 11} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)" fontFamily="inherit">{dateStr}</text>
+            {entries.map(({ pt, color, unit, label }, li) => (
+              <text key={li} x={tipX + 8} y={tipY + 11 + (li + 1) * lineH} fontSize="9.5" fill={color} fontWeight="700" fontFamily="inherit">
+                {label}: {Number(pt.y).toFixed(2)} {unit}
+              </text>
+            ))}
           </g>
         );
       })()}
-      <circle cx={sx(valid[valid.length - 1])} cy={sy(valid[valid.length - 1].y)} r={4} fill={color} stroke="#fff" strokeWidth="2" />
+
+      {/* End dots */}
+      <circle cx={sx(validPrimary[validPrimary.length - 1])} cy={sy1(validPrimary[validPrimary.length - 1].y)} r={4} fill={primary?.color} stroke="#fff" strokeWidth="2" />
+      {hasSecondary && (
+        <circle cx={sx(validSecondary[validSecondary.length - 1])} cy={sy2(validSecondary[validSecondary.length - 1].y)} r={4} fill={secondary.color} stroke="#fff" strokeWidth="2" />
+      )}
+
+      {/* X tick labels */}
       {xTicks.map(({ p }) => (
         <text key={p.t} x={sx(p)} y={H - 2} textAnchor="middle" fontSize="9" fill="#bbb" fontFamily="inherit">
           {new Date(p.x).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })}
@@ -114,6 +211,13 @@ const LineChart = ({ points = [], color = C.green, label = '', unit = '', cursor
     </svg>
   );
 };
+
+// ── Legend line SVG swatch ────────────────────────────────────────────────────
+const LegendLine = ({ color, dashed = false }) => (
+  <svg width="22" height="10" style={{ flexShrink: 0 }}>
+    <line x1="0" y1="5" x2="22" y2="5" stroke={color} strokeWidth="2" strokeDasharray={dashed ? '6 3' : undefined} />
+  </svg>
+);
 
 const RangeSlider = ({ value, max, color, onChange, labelLeft, labelRight }) => {
   const pct = max > 0 ? (value / max) * 100 : 0;
@@ -136,38 +240,85 @@ const Tab = ({ label, active, color, onClick }) => (
   </button>
 );
 
+// ── WeatherCharts ─────────────────────────────────────────────────────────────
 const WeatherCharts = ({ data = [] }) => {
   const { t } = useLang();
-  const [open, setOpen]           = useState(true);
-  const [active, setActive]       = useState('temp');
-  const [cursorIdx, setCursorIdx] = useState(null);
+  const [open, setOpen]             = useState(true);
+  const [active, setActive]         = useState('temp');
+  const [secondary, setSecondary]   = useState(null);
+  const [smaEnabled, setSmaEnabled] = useState(false);
+  const [smaWindow, setSmaWindow]   = useState(7);
+  const [cursorIdx, setCursorIdx]   = useState(null);
 
-  // Tab definitions — labels from locale for section headers only, chart labels stay in English
   const WEATHER_TABS = [
-    { key: 'temp',         label: t('wm_temp'),       unit: '°C',   color: C.rose,    src: 'weather' },
-    { key: 'humidity',     label: t('wm_humidity'),   unit: '%',    color: C.sky,     src: 'weather' },
-    { key: 'precipitation',label: t('wm_precip'),     unit: 'mm',   color: C.teal,    src: 'weather' },
-    { key: 'soil_moisture',label: t('wm_soil_moist'), unit: 'm³/m³',color: C.green,   src: 'weather' },
-    { key: 'soil_temperature',label:t('wm_soil_temp'),unit: '°C',   color: C.soil,    src: 'weather' },
-    { key: 'wind_speed',   label: t('wm_wind_speed'), unit: 'm/s',  color: C.slate,   src: 'weather' },
+    { key: 'temp',             label: t('wm_temp'),        unit: '°C',    color: C.rose,    src: 'weather' },
+    { key: 'humidity',         label: t('wm_humidity'),    unit: '%',     color: C.sky,     src: 'weather' },
+    { key: 'precipitation',    label: t('wm_precip'),      unit: 'mm',    color: C.teal,    src: 'weather' },
+    { key: 'soil_moisture',    label: t('wm_soil_moist'),  unit: 'm³/m³', color: C.green,   src: 'weather' },
+    { key: 'soil_temperature', label: t('wm_soil_temp'),   unit: '°C',    color: C.soil,    src: 'weather' },
+    { key: 'wind_speed',       label: t('wm_wind_speed'),  unit: 'm/s',   color: C.slate,   src: 'weather' },
   ];
   const METRIC_TABS = [
-    { key: 'gdd',           label: 'GDD',              unit: '°C·d', color: C.amber,   src: 'metrics' },
-    { key: 'rain_cum_30d',  label: t('wm_rain_30d'),   unit: 'mm',   color: C.sky,     src: 'metrics' },
-    { key: 'et0',           label: 'ET₀',              unit: 'mm',   color: C.teal,    src: 'metrics' },
-    { key: 'water_deficit', label: t('wm_water_def_7d'),unit:'mm',   color: C.mulberry,src: 'metrics' },
-    { key: 'rs_mj_m2_day',  label: t('wm_solar'),      unit:'MJ/m²', color: C.amber,   src: 'metrics' },
+    { key: 'gdd',           label: 'GDD',                unit: '°C·d',  color: C.amber,   src: 'metrics' },
+    { key: 'rain_cum_30d',  label: t('wm_rain_30d'),     unit: 'mm',    color: C.sky,     src: 'metrics' },
+    { key: 'et0',           label: 'ET₀',                unit: 'mm',    color: C.teal,    src: 'metrics' },
+    { key: 'water_deficit', label: t('wm_water_def_7d'), unit: 'mm',    color: C.mulberry,src: 'metrics' },
+    { key: 'rs_mj_m2_day',  label: t('wm_solar'),        unit: 'MJ/m²', color: C.amber,   src: 'metrics' },
   ];
   const ALL_TABS = [...WEATHER_TABS, ...METRIC_TABS];
 
-  const cfg    = ALL_TABS.find(tb => tb.key === active) || ALL_TABS[0];
-  const points = useMemo(() => data.map(row => ({ x: row.timestamp, y: cfg.src === 'weather' ? row.weather_data?.[cfg.key] : row.metrics_data?.[cfg.key] })), [data, cfg.key, cfg.src]);
-  const validPoints = useMemo(() => normalizeTimeSeries(points), [points]);
-  const vals = validPoints.map(p => p.y);
-  const stats = vals.length ? { min: Math.min(...vals).toFixed(2), max: Math.max(...vals).toFixed(2), avg: (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2), last: vals[vals.length - 1].toFixed(2) } : null;
-  const sliderMax  = Math.max(0, validPoints.length - 1);
-  const fmtLabel   = (p) => p ? new Date(p.x).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const cursorPoint = cursorIdx != null ? validPoints[Math.min(cursorIdx, sliderMax)] : null;
+  const cfg    = ALL_TABS.find(tb => tb.key === active)    || ALL_TABS[0];
+  const secCfg = ALL_TABS.find(tb => tb.key === secondary) || null;
+
+  const primaryPoints = useMemo(() =>
+    data.map(row => ({ x: row.timestamp, y: cfg.src === 'weather' ? row.weather_data?.[cfg.key] : row.metrics_data?.[cfg.key] })),
+    [data, cfg.key, cfg.src]); // eslint-disable-line
+
+  const secondaryPoints = useMemo(() => {
+    if (!secondary) return [];
+    const sc = ALL_TABS.find(tb => tb.key === secondary);
+    if (!sc) return [];
+    return data.map(row => ({ x: row.timestamp, y: sc.src === 'weather' ? row.weather_data?.[sc.key] : row.metrics_data?.[sc.key] }));
+  }, [data, secondary]); // eslint-disable-line
+
+  const validPrimary   = useMemo(() => normalizeTimeSeries(primaryPoints),   [primaryPoints]);
+  const validSecondary = useMemo(() => normalizeTimeSeries(secondaryPoints),  [secondaryPoints]);
+
+  // Stats for primary
+  const vals  = validPrimary.map(p => p.y);
+  const stats = vals.length ? {
+    min:  Math.min(...vals).toFixed(2),
+    max:  Math.max(...vals).toFixed(2),
+    avg:  (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2),
+    last: vals[vals.length - 1].toFixed(2),
+  } : null;
+
+  // Stats for secondary
+  const secVals  = validSecondary.map(p => p.y);
+  const secStats = secVals.length ? {
+    min:  Math.min(...secVals).toFixed(2),
+    max:  Math.max(...secVals).toFixed(2),
+    avg:  (secVals.reduce((a, b) => a + b, 0) / secVals.length).toFixed(2),
+    last: secVals[secVals.length - 1].toFixed(2),
+  } : null;
+
+  const sliderMax = Math.max(0, validPrimary.length - 1);
+  const fmtLabel  = (p) => p ? new Date(p.x).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const cursorPoint = cursorIdx != null ? validPrimary[Math.min(cursorIdx, sliderMax)] : null;
+
+  // Secondary value at cursor position
+  const secCursorPoint = (() => {
+    if (!cursorPoint || !validSecondary.length) return null;
+    let best = validSecondary[0], bestD = Infinity;
+    validSecondary.forEach(p => { const d = Math.abs(p.t - cursorPoint.t); if (d < bestD) { bestD = d; best = p; } });
+    return best;
+  })();
+
+  const handleSetActive = (key) => {
+    setActive(key);
+    setCursorIdx(null);
+    if (secondary === key) setSecondary(null);
+  };
 
   return (
     <div style={wrap}>
@@ -182,47 +333,135 @@ const WeatherCharts = ({ data = [] }) => {
 
       {open && (
         <div style={body}>
+          {/* Primary variable selector */}
           <div style={tabSection}>
             <span style={groupLabel}>{t('wc_group_weather')}</span>
-            <div style={tabRow}>{WEATHER_TABS.map(tb => <Tab key={tb.key} label={tb.label} active={active === tb.key} color={tb.color} onClick={() => { setActive(tb.key); setCursorIdx(null); }} />)}</div>
+            <div style={tabRow}>
+              {WEATHER_TABS.map(tb => (
+                <Tab key={tb.key} label={tb.label} active={active === tb.key} color={tb.color} onClick={() => handleSetActive(tb.key)} />
+              ))}
+            </div>
           </div>
           <div style={{ ...tabSection, marginTop: 8 }}>
             <span style={groupLabel}>{t('wc_group_agro')}</span>
-            <div style={tabRow}>{METRIC_TABS.map(tb => <Tab key={tb.key} label={tb.label} active={active === tb.key} color={tb.color} onClick={() => { setActive(tb.key); setCursorIdx(null); }} />)}</div>
+            <div style={tabRow}>
+              {METRIC_TABS.map(tb => (
+                <Tab key={tb.key} label={tb.label} active={active === tb.key} color={tb.color} onClick={() => handleSetActive(tb.key)} />
+              ))}
+            </div>
+          </div>
+
+          {/* Secondary variable selector */}
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e8e0d4' }}>
+            <span style={groupLabel}>Compare with</span>
+            <div style={tabRow}>
+              {ALL_TABS.filter(tb => tb.key !== active).map(tb => (
+                <button
+                  key={tb.key}
+                  onClick={() => setSecondary(s => s === tb.key ? null : tb.key)}
+                  style={{
+                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                    border: `1px solid ${secondary === tb.key ? tb.color : '#ddd'}`,
+                    background: secondary === tb.key ? tb.color : 'transparent',
+                    color: secondary === tb.key ? '#fff' : '#999',
+                    cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit',
+                  }}
+                >
+                  {tb.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* SMA controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#888', cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={smaEnabled} onChange={e => setSmaEnabled(e.target.checked)} />
+              SMA trend
+            </label>
+            {smaEnabled && (
+              <>
+                <span style={{ fontSize: 11, color: '#bbb' }}>Window:</span>
+                <input type="range" min={3} max={30} value={smaWindow} onChange={e => setSmaWindow(Number(e.target.value))}
+                  style={{ width: 90, cursor: 'pointer' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#666', minWidth: 26 }}>{smaWindow}d</span>
+              </>
+            )}
           </div>
 
           <div style={chartBox}>
-            <div style={chartTop}>
-              <span style={{ fontWeight: 700, fontSize: 14, color: cfg.color }}>{cfg.label}</span>
-              <span style={{ fontSize: 11, color: '#bbb', marginLeft: 4 }}>{cfg.unit}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 12 }}>
-                <span style={{ fontSize: 10, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <svg width="18" height="8" style={{ flexShrink: 0 }}><line x1="0" y1="4" x2="18" y2="4" stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="5 3"/></svg>
-                  {t('wc_now')}
+            {/* Legend row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, flexWrap: 'wrap' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: cfg.color }}>
+                <LegendLine color={cfg.color} />
+                {cfg.label} <span style={{ opacity: 0.6, fontSize: 10 }}>({cfg.unit})</span>
+              </span>
+              {secCfg && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: secCfg.color }}>
+                  <LegendLine color={secCfg.color} dashed />
+                  {secCfg.label} <span style={{ opacity: 0.6, fontSize: 10 }}>({secCfg.unit})</span>
                 </span>
-                <span style={{ fontSize: 10, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <svg width="14" height="8" style={{ flexShrink: 0 }}><rect x="0" y="0" width="14" height="8" fill="rgba(0,0,0,0.07)" rx="2"/></svg>
-                  {t('wc_past')}
-                </span>
-              </div>
-              {stats && (
-                <div style={statsRow}>
-                  {[[t('wc_stat_min'), stats.min],[t('wc_stat_max'), stats.max],[t('wc_stat_avg'), stats.avg],[t('wc_stat_latest'), stats.last]].map(([k, v]) => (
-                    <div key={k} style={statCol}>
-                      <span style={statLbl}>{k}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{v} <span style={{ fontSize: 10, fontWeight: 400, color: '#aaa' }}>{cfg.unit}</span></span>
-                    </div>
-                  ))}
-                </div>
               )}
+              {smaEnabled && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#888' }}>
+                  <svg width="22" height="10" style={{ flexShrink: 0 }}>
+                    <line x1="0" y1="5" x2="22" y2="5" stroke="#888" strokeWidth="2" strokeDasharray="4 3" opacity="0.6" />
+                  </svg>
+                  SMA {smaWindow}d
+                </span>
+              )}
+              <span style={{ fontSize: 10, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+                <svg width="18" height="8" style={{ flexShrink: 0 }}><line x1="0" y1="4" x2="18" y2="4" stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="5 3"/></svg>
+                {t('wc_now')}
+              </span>
+              <span style={{ fontSize: 10, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <svg width="14" height="8" style={{ flexShrink: 0 }}><rect x="0" y="0" width="14" height="8" fill="rgba(0,0,0,0.07)" rx="2"/></svg>
+                {t('wc_past')}
+              </span>
             </div>
 
-            <LineChart points={points} color={cfg.color} unit={cfg.unit} label={cfg.key} cursorIdx={cursorIdx} onCursorChange={setCursorIdx} noDataLabel={t('wc_no_data')} />
+            {/* Stats rows */}
+            {stats && (
+              <div style={{ display: 'flex', gap: 16, marginBottom: secStats ? 4 : 8, flexWrap: 'wrap' }}>
+                {[[t('wc_stat_min'), stats.min],[t('wc_stat_max'), stats.max],[t('wc_stat_avg'), stats.avg],[t('wc_stat_latest'), stats.last]].map(([k, v]) => (
+                  <div key={k} style={statCol}>
+                    <span style={statLbl}>{k}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{v} <span style={{ fontSize: 10, fontWeight: 400, color: '#aaa' }}>{cfg.unit}</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {secStats && secCfg && (
+              <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
+                {[[t('wc_stat_min'), secStats.min],[t('wc_stat_max'), secStats.max],[t('wc_stat_avg'), secStats.avg],[t('wc_stat_latest'), secStats.last]].map(([k, v]) => (
+                  <div key={k} style={statCol}>
+                    <span style={statLbl}>{k}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: secCfg.color }}>{v} <span style={{ fontSize: 10, fontWeight: 400, color: '#aaa' }}>{secCfg.unit}</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {validPoints.length > 1 && (
+            <MultiLineChart
+              primary={{ points: primaryPoints, color: cfg.color, label: cfg.label, unit: cfg.unit }}
+              secondary={secCfg ? { points: secondaryPoints, color: secCfg.color, label: secCfg.label, unit: secCfg.unit } : null}
+              smaWindow={smaEnabled ? smaWindow : 0}
+              cursorIdx={cursorIdx}
+              onCursorChange={setCursorIdx}
+              noDataLabel={t('wc_no_data')}
+            />
+
+            {validPrimary.length > 1 && (
               <>
-                <RangeSlider value={cursorIdx ?? sliderMax} max={sliderMax} color={cfg.color} onChange={setCursorIdx} labelLeft={fmtLabel(validPoints[0])} labelRight={fmtLabel(validPoints[sliderMax])} />
-                <div style={{ marginTop: 6, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <RangeSlider
+                  value={cursorIdx ?? sliderMax}
+                  max={sliderMax}
+                  color={cfg.color}
+                  onChange={setCursorIdx}
+                  labelLeft={fmtLabel(validPrimary[0])}
+                  labelRight={fmtLabel(validPrimary[sliderMax])}
+                />
+                <div style={{ marginTop: 6, minHeight: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
                   {cursorPoint ? (
                     <>
                       <span style={{ fontSize: 11, color: '#aaa' }}>{fmtLabel(cursorPoint)}</span>
@@ -230,6 +469,12 @@ const WeatherCharts = ({ data = [] }) => {
                         {Number(cursorPoint.y).toFixed(2)}
                         <span style={{ fontSize: 10, fontWeight: 400, color: '#aaa', marginLeft: 3 }}>{cfg.unit}</span>
                       </span>
+                      {secCursorPoint && secCfg && (
+                        <span style={{ fontSize: 14, fontWeight: 800, color: secCfg.color, background: `${secCfg.color}18`, borderRadius: 6, padding: '1px 10px' }}>
+                          {Number(secCursorPoint.y).toFixed(2)}
+                          <span style={{ fontSize: 10, fontWeight: 400, color: '#aaa', marginLeft: 3 }}>{secCfg.unit}</span>
+                        </span>
+                      )}
                     </>
                   ) : (
                     <span style={{ fontSize: 11, color: '#ccc' }}>{t('wc_inspect_hint')}</span>
@@ -255,7 +500,5 @@ const tabSection = {};
 const groupLabel = { display: 'block', fontSize: 10, fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 };
 const tabRow     = { display: 'flex', gap: 6, flexWrap: 'wrap' };
 const chartBox   = { marginTop: 14, background: 'var(--color-bg-champagne)', borderRadius: 10, padding: '13px 15px', border: '1px solid #ece6dc' };
-const chartTop   = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' };
-const statsRow   = { display: 'flex', gap: 16, marginLeft: 'auto', flexWrap: 'wrap' };
 const statCol    = { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' };
 const statLbl    = { fontSize: 9, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.05em' };
