@@ -2,6 +2,8 @@
 
 A high-performance agro-analytical backend designed for real-time farm management, precision agriculture, and automated risk assessment. The platform integrates satellite imagery processing, micro-climate physical modeling (WRF), deep learning segmentation, and biological risk engines to deliver actionable insights directly to farmers.
 
+Tips: [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Z8Z01TOFUW)
+
 ---
 
 ## Core Architectural Modules
